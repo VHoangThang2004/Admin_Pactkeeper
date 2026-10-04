@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://srpg-backend.duckdns.org:5276/api/:path*"
+    },
+    {
+      "source": "/hubs/:path*",
+      "destination": "http://srpg-backend.duckdns.org:5276/hubs/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
