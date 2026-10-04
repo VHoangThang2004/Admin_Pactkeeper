@@ -2,69 +2,100 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-serif: 'Cinzel', 'Georgia', serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
   }
   
   body {
-    background-color: #0b0f19;
-    color: #f3f4f6;
+    background-color: #f4ecd8;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.4) 0%, transparent 70%),
+      linear-gradient(to bottom, #f4ecd8 0%, #eae0c8 100%);
+    color: #2b1b11;
     font-family: var(--font-sans);
     min-height: 100vh;
     overflow-x: hidden;
   }
+
+  h1, h2, h3, h4, h5, h6, .font-cinzel {
+    font-family: var(--font-serif);
+    letter-spacing: 0.05em;
+  }
 }
 
-/* Glassmorphism Utilities */
-.glass-panel {
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* PactKeeper Medieval Treasury Design System */
+.mahogany-banner {
+  background: linear-gradient(180deg, #3d2719 0%, #2a1a10 100%);
+  border: 2px solid #c89b3c;
+  box-shadow: 0 4px 12px rgba(42, 26, 16, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #f7f1e1;
 }
 
-.glass-card {
-  background: rgba(31, 41, 55, 0.5);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.mahogany-card {
+  background: #352215;
+  border: 1px solid #c89b3c;
+  color: #f7f1e1;
 }
 
-.glass-card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 8px 25px -5px rgba(99, 102, 241, 0.15);
+.parchment-card {
+  background: #fcf8ee;
+  border: 2px solid #dcd1b5;
+  box-shadow: 0 4px 10px rgba(42, 26, 16, 0.1);
+  transition: all 0.2s ease-in-out;
 }
 
-.glow-purple {
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+.parchment-card:hover {
+  border-color: #c89b3c;
+  box-shadow: 0 6px 16px rgba(200, 155, 60, 0.25);
+  transform: translateY(-1px);
 }
 
-.glow-indigo {
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
+.gold-border {
+  border: 2px solid #c89b3c;
 }
 
-.glow-emerald {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+.gold-gradient-text {
+  background: linear-gradient(180deg, #ffe082 0%, #c89b3c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.glow-rose {
-  box-shadow: 0 0 20px rgba(244, 63, 94, 0.25);
+.crimson-badge {
+  background: linear-gradient(180deg, #991b1b 0%, #7f1d1d 100%);
+  color: #fef08a;
+  border: 1px solid #dc2626;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  font-family: var(--font-serif);
 }
 
-/* Custom Scrollbars */
+.mahogany-button {
+  background: linear-gradient(180deg, #3a2518 0%, #26170d 100%);
+  border: 1px solid #c89b3c;
+  color: #fce7f3;
+  transition: all 0.2s;
+}
+
+.mahogany-button:hover {
+  background: linear-gradient(180deg, #4d3221 0%, #352113 100%);
+  border-color: #f59e0b;
+  box-shadow: 0 0 10px rgba(200, 155, 60, 0.3);
+}
+
+/* Custom Scrollbar for Parchment */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #e6dac1;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #3a2518;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #c89b3c;
 }

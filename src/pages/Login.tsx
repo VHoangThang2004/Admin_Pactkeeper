@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Swords, Lock, User, ShieldCheck } from 'lucide-react';
+import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff } from 'lucide-react';
 import { adminClient } from '../api/adminClient';
 
 interface LoginProps {
@@ -7,25 +7,83 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const validateInputs = (): boolean => {
+    let isValid = true;
+    setUsernameError(null);
+    setPasswordError(null);
+    setError(null);
+
+    if (!username.trim()) {
+      setUsernameError('Administrator Username is required.');
+      isValid = false;
+    }
+
+    if (!password) {
+      setPasswordError('Counsel Secret Passcode is required.');
+      isValid = false;
+    } else if (password.length < 4) {
+      setPasswordError('Passcode must be at least 4 characters.');
+      isValid = false;
+    }
+
+    return isValid;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateInputs()) return;
+
     setLoading(true);
     setError(null);
+
     try {
-      const res = await adminClient.post('/auth/login', { username, password });
-      const { token, username: resUser } = res.data;
-      onLoginSuccess(token, resUser || username);
-    } catch (err: any) {
-      // Mock login fallback if backend endpoint isn't running locally right now
-      if (username === 'admin') {
-        onLoginSuccess('mock-admin-jwt-token-12345', 'Admin');
+      const res = await adminClient.post('/Auth/login', {
+        username: username.trim(),
+        password: password,
+      });
+
+      const { token, role, username: resUser } = res.data;
+
+      // Verify Administrator Privilege
+      if (role && role !== 'Admin' && role !== 'Server') {
+        setError('Access Denied! Account holds a Player role. Administrator privilege is required.');
+        return;
+      }
+
+      if (token) {
+        onLoginSuccess(token, resUser || username);
       } else {
-        setError(err.response?.data?.message || 'Invalid administrator credentials.');
+        setError('Incorrect Username or Passcode! Please verify your administrator credentials.');
+      }
+    } catch (err: any) {
+      if (err.response) {
+        const status = err.response.status;
+        const msg = err.response.data?.message || err.response.data;
+
+        if (status === 401 || status === 400) {
+          setError('Incorrect Username or Passcode! Please enter valid administrator credentials.');
+        } else if (status === 403) {
+          setError('Access Denied! Account lacks Administrator role authorization.');
+        } else if (status === 500) {
+          setError('Internal Server Error on Realm Gateway (500). Please try again shortly.');
+        } else {
+          setError(typeof msg === 'string' ? msg : 'Authentication failed. Status code: ' + status);
+        }
+      } else {
+        // Handle incorrect input or offline local authentication
+        if (username.trim().toLowerCase() === 'admin' && password === 'admin123') {
+          onLoginSuccess('demo-admin-jwt-token-12345', 'admin');
+          return;
+        }
+        setError('Incorrect Username or Passcode! Please verify your credentials (admin / admin123).');
       }
     } finally {
       setLoading(false);
@@ -33,68 +91,101 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Decorative Glows */}
-      <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="glass-panel p-8 rounded-3xl border border-slate-800 w-full max-w-md space-y-6 relative z-10 shadow-2xl">
+    <div className="min-h-screen bg-[#f4ecd8] flex items-center justify-center p-4 relative overflow-hidden font-serif">
+      <div className="mahogany-banner p-8 rounded-lg border-2 border-[#c89b3c] w-full max-w-md space-y-6 relative z-10 shadow-2xl">
         {/* Brand Icon */}
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-xl shadow-indigo-500/30">
-            <Swords className="w-7 h-7 text-white" />
+          <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-b from-[#d4af37] to-[#aa7c11] border-2 border-[#ffe082] flex items-center justify-center shadow-xl">
+            <Crown className="w-8 h-8 text-[#2b1b11]" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">SRPG Admin Dashboard</h1>
-          <p className="text-xs text-slate-400">Game Management & Server Telemetry Control</p>
+          <h1 className="text-2xl font-extrabold text-[#ffe082] tracking-wider uppercase font-cinzel">
+            PACTKEEPER
+          </h1>
+          <p className="text-xs text-[#c4b49e]">High Counsel Admin & Realm Treasury Control</p>
         </div>
 
+        {/* Prominent Red Error Banner on Incorrect Login */}
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium text-center">
-            {error}
+          <div className="p-4 rounded-lg bg-[#7f1d1d] border-2 border-[#ef4444] text-[#fca5a5] text-xs leading-relaxed flex items-start gap-3 shadow-xl animate-bounce">
+            <XCircle className="w-5 h-5 text-[#f87171] shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold font-cinzel text-[#ffe082] text-sm uppercase">AUTHENTICATION FAILED</p>
+              <p className="mt-1 font-serif text-[#fca5a5]">{error}</p>
+            </div>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Username Field */}
           <div>
-            <label className="text-xs font-medium text-slate-300 block mb-1.5">Username</label>
-            <div className="flex items-center gap-3 bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus-within:border-indigo-500/60">
-              <User className="w-4 h-4 text-slate-500" />
+            <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1.5 uppercase">
+              Administrator Username
+            </label>
+            <div
+              className={`flex items-center gap-3 bg-[#26170d] border rounded px-4 py-2.5 text-xs text-[#f7f1e1] transition-colors ${usernameError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
+                }`}
+            >
+              <User className="w-4 h-4 text-[#c89b3c] shrink-0" />
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="bg-transparent border-none outline-none w-full text-xs text-white placeholder-slate-500"
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (usernameError) setUsernameError(null);
+                  if (error) setError(null);
+                }}
+                placeholder="Enter username"
+                className="bg-transparent border-none outline-none w-full text-xs text-[#f7f1e1] placeholder-[#8c7456]"
               />
             </div>
+            {usernameError && <p className="text-[11px] text-[#f87171] mt-1 font-bold">{usernameError}</p>}
           </div>
 
+          {/* Password Field */}
           <div>
-            <label className="text-xs font-medium text-slate-300 block mb-1.5">Password</label>
-            <div className="flex items-center gap-3 bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus-within:border-indigo-500/60">
-              <Lock className="w-4 h-4 text-slate-500" />
+            <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1.5 uppercase">
+              Counsel Secret Passcode
+            </label>
+            <div
+              className={`flex items-center gap-3 bg-[#26170d] border rounded px-4 py-2.5 text-xs text-[#f7f1e1] transition-colors ${passwordError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
+                }`}
+            >
+              <Lock className="w-4 h-4 text-[#c89b3c] shrink-0" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="bg-transparent border-none outline-none w-full text-xs text-white placeholder-slate-500"
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError(null);
+                  if (error) setError(null);
+                }}
+                placeholder="Enter password"
+                className="bg-transparent border-none outline-none w-full text-xs text-[#f7f1e1] placeholder-[#8c7456]"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-[#c89b3c] hover:text-[#ffe082] focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+            {passwordError && <p className="text-[11px] text-[#f87171] mt-1 font-bold">{passwordError}</p>}
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all mt-2"
+            className="w-full py-3 rounded crimson-badge font-bold font-cinzel text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
           >
-            <ShieldCheck className="w-4 h-4" />
-            {loading ? 'Authenticating...' : 'Sign In as Administrator'}
+            <ShieldCheck className="w-4 h-4 text-[#ffe082]" />
+            {loading ? 'Authenticating Counsel...' : 'ENTER HIGH COUNSEL'}
           </button>
         </form>
 
-        <div className="text-center border-t border-slate-800/80 pt-4">
-          <span className="text-[11px] text-slate-500">Connected to SRPG Backend (.NET 9)</span>
+        <div className="text-center border-t border-[#593d29] pt-4">
+          <span className="text-[11px] text-[#c4b49e]">Connected to GameInventoryApi (.NET 9 Gateway)</span>
         </div>
       </div>
     </div>

@@ -8,12 +8,12 @@ export default defineConfig({
     port: 3001,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5276',
         changeOrigin: true,
         secure: false,
       },
       '/hubs': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5276',
         ws: true,
         changeOrigin: true,
         secure: false,

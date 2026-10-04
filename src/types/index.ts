@@ -46,56 +46,118 @@ export interface GachaBanner {
 }
 
 export interface ChapterConfig {
-  id: string;
-  chapterNumber: number;
-  chapterName: string;
-  stages: StageConfig[];
+  id?: string;
+  chapterId: number;
+  title?: string;
+  chapterName?: string;
+  mapId?: string;
+  scenes?: SceneConfig[];
 }
 
-export interface StageConfig {
-  stageId: string;
-  stageName: string;
-  staminaCost: number;
-  recommendedLevel: number;
-  firstClearRewards: Reward[];
-}
-
-export interface Reward {
-  rewardType: string;
-  itemId?: string;
-  amount: number;
+export interface SceneConfig {
+  sceneId: number;
+  sceneName?: string;
+  description?: string;
+  staminaCost?: number;
+  recommendedLevel?: number;
+  type?: string;
+  autoNext?: boolean;
 }
 
 export interface UnitDefinition {
-  id: string;
-  name: string;
-  rarity: string;
-  classId: string;
-  baseHp: number;
-  baseAtk: number;
-  baseDef: number;
-  baseSpeed: number;
+  id?: string;
+  uId?: number;
+  unitName?: string;
+  name?: string;
+  rarity?: string;
+  classId?: string | number;
+  classIds?: number[];
+  passiveSkillId?: number;
+  givenAtRegister?: boolean;
+  statsByGrade?: any[];
+  baseHp?: number;
+  baseAtk?: number;
+  baseDef?: number;
+  baseSpeed?: number;
   avatarUrl?: string;
 }
 
-export interface SupportMessage {
-  id: string;
-  ticketId: string;
-  senderId: string;
-  senderName: string;
-  message: string;
-  sentAt: string;
-  isFromAdmin: boolean;
+export interface WeaponDefinition {
+  id?: string;
+  weaponId?: number;
+  name?: string;
+  weaponType?: string;
+  baseAtk?: number;
+  rarity?: string;
+  classId?: number;
+  skillId?: number;
+  givenAtRegister?: boolean;
+  statModifiers?: {
+    maxHP?: number;
+    maxSkillPoint?: number;
+    speed?: number;
+  };
 }
 
-export interface SupportTicket {
+export interface TrinketDefinition {
+  id?: string;
+  trinketId?: number;
+  name?: string;
+  skillId?: number;
+  baseHp?: number;
+  baseDef?: number;
+  rarity?: string;
+  givenAtRegister?: boolean;
+  statModifiers?: {
+    maxHP?: number;
+    maxSkillPoint?: number;
+    speed?: number;
+  };
+}
+
+export interface ClassDefinition {
+  id?: string;
+  classId?: number | string;
+  className?: string;
+  name?: string;
+  description?: string;
+  movementSkillId?: number;
+  classSkillId?: number;
+}
+
+export interface SkillDefinition {
+  id?: string;
+  skillId?: number | string;
+  skillName?: string;
+  description?: string;
+  spCost?: number;
+}
+
+export interface TopUpPackDto {
   id: string;
+  name: string;
+  priceVnd: number;
+  gemsAmount: number;
+  isAvailable: boolean;
+  unitNames?: string[];
+  weaponNames?: string[];
+  trinketNames?: string[];
+}
+
+export interface ActiveChatPlayerDto {
   playerId: string;
-  playerUsername: string;
-  subject: string;
-  status: 'Open' | 'Pending' | 'Closed';
+  username: string;
+  lastMessage: string;
+  lastMessageAt: string;
+}
+
+export interface SupportMessageDto {
+  id: string;
+  sender: string;
+  senderName: string;
+  text: string;
+  attachmentUrl?: string;
   createdAt: string;
-  messages: SupportMessage[];
 }
 
 export interface PurchaseOrder {
