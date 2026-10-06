@@ -103,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
             PACTKEEPER
           </h1>
           <p className="text-xs text-[#d5c7b3] font-serif uppercase tracking-wider mt-0.5">
-            High Counsel Admin
+            High Counsel
           </p>
         </div>
       </div>

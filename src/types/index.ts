@@ -19,6 +19,8 @@ export interface ServerState {
   matchmakingBlocked: boolean;
 }
 
+export type PlayerPresenceState = 'Online' | 'InBattle' | 'Offline';
+
 export interface PlayerProfile {
   id?: string;
   playerId: string;
@@ -31,6 +33,10 @@ export interface PlayerProfile {
   stamina?: number;
   lastLogin?: string;
   isBanned?: boolean;
+  presence?: PlayerPresenceState;
+  presenceDetails?: string;
+  lastActiveTime?: string;
+  lastSeen?: string;
 }
 
 export interface GachaBanner {

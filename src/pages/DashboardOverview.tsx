@@ -19,8 +19,18 @@ import {
   Flame,
   BookOpen,
   CheckCircle2,
-  Clock
+  Clock,
+  Radio,
+  Copy
 } from 'lucide-react';
+import { getPlayerPresence, type PlayerPresenceInfo } from '../utils/presence';
+
+interface TrackedPlayerPresence {
+  playerId: string;
+  username: string;
+  presence: PlayerPresenceInfo;
+  lastSeen: string;
+}
 
 interface DashboardOverviewProps {
   role?: CounselRole;
@@ -73,6 +83,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   const [inMatchPlayersCount, setInMatchPlayersCount] = useState<number>(0);
   const [activeMatchesCount, setActiveMatchesCount] = useState<number>(0);
   const [totalMatchesCount, setTotalMatchesCount] = useState<number>(0);
+  const [trackedPlayers, setTrackedPlayers] = useState<TrackedPlayerPresence[]>([]);
+  const [presenceFilter, setPresenceFilter] = useState<'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE'>('ALL');
 
   // Game Content Archives
   const [activeUnitsCount, setActiveUnitsCount] = useState<number>(0);
@@ -122,43 +134,97 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         setTotalRevenue(0);
       }
 
-      // 3. Online Players Population (SignalR Active Sessions & Support Users)
-      let activeSupportCount = 0;
-      if (sRes.status === 'fulfilled' && Array.isArray(sRes.value.data)) {
-        activeSupportCount = sRes.value.data.length;
-      }
+      // 3. Match Telemetry & In-Battle Combatants
+      const activeMatchPlayerMap = new Map<string, { matchId: string; mode?: string }>();
+      let liveMatchesCount = 0;
+      let totalMatches = 0;
 
-      // 4. Matches & Combatants in Progress
       if (mRes.status === 'fulfilled' && Array.isArray(mRes.value.data)) {
         const matches = mRes.value.data;
-        setTotalMatchesCount(matches.length);
+        totalMatches = matches.length;
 
-        // Identify matches currently active / in combat
-        const liveMatches = matches.filter((m: any) => {
+        matches.forEach((m: any) => {
           const s = (m.status || '').toLowerCase();
-          return s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
+          const isLive = s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
+          if (isLive) {
+            liveMatchesCount++;
+            const mId = m.matchId || m.id || '';
+            if (m.player1Id) activeMatchPlayerMap.set(m.player1Id, { matchId: mId, mode: m.mode });
+            if (m.player2Id) activeMatchPlayerMap.set(m.player2Id, { matchId: mId, mode: m.mode });
+          }
         });
-        setActiveMatchesCount(liveMatches.length);
-
-        // Count distinct combatants in active matches
-        const activeCombatants = new Set<string>();
-        liveMatches.forEach((m: any) => {
-          if (m.player1Id) activeCombatants.add(m.player1Id);
-          if (m.player2Id) activeCombatants.add(m.player2Id);
-        });
-
-        const combatantCount = activeCombatants.size > 0 ? activeCombatants.size : (liveMatches.length * 2);
-        setInMatchPlayersCount(combatantCount);
-
-        // Calculate total online players (Combatants + Active Support users, at least 1 for admin)
-        const totalOnline = Math.max(activeSupportCount + combatantCount, activeSupportCount, 1);
-        setOnlinePlayersCount(totalOnline);
-      } else {
-        setTotalMatchesCount(0);
-        setActiveMatchesCount(0);
-        setInMatchPlayersCount(0);
-        setOnlinePlayersCount(Math.max(activeSupportCount, 1));
       }
+
+      setTotalMatchesCount(totalMatches);
+      setActiveMatchesCount(liveMatchesCount);
+      setInMatchPlayersCount(activeMatchPlayerMap.size);
+
+      // 4. Genuine Player Presence Recognition
+      const localPlayerId = localStorage.getItem('player_id') || localStorage.getItem('playerId') || localStorage.getItem('adminPlayerId');
+      const localUsername = localStorage.getItem('username') || localStorage.getItem('adminUsername') || 'Admin Counsel';
+
+      const playerMap = new Map<string, { username: string; lastSeen: string; isCurrentSession?: boolean }>();
+
+      // A. Active session user
+      if (localPlayerId) {
+        playerMap.set(localPlayerId, {
+          username: localUsername,
+          lastSeen: new Date().toISOString(),
+          isCurrentSession: true,
+        });
+      }
+
+      // B. Players from Support Roster
+      if (sRes.status === 'fulfilled' && Array.isArray(sRes.value.data)) {
+        sRes.value.data.forEach((p: any) => {
+          if (p.playerId) {
+            const existing = playerMap.get(p.playerId);
+            const resolvedName = (p.playerName || p.username || '').trim() || existing?.username || `Traveler #${p.playerId.slice(-4).toUpperCase()}`;
+            const time = p.latestMessageTime || p.lastMessageAt || existing?.lastSeen || '';
+            playerMap.set(p.playerId, {
+              username: resolvedName,
+              lastSeen: time,
+              isCurrentSession: existing?.isCurrentSession || false,
+            });
+          }
+        });
+      }
+
+      // C. Active Match Combatants
+      activeMatchPlayerMap.forEach((_, pid) => {
+        if (!playerMap.has(pid)) {
+          playerMap.set(pid, {
+            username: `Combatant #${pid.slice(-4).toUpperCase()}`,
+            lastSeen: new Date().toISOString(),
+          });
+        }
+      });
+
+      // D. Build verified roster
+      const roster: TrackedPlayerPresence[] = [];
+      let totalOnline = 0;
+
+      playerMap.forEach((data, pid) => {
+        const presence = getPlayerPresence(pid, activeMatchPlayerMap, data.lastSeen, data.isCurrentSession);
+        if (presence.state === 'Online' || presence.state === 'InBattle') {
+          totalOnline++;
+        }
+        roster.push({
+          playerId: pid,
+          username: data.username,
+          presence,
+          lastSeen: data.lastSeen,
+        });
+      });
+
+      // Sort by status priority: InBattle > Online > Offline
+      roster.sort((a, b) => {
+        const order = { InBattle: 0, Online: 1, Offline: 2 };
+        return order[a.presence.state] - order[b.presence.state];
+      });
+
+      setTrackedPlayers(roster);
+      setOnlinePlayersCount(totalOnline);
     } catch {
       setActiveUnitsCount(0);
       setBannersCount(0);
@@ -171,6 +237,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       setInMatchPlayersCount(0);
       setActiveMatchesCount(0);
       setTotalMatchesCount(0);
+      setTrackedPlayers([]);
     } finally {
       setLoading(false);
     }
@@ -244,7 +311,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           onClick={fetchRealTelemetry}
           className="absolute right-4 top-4 px-3.5 py-2 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
         >
-          <RotateCcw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> SYNC REALM
+          <RotateCcw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> Reload
         </button>
       </div>
 
@@ -272,13 +339,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               HIGH COUNSEL COMMAND
             </span>
             <h2 className="text-xl font-extrabold text-[#ffe082] tracking-wide font-cinzel">
-              KEEPER OF RECORDS (K18 HCM)
+              KEEPER OF RECORDS
             </h2>
             <div className="flex items-center gap-2 mt-1">
-              <span className="px-2.5 py-0.5 rounded crimson-badge text-xs font-bold font-mono">LEVEL 99</span>
-              <span className="text-xs text-[#d5c7b3] font-serif">EXP: 9999 / 9999</span>
               <span className="px-2 py-0.5 rounded bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40 text-xs font-bold font-mono">
-                GATEWAY :5276 ONLINE
+                GATEWAY - 5276 ONLINE
               </span>
             </div>
           </div>
@@ -293,7 +358,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         <div className="p-4 rounded bg-[#26170d] border border-[#c89b3c] flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
           <div>
             <span className="text-xs text-[#d5c7b3] uppercase font-cinzel font-bold block tracking-wider">
-              CURRENT REALM TREASURY REVENUE (PAYOS LEDGER)
+              CURRENT REALM TREASURY REVENUE
             </span>
             <div className="flex items-center gap-2.5 mt-1.5">
               <Coins className="w-6 h-6 text-[#f59e0b]" />
@@ -421,6 +486,170 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             <span className="font-bold text-[#3a2518]">{totalOrdersCount} Receipts</span>
           </div>
         </div>
+      </div>
+
+      {/* Real-Time Hero Presence Roster */}
+      <div className="parchment-card rounded-lg overflow-hidden shadow-md border border-[#c89b3c]/60 my-6">
+        <div className="p-4 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Radio className="w-5 h-5 text-[#34d399] animate-pulse" />
+            <div>
+              <h3 className="text-sm md:text-base font-bold font-cinzel tracking-wider text-[#ffe082]">
+                REAL-TIME HERO PRESENCE ROSTER
+              </h3>
+              <p className="text-xs text-[#d5c7b3] font-serif">
+                Ground-truth presence verified across Gateway :5276 & SignalR Support Hub
+              </p>
+            </div>
+          </div>
+
+          {/* Presence Filter Tabs */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setPresenceFilter('ALL')}
+              className={`px-3 py-1 rounded text-xs font-cinzel font-bold transition-all ${
+                presenceFilter === 'ALL'
+                  ? 'bg-[#c89b3c] text-[#26170d] shadow font-black'
+                  : 'bg-[#26170d] text-[#d5c7b3] hover:text-[#ffe082] border border-[#523725]'
+              }`}
+            >
+              ALL ({trackedPlayers.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresenceFilter('ONLINE')}
+              className={`px-3 py-1 rounded text-xs font-cinzel font-bold transition-all flex items-center gap-1.5 ${
+                presenceFilter === 'ONLINE'
+                  ? 'bg-[#10b981] text-[#064e3b] shadow font-black'
+                  : 'bg-[#26170d] text-[#86efac] hover:text-white border border-[#10b981]/40'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-ping" />
+              ONLINE ({trackedPlayers.filter((p) => p.presence.state === 'Online').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresenceFilter('BATTLE')}
+              className={`px-3 py-1 rounded text-xs font-cinzel font-bold transition-all flex items-center gap-1.5 ${
+                presenceFilter === 'BATTLE'
+                  ? 'bg-[#f59e0b] text-[#451a03] shadow font-black'
+                  : 'bg-[#26170d] text-[#fcd34d] hover:text-white border border-[#f59e0b]/40'
+              }`}
+            >
+              <Swords className="w-3 h-3 text-[#f59e0b]" />
+              IN BATTLE ({trackedPlayers.filter((p) => p.presence.state === 'InBattle').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresenceFilter('OFFLINE')}
+              className={`px-3 py-1 rounded text-xs font-cinzel font-bold transition-all ${
+                presenceFilter === 'OFFLINE'
+                  ? 'bg-[#78644e] text-white shadow font-black'
+                  : 'bg-[#26170d] text-[#a89984] hover:text-white border border-[#523725]'
+              }`}
+            >
+              OFFLINE ({trackedPlayers.filter((p) => p.presence.state === 'Offline').length})
+            </button>
+          </div>
+        </div>
+
+        {/* Presence Table */}
+        {trackedPlayers.length === 0 ? (
+          <div className="p-8 text-center text-[#8c7456] space-y-1 font-serif">
+            <Users className="w-8 h-8 mx-auto text-[#c89b3c]" />
+            <p className="text-sm font-bold font-cinzel">No active player sessions currently detected.</p>
+            <p className="text-xs text-[#78644e]">Gateway telemetry is listening for hero logins on :5276.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-sans">
+              <thead className="bg-[#e8dcbf] text-[#3a2518] font-cinzel font-bold text-xs border-b border-[#c89b3c] uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-5">Hero & Account</th>
+                  <th className="py-3 px-5">Presence Status</th>
+                  <th className="py-3 px-5">Active Realm Location</th>
+                  <th className="py-3 px-5 text-right">Last Telemetry</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#dcd1b5] text-[#2b1b11]">
+                {trackedPlayers
+                  .filter((p) => {
+                    if (presenceFilter === 'ONLINE') return p.presence.state === 'Online';
+                    if (presenceFilter === 'BATTLE') return p.presence.state === 'InBattle';
+                    if (presenceFilter === 'OFFLINE') return p.presence.state === 'Offline';
+                    return true;
+                  })
+                  .map((player) => (
+                    <tr key={player.playerId} className="hover:bg-[#efe5cd] transition-colors">
+                      {/* Hero Info */}
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="w-9 h-9 rounded-full bg-[#3a2518] border-2 border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-sm font-cinzel shrink-0 shadow">
+                              {player.username.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span
+                              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b1b11] ${player.presence.dotColor}`}
+                              title={player.presence.label}
+                            />
+                          </div>
+                          <div>
+                            <span className="font-bold font-cinzel text-[#3a2518] text-sm block">
+                              {player.username}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-xs font-mono text-[#78644e]">
+                                Ref: #{player.playerId.slice(-6).toUpperCase()}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(player.playerId);
+                                  setMessage({
+                                    text: `Copied Player ID for ${player.username} to clipboard.`,
+                                    type: 'success',
+                                  });
+                                }}
+                                className="text-[#c89b3c] hover:text-[#b45309] transition-colors p-0.5"
+                                title={`Copy full ID: ${player.playerId}`}
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Presence Badge */}
+                      <td className="py-3.5 px-5">
+                        <span
+                          className={`px-3 py-1 rounded text-xs font-bold font-cinzel inline-flex items-center gap-1.5 border shadow-sm ${player.presence.badgeBg} ${player.presence.badgeBorder} ${player.presence.badgeText}`}
+                        >
+                          {player.presence.state === 'InBattle' && <Swords className="w-3.5 h-3.5 animate-bounce" />}
+                          {player.presence.state === 'Online' && (
+                            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                          )}
+                          {player.presence.state === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
+                          {player.presence.label}
+                        </span>
+                      </td>
+
+                      {/* Active Location */}
+                      <td className="py-3.5 px-5 font-mono text-xs text-[#523e2b]">
+                        {player.presence.activityDescription}
+                      </td>
+
+                      {/* Last Telemetry */}
+                      <td className="py-3.5 px-5 text-right font-serif text-xs text-[#78644e]">
+                        {player.presence.relativeTime}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Decorative Section Divider: Game Archives */}
