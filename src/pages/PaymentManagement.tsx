@@ -10,7 +10,7 @@ import { Gem, CheckCircle2, Clock, XCircle, TrendingUp, Package, RefreshCw, Inbo
  * and store currency (Gem) top-up packs.
  * 
  * Features:
- * - Real-time financial summary (total revenue in VNĐ, completed count, active packs)
+ * - Real-time financial summary (total revenue in VND, completed count, active packs)
  * - PayOS transaction audit table with status indicators (PAID, PENDING, CANCELLED)
  * - In-game store pack configuration (toggle pack availability status)
  * - Adheres to medieval fantasy visual style with accessible font sizes (min 12px)
@@ -105,7 +105,7 @@ export const PaymentManagement: React.FC = () => {
             TOTAL TREASURY REVENUE
           </p>
           <h3 className="text-2xl font-extrabold text-[#ffe082] mt-1 font-mono">
-            {totalPaidRevenue.toLocaleString()} VNĐ
+            {totalPaidRevenue.toLocaleString()} VND
           </h3>
           <span className="text-xs text-[#34d399] flex items-center gap-1 mt-1.5 font-serif">
             <TrendingUp className="w-3.5 h-3.5" /> payOS Gateway Active
@@ -220,7 +220,7 @@ export const PaymentManagement: React.FC = () => {
               <tr>
                 <th className="py-3.5 px-5">Order Code</th>
                 <th className="py-3.5 px-5">Player Account</th>
-                <th className="py-3.5 px-5">Amount (VNĐ)</th>
+                <th className="py-3.5 px-5">Amount (VND)</th>
                 <th className="py-3.5 px-5">Store Gem Pack</th>
                 <th className="py-3.5 px-5">Created At</th>
                 <th className="py-3.5 px-5 text-right">Status</th>
@@ -233,12 +233,12 @@ export const PaymentManagement: React.FC = () => {
                   <tr key={ord.id} className="hover:bg-[#efe5cd] transition-colors">
                     <td className="py-4 px-5 font-mono text-[#b45309] font-bold">#{ord.orderCode}</td>
                     <td className="py-4 px-5">
-                      <span className="font-mono text-[#3a2518] font-semibold text-xs">
+                       <span className="font-mono text-[#3a2518] font-semibold text-xs">
                         Ref #{ord.playerId.slice(-6).toUpperCase()}
                       </span>
                     </td>
                     <td className="py-4 px-5 font-bold font-mono text-[#15803d]">
-                      {ord.amount?.toLocaleString()} VNĐ
+                      {ord.amount?.toLocaleString()} VND
                     </td>
                     <td className="py-4 px-5">
                       <span className="font-bold text-[#3a2518] flex items-center gap-1.5 font-cinzel text-xs">

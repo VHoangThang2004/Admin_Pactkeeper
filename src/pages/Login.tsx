@@ -12,7 +12,7 @@ type SelectableRole = 'Admin' | 'Moderator' | 'Support';
 interface RoleConfig {
   id: SelectableRole;
   label: string;
-  vietnameseLabel: string;
+  roleSubtitle: string;
   icon: React.ElementType;
   badgeText: string;
   landingPath: string;
@@ -28,7 +28,7 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
   Admin: {
     id: 'Admin',
     label: 'High Counsel Admin',
-    vietnameseLabel: 'Quản trị viên Tối cao',
+    roleSubtitle: 'Supreme Administrator',
     icon: Crown,
     badgeText: 'FULL AUTHORITY',
     landingPath: 'Treasury Overview (/)',
@@ -37,12 +37,12 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     themeColor: '#ffe082',
     activeBg: 'bg-[#4a3324]',
     activeBorder: 'border-[#c89b3c]',
-    scopeSummary: 'Toàn quyền kiểm soát Ngân khố, Doanh thu PayOS, Banner Gacha, Cốt truyện & Quản lý người chơi.',
+    scopeSummary: 'Full command of Treasury Overview, PayOS Revenue, Gacha Summon Banners, SRPG Archives, and Player Moderation.',
   },
   Moderator: {
     id: 'Moderator',
     label: 'Realm Moderator',
-    vietnameseLabel: 'Giám sát viên (GM)',
+    roleSubtitle: 'Game Master / Arbiter',
     icon: ShieldAlert,
     badgeText: 'MODERATION',
     landingPath: 'Heroes & Players (/players)',
@@ -51,12 +51,12 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     themeColor: '#38bdf8',
     activeBg: 'bg-[#0c4a6e]/50',
     activeBorder: 'border-[#0284c7]',
-    scopeSummary: 'Giám sát & kiểm duyệt người chơi, Tra cứu hồ sơ, Xử lý kỷ luật Khóa / Mở khóa tài khoản (Ban/Unban).',
+    scopeSummary: 'Inspect active player profiles, review telemetry presence, enforce disciplinary Account Ban / Unban actions.',
   },
   Support: {
     id: 'Support',
     label: 'Counsel Herald',
-    vietnameseLabel: 'Hỗ trợ CSKH',
+    roleSubtitle: 'Customer Support Desk',
     icon: MessageSquare,
     badgeText: 'LIVE SUPPORT',
     landingPath: 'Counsel Board (/support)',
@@ -65,7 +65,7 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     themeColor: '#34d399',
     activeBg: 'bg-[#064e3b]/50',
     activeBorder: 'border-[#10b981]',
-    scopeSummary: 'Trực tổng đài hỗ trợ người chơi thời gian thực qua SignalR WebSocket, xem hồ sơ người chơi chế độ chỉ đọc.',
+    scopeSummary: 'Operate two-way real-time player chat desk via SignalR WebSockets and inspect traveler profiles in read-only mode.',
   },
 };
 
@@ -209,7 +209,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           setError(`Authentication failed with status code ${status}.`);
         }
       } else {
-        setError(`Unable to connect to Realm Gateway. (Demo: admin/admin123, moderator/mod123, support/support123).`);
+        setError(`Unable to connect to Realm Gateway. (Demo credentials: admin/admin123, moderator/mod123, support/support123).`);
       }
     } finally {
       setLoading(false);
@@ -238,7 +238,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <div className="flex items-center justify-between text-xs font-bold font-cinzel text-[#ffe082] uppercase tracking-wider">
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#ffe082]" />
-              CHỌN VAI TRÒ ĐĂNG NHẬP (OPTION ROLE)
+              AUTHENTICATION ROLE (OPTION ROLE)
             </span>
             <span className="text-[11px] font-mono font-normal text-[#c89b3c]">
               {selectedRole.toUpperCase()}
@@ -283,7 +283,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       {cfg.id}
                     </p>
                     <p className="text-[10px] text-[#a8957c] font-sans truncate">
-                      {cfg.vietnameseLabel}
+                      {cfg.roleSubtitle}
                     </p>
                   </div>
                 </button>
@@ -296,7 +296,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <div className="flex items-center justify-between">
               <span className="font-cinzel font-bold text-xs flex items-center gap-1.5" style={{ color: activeConfig.themeColor }}>
                 <ActiveIcon className="w-3.5 h-3.5" />
-                {activeConfig.label} ({activeConfig.vietnameseLabel})
+                {activeConfig.label} ({activeConfig.roleSubtitle})
               </span>
               <span className="text-[10px] font-mono text-[#ffe082] bg-[#3a2518] px-2 py-0.5 rounded border border-[#523725]">
                 {activeConfig.landingPath}
@@ -313,7 +313,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <div className="p-3.5 rounded-lg bg-[#7f1d1d] border-2 border-[#ef4444] text-[#fca5a5] text-xs leading-relaxed flex items-start gap-2.5 shadow-xl animate-bounce">
             <XCircle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold font-cinzel text-[#ffe082] text-xs uppercase">XÁC THỰC KHÔNG THÀNH CÔNG</p>
+              <p className="font-bold font-cinzel text-[#ffe082] text-xs uppercase">AUTHENTICATION FAILED</p>
               <p className="mt-0.5 font-serif text-[#fca5a5]">{error}</p>
             </div>
           </div>
@@ -324,7 +324,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold font-cinzel text-[#ffe082] uppercase tracking-wide">
-                Tài Khoản ({activeConfig.id} Username)
+                Counsel Username ({activeConfig.id})
               </label>
               <button
                 type="button"
@@ -334,7 +334,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 }}
                 className="text-[11px] text-[#c89b3c] hover:text-[#ffe082] underline font-sans"
               >
-                Điền mẫu: {activeConfig.defaultUsername}
+                Fill Preset: {activeConfig.defaultUsername}
               </button>
             </div>
             <div
@@ -351,7 +351,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   if (usernameError) setUsernameError(null);
                   if (error) setError(null);
                 }}
-                placeholder={`Nhập username (${activeConfig.defaultUsername})`}
+                placeholder={`Enter username (${activeConfig.defaultUsername})`}
                 className="bg-transparent border-none outline-none w-full text-sm text-[#f7f1e1] placeholder-[#9a8264] font-sans"
               />
             </div>
@@ -361,7 +361,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           {/* Password Field */}
           <div>
             <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1 uppercase tracking-wide">
-              Mật Mã ({activeConfig.id} Secret Passcode)
+              Secret Passcode ({activeConfig.id})
             </label>
             <div
               className={`flex items-center gap-3 bg-[#26170d] border rounded px-3.5 py-2 text-sm text-[#f7f1e1] transition-colors ${
@@ -377,7 +377,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   if (passwordError) setPasswordError(null);
                   if (error) setError(null);
                 }}
-                placeholder={`Nhập mật khẩu (${activeConfig.defaultPasscode})`}
+                placeholder={`Enter secret passcode (${activeConfig.defaultPasscode})`}
                 className="bg-transparent border-none outline-none w-full text-sm text-[#f7f1e1] placeholder-[#9a8264] font-sans"
               />
               <button
@@ -399,7 +399,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             className="w-full py-3 rounded crimson-badge font-bold font-cinzel text-xs md:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
           >
             <ShieldCheck className="w-4 h-4 text-[#ffe082]" />
-            {loading ? 'Đang xác thực quyền hạn...' : `ĐĂNG NHẬP VỚI QUYỀN ${selectedRole.toUpperCase()}`}
+            {loading ? 'Authenticating Credentials...' : `ENTER HIGH COUNSEL AS ${selectedRole.toUpperCase()}`}
             <ArrowRight className="w-4 h-4 text-[#ffe082]" />
           </button>
         </form>
@@ -407,8 +407,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Quick 1-Click Role Switcher & Reference */}
         <div className="bg-[#26170d]/80 border border-[#c89b3c]/40 rounded-lg p-3 space-y-2 text-xs text-[#d5c7b3]">
           <p className="font-cinzel font-bold text-[#ffe082] text-xs uppercase tracking-wider flex items-center justify-between">
-            <span>Tài khoản thử nghiệm nhanh (Quick Switch):</span>
-            <span className="text-[10px] font-mono text-[#a8957c]">Click để chuyển ngay</span>
+            <span>Quick Test Credentials:</span>
+            <span className="text-[10px] font-mono text-[#a8957c]">Click to Switch</span>
           </p>
           <div className="grid grid-cols-3 gap-2 text-xs font-mono">
             <button
@@ -449,7 +449,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
         <div className="text-center border-t border-[#593d29] pt-2.5">
           <span className="text-[11px] text-[#c4b49e] font-serif">
-            Cổng kết nối GameInventoryApi (.NET 9 Gateway & SignalR Hubs)
+            Connected to GameInventoryApi (.NET 9 Gateway & SignalR Hubs)
           </span>
         </div>
       </div>

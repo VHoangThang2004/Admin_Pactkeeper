@@ -363,7 +363,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             <div className="flex items-center gap-2.5 mt-1.5">
               <Coins className="w-6 h-6 text-[#f59e0b]" />
               <span className="text-2xl md:text-3xl font-extrabold font-mono text-[#ffe082]">
-                {totalRevenue.toLocaleString()} VNĐ
+                {totalRevenue.toLocaleString()} VND
               </span>
             </div>
           </div>
