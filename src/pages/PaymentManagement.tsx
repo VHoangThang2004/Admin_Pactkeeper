@@ -3,11 +3,30 @@ import { adminClient } from '../api/adminClient';
 import type { PurchaseOrder, TopUpPackDto } from '../types';
 import { Gem, CheckCircle2, Clock, XCircle, TrendingUp, Package, RefreshCw, Inbox } from 'lucide-react';
 
+/**
+ * PaymentManagement Component
+ * 
+ * Manages realm treasury operations, payOS transaction ledgers,
+ * and store currency (Gem) top-up packs.
+ * 
+ * Features:
+ * - Real-time financial summary (total revenue in VNĐ, completed count, active packs)
+ * - PayOS transaction audit table with status indicators (PAID, PENDING, CANCELLED)
+ * - In-game store pack configuration (toggle pack availability status)
+ * - Adheres to medieval fantasy visual style with accessible font sizes (min 12px)
+ */
 export const PaymentManagement: React.FC = () => {
+  // State for transaction ledger orders from payOS
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  // State for active store top-up packs
   const [packs, setPacks] = useState<TopUpPackDto[]>([]);
+  // Loading indicator for asynchronous API operations
   const [loading, setLoading] = useState(true);
 
+  /**
+   * Fetches payment history and top-up pack configurations from the backend.
+   * Leverages Promise.allSettled to handle partial failures gracefully.
+   */
   const fetchPaymentData = async () => {
     setLoading(true);
     try {
@@ -18,11 +37,15 @@ export const PaymentManagement: React.FC = () => {
 
       if (packsRes.status === 'fulfilled' && Array.isArray(packsRes.value.data)) {
         setPacks(packsRes.value.data);
-      } else setPacks([]);
+      } else {
+        setPacks([]);
+      }
 
       if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value.data)) {
         setOrders(ordersRes.value.data);
-      } else setOrders([]);
+      } else {
+        setOrders([]);
+      }
     } catch {
       setPacks([]);
       setOrders([]);
@@ -35,10 +58,16 @@ export const PaymentManagement: React.FC = () => {
     fetchPaymentData();
   }, []);
 
+  // Compute total recognized treasury revenue from completed (PAID) transactions
   const totalPaidRevenue = orders
     .filter((o) => o.status === 'PAID')
     .reduce((sum, o) => sum + o.amount, 0);
 
+  /**
+   * Toggles the availability status of a store top-up pack.
+   * @param id - Unique identifier of the top-up pack
+   * @param currentStatus - Current active status of the pack
+   */
   const togglePackAvailability = async (id: string, currentStatus: boolean) => {
     try {
       await adminClient.patch(`/topuppack/${id}/availability`, { isAvailable: !currentStatus });
@@ -53,53 +82,72 @@ export const PaymentManagement: React.FC = () => {
   return (
     <div className="space-y-6 pb-8">
       {/* Header Banner */}
-      <div className="mahogany-banner p-4 text-center rounded-lg relative">
-        <h1 className="text-xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
+      <div className="mahogany-banner p-5 text-center rounded-lg relative shadow-md">
+        <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
           REALM TREASURY & PAYOS LEDGER
         </h1>
-        <p className="text-xs text-[#c4b49e] font-serif mt-0.5">Track live top-up orders, payOS webhooks, revenue & store packs</p>
+        <p className="text-xs md:text-sm text-[#c4b49e] font-serif mt-1">
+          Track live top-up orders, payOS webhooks, revenue & store packs
+        </p>
         <button
           onClick={() => fetchPaymentData()}
-          className="absolute right-4 top-3.5 px-3 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
+          className="absolute right-4 top-4 px-3.5 py-2 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> REFRESH LEDGER
         </button>
       </div>
 
-      {/* Financial Summary */}
+      {/* Financial Summary KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="mahogany-banner p-5 rounded-lg">
-          <p className="text-xs text-[#c4b49e] font-cinzel font-bold">TOTAL TREASURY REVENUE</p>
-          <h3 className="text-2xl font-extrabold text-[#ffe082] mt-1 font-mono">{totalPaidRevenue.toLocaleString()} VNĐ</h3>
-          <span className="text-xs text-[#34d399] flex items-center gap-1 mt-1 font-serif">
+        {/* Total Revenue */}
+        <div className="mahogany-banner p-5 rounded-lg shadow-sm border border-[#c89b3c]/40">
+          <p className="text-xs text-[#c4b49e] font-cinzel font-bold uppercase tracking-wider">
+            TOTAL TREASURY REVENUE
+          </p>
+          <h3 className="text-2xl font-extrabold text-[#ffe082] mt-1 font-mono">
+            {totalPaidRevenue.toLocaleString()} VNĐ
+          </h3>
+          <span className="text-xs text-[#34d399] flex items-center gap-1 mt-1.5 font-serif">
             <TrendingUp className="w-3.5 h-3.5" /> payOS Gateway Active
           </span>
         </div>
 
-        <div className="mahogany-banner p-5 rounded-lg">
-          <p className="text-xs text-[#c4b49e] font-cinzel font-bold">COMPLETED TRANSACTIONS</p>
+        {/* Completed Transactions Count */}
+        <div className="mahogany-banner p-5 rounded-lg shadow-sm border border-[#c89b3c]/40">
+          <p className="text-xs text-[#c4b49e] font-cinzel font-bold uppercase tracking-wider">
+            COMPLETED TRANSACTIONS
+          </p>
           <h3 className="text-2xl font-extrabold text-[#ffe082] mt-1 font-mono">
             {orders.filter((o) => o.status === 'PAID').length} / {orders.length} Orders
           </h3>
-          <span className="text-xs text-[#c4b49e] font-serif mt-1 block">Live DB Receipts</span>
+          <span className="text-xs text-[#c4b49e] font-serif mt-1.5 block">
+            Live Database Receipts
+          </span>
         </div>
 
-        <div className="mahogany-banner p-5 rounded-lg">
-          <p className="text-xs text-[#c4b49e] font-cinzel font-bold">STORE GEM PACKS</p>
-          <h3 className="text-2xl font-extrabold text-[#ffe082] mt-1 font-mono">{packs.length} Active Packs</h3>
-          <span className="text-xs text-[#c89b3c] font-serif mt-1 block">/api/topuppack</span>
+        {/* Store Gem Packs Count */}
+        <div className="mahogany-banner p-5 rounded-lg shadow-sm border border-[#c89b3c]/40">
+          <p className="text-xs text-[#c4b49e] font-cinzel font-bold uppercase tracking-wider">
+            STORE GEM PACKS
+          </p>
+          <h3 className="text-2xl font-extrabold text-[#ffe082] mt-1 font-mono">
+            {packs.length} Active Packs
+          </h3>
+          <span className="text-xs text-[#c89b3c] font-serif mt-1.5 block">
+            Endpoint: /api/topuppack
+          </span>
         </div>
       </div>
 
-      {/* Decorative Acquire Gems Section Header (Matches Screenshot) */}
+      {/* Decorative Store Header */}
       <div className="flex items-center justify-center gap-3 text-[#c89b3c] font-cinzel font-bold text-sm tracking-widest my-4">
         <Gem className="w-4 h-4 text-[#d97706]" />
         <span className="border-b border-[#c89b3c] pb-0.5">ACQUIRE GEMS STORE CONFIGURATION</span>
         <Gem className="w-4 h-4 text-[#d97706]" />
       </div>
 
-      {/* Store Packs Grid (Exact Parchment & Ribbon Badge Design from Screenshot) */}
-      <div className="parchment-card p-5 rounded-lg space-y-4">
+      {/* Store Packs Grid */}
+      <div className="parchment-card p-5 rounded-lg space-y-4 shadow-md">
         <div className="flex items-center justify-between border-b border-[#c89b3c] pb-3">
           <h3 className="text-sm font-bold text-[#3a2518] font-cinzel flex items-center gap-2">
             <Package className="w-4 h-4 text-[#c89b3c]" />
@@ -109,38 +157,43 @@ export const PaymentManagement: React.FC = () => {
         {packs.length === 0 ? (
           <div className="p-8 text-center text-[#8c7456] space-y-2 font-serif">
             <Inbox className="w-8 h-8 mx-auto text-[#c89b3c]" />
-            <p className="text-xs font-bold font-cinzel">No store top-up packs found in database.</p>
+            <p className="text-sm font-bold font-cinzel">No store top-up packs found in database.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {packs.map((p, idx) => (
-              <div key={p.id} className="parchment-card rounded-lg overflow-hidden flex flex-col justify-between relative shadow-md">
-                {/* Red Ribbon Badge like "BEST VALUE" in screenshot */}
+              <div
+                key={p.id}
+                className="parchment-card rounded-lg overflow-hidden flex flex-col justify-between relative shadow-md border border-[#c89b3c]/60"
+              >
+                {/* Featured Badge for first pack */}
                 {idx === 0 && (
                   <div className="absolute top-2 right-2 rotate-12 z-10">
-                    <span className="crimson-badge px-2 py-0.5 text-[9px] font-bold uppercase shadow">
+                    <span className="crimson-badge px-2.5 py-0.5 text-xs font-bold uppercase shadow font-cinzel">
                       BEST VALUE
                     </span>
                   </div>
                 )}
-                
-                {/* Icon & Details */}
+
+                {/* Pack Icon & Info */}
                 <div className="p-6 text-center space-y-3">
                   <div className="w-16 h-16 mx-auto rounded-full bg-[#e8dcbf] border-2 border-[#c89b3c] flex items-center justify-center shadow-inner">
                     <Gem className="w-8 h-8 text-[#d97706]" />
                   </div>
                   <div>
                     <h4 className="font-extrabold text-[#3a2518] font-mono text-xl">{p.gemsAmount} Gems</h4>
-                    <p className="text-xs text-[#78644e] font-serif">{p.name}</p>
+                    <p className="text-xs text-[#78644e] font-serif mt-0.5">{p.name}</p>
                   </div>
                 </div>
 
-                {/* Dark Mahogany Bottom Price Strip (Matches Screenshot!) */}
+                {/* Price Bar & Status Toggle Button */}
                 <div className="bg-[#3a2518] border-t-2 border-[#c89b3c] p-3 text-center flex items-center justify-between">
-                  <span className="font-extrabold text-[#ffe082] font-mono text-sm">{p.priceVnd?.toLocaleString()} VND</span>
+                  <span className="font-extrabold text-[#ffe082] font-mono text-sm">
+                    {p.priceVnd?.toLocaleString()} VND
+                  </span>
                   <button
                     onClick={() => togglePackAvailability(p.id, p.isAvailable)}
-                    className="px-2.5 py-1 rounded mahogany-button text-[10px] font-bold font-cinzel"
+                    className="px-3 py-1 rounded mahogany-button text-xs font-bold font-cinzel"
                   >
                     {p.isAvailable ? 'AVAILABLE' : 'DISABLED'}
                   </button>
@@ -151,8 +204,8 @@ export const PaymentManagement: React.FC = () => {
         )}
       </div>
 
-      {/* Orders Table */}
-      <div className="parchment-card rounded-lg overflow-hidden">
+      {/* PayOS Transactions Ledger Table */}
+      <div className="parchment-card rounded-lg overflow-hidden shadow-md">
         <div className="p-4 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-sm">
           PAYOS TRANSACTIONS LEDGER (/api/payment/history)
         </div>
@@ -175,26 +228,28 @@ export const PaymentManagement: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-[#dcd1b5] text-[#2b1b11]">
               {orders.map((ord) => (
-                <tr key={ord.id} className="hover:bg-[#efe5cd]">
+                <tr key={ord.id} className="hover:bg-[#efe5cd] transition-colors">
                   <td className="py-4 px-5 font-mono text-[#b45309] font-bold">#{ord.orderCode}</td>
                   <td className="py-4 px-5 font-mono text-[#3a2518]">{ord.playerId}</td>
-                  <td className="py-4 px-5 font-bold font-mono text-[#15803d]">{ord.amount?.toLocaleString()} VNĐ</td>
+                  <td className="py-4 px-5 font-bold font-mono text-[#15803d]">
+                    {ord.amount?.toLocaleString()} VNĐ
+                  </td>
                   <td className="py-4 px-5 text-[#6b5842]">{ord.packId}</td>
                   <td className="py-4 px-5 text-[#6b5842]">{ord.createdAt}</td>
                   <td className="py-4 px-5 text-right">
                     {ord.status === 'PAID' && (
-                      <span className="px-2.5 py-0.5 rounded bg-[#166534] text-[#86efac] text-[10px] font-bold inline-flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> PAID
+                      <span className="px-2.5 py-0.5 rounded bg-[#166534] text-[#86efac] text-xs font-bold inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> PAID
                       </span>
                     )}
                     {ord.status === 'PENDING' && (
-                      <span className="px-2.5 py-0.5 rounded bg-[#854d0e] text-[#fef08a] text-[10px] font-bold inline-flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> PENDING
+                      <span className="px-2.5 py-0.5 rounded bg-[#854d0e] text-[#fef08a] text-xs font-bold inline-flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" /> PENDING
                       </span>
                     )}
                     {ord.status === 'CANCELLED' && (
-                      <span className="px-2.5 py-0.5 rounded crimson-badge text-[10px] font-bold inline-flex items-center gap-1">
-                        <XCircle className="w-3 h-3" /> CANCELLED
+                      <span className="px-2.5 py-0.5 rounded crimson-badge text-xs font-bold inline-flex items-center gap-1">
+                        <XCircle className="w-3.5 h-3.5" /> CANCELLED
                       </span>
                     )}
                   </td>

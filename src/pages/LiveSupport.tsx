@@ -4,6 +4,15 @@ import { adminClient } from '../api/adminClient';
 import { MessageSquare, Send, User, ShieldCheck, Circle, Clock, RefreshCw, Inbox } from 'lucide-react';
 import * as signalR from '@microsoft/signalr';
 
+/**
+ * Live Support & Real-Time Player Communications (Customer Support Portal)
+ * 
+ * Features:
+ * 1. Two-way WebSocket messaging with players via Microsoft SignalR (/hubs/support).
+ * 2. Active hero tickets list (/api/Support/admin/players).
+ * 3. Historical message retrieval (/api/Support/admin/chat/{playerId}).
+ * 4. Dispatch administrative replies directly into the game client.
+ */
 export const LiveSupport: React.FC = () => {
   const [players, setPlayers] = useState<ActiveChatPlayerDto[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
@@ -94,21 +103,21 @@ export const LiveSupport: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-8 font-sans">
       {/* Header Banner */}
-      <div className="mahogany-banner p-4 text-center rounded-lg relative">
-        <h1 className="text-xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
+      <div className="mahogany-banner p-5 text-center rounded-lg relative">
+        <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
           COUNSEL BOARD & LIVE MISSIVES
         </h1>
-        <p className="text-xs text-[#c4b49e] font-serif mt-0.5">Real-time Hero Support Tickets & SignalR Communication</p>
-        <div className="absolute right-4 top-3.5 flex items-center gap-3">
+        <p className="text-xs text-[#d5c7b3] font-serif mt-1">Real-time Hero Support Tickets & SignalR Communication</p>
+        <div className="absolute right-4 top-4 flex items-center gap-3">
           <button
             onClick={() => fetchPlayers()}
-            className="px-3 py-1 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5"
+            className="px-3.5 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> REFRESH
           </button>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-[#26170d] border border-[#c89b3c] text-xs font-cinzel font-bold text-[#ffe082]">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#26170d] border border-[#c89b3c] text-xs font-cinzel font-bold text-[#ffe082]">
             <Circle className={`w-2.5 h-2.5 rounded-full fill-current ${isConnected ? 'text-[#34d399] animate-pulse' : 'text-[#f59e0b]'}`} />
             <span>{isConnected ? 'SIGNALR ACTIVE' : 'HUB READY'}</span>
           </div>
@@ -118,15 +127,15 @@ export const LiveSupport: React.FC = () => {
       {/* Main Panel */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]">
         {/* Player List */}
-        <div className="parchment-card rounded-lg flex flex-col overflow-hidden">
-          <div className="p-3 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-xs flex items-center gap-2">
+        <div className="parchment-card rounded-lg flex flex-col overflow-hidden shadow-md">
+          <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-xs flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-[#c89b3c]" />
             ACTIVE HERO TICKETS ({players.length})
           </div>
           {players.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-[#8c7456] p-6 space-y-2 font-serif">
               <Inbox className="w-8 h-8 text-[#c89b3c]" />
-              <p className="text-xs font-bold font-cinzel">No active missives recorded.</p>
+              <p className="text-sm font-bold font-cinzel">No active missives recorded.</p>
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto divide-y divide-[#dcd1b5]">
@@ -139,11 +148,11 @@ export const LiveSupport: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-[#3a2518] text-xs font-cinzel">{p.username || p.playerId}</span>
-                    <span className="text-[10px] text-[#78644e] font-mono">{p.lastMessageAt || ''}</span>
+                    <span className="font-bold text-[#3a2518] text-sm font-cinzel">{p.username || p.playerId}</span>
+                    <span className="text-xs text-[#78644e] font-mono">{p.lastMessageAt || ''}</span>
                   </div>
-                  <p className="text-xs text-[#6b5842] font-serif truncate">{p.lastMessage || 'No recent messages'}</p>
-                  <span className="text-[10px] text-[#b45309] font-mono mt-1 block">{p.playerId}</span>
+                  <p className="text-xs text-[#523e2b] font-sans truncate">{p.lastMessage || 'No recent messages'}</p>
+                  <span className="text-xs text-[#b45309] font-mono mt-1 block font-semibold">{p.playerId}</span>
                 </div>
               ))}
             </div>
@@ -159,7 +168,7 @@ export const LiveSupport: React.FC = () => {
                   <h4 className="text-xs font-bold">
                     COUNSEL THREAD: <span className="text-[#ffe082]">{activePlayer?.username || selectedPlayerId}</span>
                   </h4>
-                  <span className="text-[10px] text-[#c4b49e] font-serif">Hero ID: {selectedPlayerId}</span>
+                  <span className="text-xs text-[#c4b49e] font-serif">Hero ID: {selectedPlayerId}</span>
                 </div>
                 <span className="text-xs text-[#c4b49e] flex items-center gap-1 font-serif">
                   <Clock className="w-3.5 h-3.5 text-[#c89b3c]" /> LIVE THREAD
@@ -179,7 +188,7 @@ export const LiveSupport: React.FC = () => {
                         key={msg.id || idx}
                         className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}
                       >
-                        <div className="flex items-center gap-1.5 mb-1 text-[10px] text-[#78644e]">
+                        <div className="flex items-center gap-1.5 mb-1 text-xs text-[#78644e]">
                           {isAdmin ? (
                             <>
                               <span className="font-bold text-[#b45309] font-cinzel">{msg.senderName || 'Keeper of Records'}</span>
