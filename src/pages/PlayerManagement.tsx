@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { PlayerProfile, CounselRole } from '../types';
 import { adminClient } from '../api/adminClient';
-import { Search, UserCheck, UserX, Coins, Gem, Shield, Edit3, CheckCircle2, Inbox, RefreshCw, UserPlus, Info } from 'lucide-react';
+import { Search, UserCheck, UserX, Coins, Gem, Shield, Edit3, CheckCircle2, Inbox, RefreshCw, UserPlus, Info, Copy } from 'lucide-react';
 
 interface PlayerManagementProps {
   role?: CounselRole;
@@ -259,8 +259,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           <table className="w-full text-left text-xs font-sans">
             <thead className="bg-[#e8dcbf] text-[#3a2518] font-cinzel font-bold text-xs border-b border-[#c89b3c] uppercase tracking-wider">
               <tr>
-                <th className="py-3.5 px-5">Player ID</th>
-                <th className="py-3.5 px-5">Username</th>
+                <th className="py-3.5 px-5">Player Account</th>
                 <th className="py-3.5 px-5">Level & EXP</th>
                 <th className="py-3.5 px-5">Currencies</th>
                 <th className="py-3.5 px-5">Last Activity</th>
@@ -271,12 +270,33 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
             <tbody className="divide-y divide-[#dcd1b5] text-[#2b1b11]">
               {filteredPlayers.map((player) => (
                 <tr key={player.playerId} className="hover:bg-[#efe5cd] transition-colors">
-                  <td className="py-4 px-5 font-mono text-[#b45309] font-bold text-xs">{player.playerId}</td>
-                  <td className="py-4 px-5 font-bold font-cinzel text-[#3a2518] flex items-center gap-2.5 text-sm">
-                    <div className="w-7 h-7 rounded-full bg-[#3a2518] border border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-xs font-cinzel shrink-0">
-                      {player.username.slice(0, 2).toUpperCase()}
+                  <td className="py-4 px-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[#3a2518] border-2 border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-sm font-cinzel shrink-0 shadow">
+                        {player.username.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <span className="font-bold font-cinzel text-[#3a2518] text-sm block">
+                          {player.username}
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-xs font-mono text-[#78644e]">
+                            Ref: #{player.playerId.slice(-6).toUpperCase()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(player.playerId);
+                              setNotification(`Copied Player ID for ${player.username} to clipboard`);
+                            }}
+                            className="text-[#c89b3c] hover:text-[#b45309] transition-colors p-0.5"
+                            title={`Copy full ID: ${player.playerId}`}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    {player.username}
                   </td>
                   <td className="py-4 px-5">
                     <span className="font-bold text-[#3a2518]">Lvl {player.level}</span>
@@ -346,6 +366,10 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
               <Shield className="w-5 h-5 text-[#c89b3c]" />
               ADJUST TREASURY - {selectedPlayer.username}
             </h3>
+            <p className="text-xs text-[#c4b49e]">
+              Wanderer Account: <strong className="text-[#ffe082]">{selectedPlayer.username}</strong>
+              <span className="font-mono text-[#c89b3c] ml-1.5">(Ref #{selectedPlayer.playerId.slice(-6).toUpperCase()})</span>
+            </p>
             <div className="space-y-3">
               <div>
                 <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Add/Deduct Gems (+/-)</label>

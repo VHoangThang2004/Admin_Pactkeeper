@@ -177,9 +177,11 @@ export const GachaManagement: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Banner ID and Title */}
+                {/* Banner Category and Title */}
                 <div className="absolute bottom-3 left-4 right-4">
-                  <span className="text-xs font-mono text-[#c89b3c] font-bold block">{banner.id}</span>
+                  <span className="text-xs font-cinzel font-bold text-[#c89b3c] tracking-wider uppercase block">
+                    SUMMON INVOCATION
+                  </span>
                   <h3 className="text-lg font-bold font-cinzel text-[#ffe082] drop-shadow-sm">{banner.title}</h3>
                 </div>
               </div>
@@ -208,10 +210,15 @@ export const GachaManagement: React.FC = () => {
 
                 {/* Banner Duration and Action Button */}
                 <div className="flex items-center justify-between pt-2 border-t border-[#dcd1b5]">
-                  <span className="text-xs text-[#78644e] flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
-                    {new Date(banner.startTime).toLocaleDateString()} - {new Date(banner.endTime).toLocaleDateString()}
-                  </span>
+                  <div className="space-y-0.5">
+                    <span className="text-xs text-[#78644e] flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
+                      {new Date(banner.startTime).toLocaleDateString()} - {new Date(banner.endTime).toLocaleDateString()}
+                    </span>
+                    <span className="text-xs font-mono text-[#8c7456] block">
+                      Ref: #{banner.id.slice(-6).toUpperCase()}
+                    </span>
+                  </div>
                   <button
                     onClick={() => toggleBannerActive(banner.id, !!banner.isActive)}
                     className="px-3.5 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel shadow"

@@ -219,22 +219,33 @@ export const PaymentManagement: React.FC = () => {
             <thead className="bg-[#e8dcbf] text-[#3a2518] font-cinzel font-bold border-b border-[#c89b3c] uppercase">
               <tr>
                 <th className="py-3.5 px-5">Order Code</th>
-                <th className="py-3.5 px-5">Player ID</th>
+                <th className="py-3.5 px-5">Player Account</th>
                 <th className="py-3.5 px-5">Amount (VNĐ)</th>
-                <th className="py-3.5 px-5">Pack ID</th>
+                <th className="py-3.5 px-5">Store Gem Pack</th>
                 <th className="py-3.5 px-5">Created At</th>
                 <th className="py-3.5 px-5 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#dcd1b5] text-[#2b1b11]">
-              {orders.map((ord) => (
-                <tr key={ord.id} className="hover:bg-[#efe5cd] transition-colors">
-                  <td className="py-4 px-5 font-mono text-[#b45309] font-bold">#{ord.orderCode}</td>
-                  <td className="py-4 px-5 font-mono text-[#3a2518]">{ord.playerId}</td>
-                  <td className="py-4 px-5 font-bold font-mono text-[#15803d]">
-                    {ord.amount?.toLocaleString()} VNĐ
-                  </td>
-                  <td className="py-4 px-5 text-[#6b5842]">{ord.packId}</td>
+              {orders.map((ord) => {
+                const pack = packs.find((p) => p.id === ord.packId);
+                return (
+                  <tr key={ord.id} className="hover:bg-[#efe5cd] transition-colors">
+                    <td className="py-4 px-5 font-mono text-[#b45309] font-bold">#{ord.orderCode}</td>
+                    <td className="py-4 px-5">
+                      <span className="font-mono text-[#3a2518] font-semibold text-xs">
+                        Ref #{ord.playerId.slice(-6).toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-4 px-5 font-bold font-mono text-[#15803d]">
+                      {ord.amount?.toLocaleString()} VNĐ
+                    </td>
+                    <td className="py-4 px-5">
+                      <span className="font-bold text-[#3a2518] flex items-center gap-1.5 font-cinzel text-xs">
+                        <Gem className="w-3.5 h-3.5 text-[#d97706]" />
+                        {pack ? pack.name : (ord.packId ? `Pack #${ord.packId.slice(-6).toUpperCase()}` : 'Custom Top-Up')}
+                      </span>
+                    </td>
                   <td className="py-4 px-5 text-[#6b5842]">{ord.createdAt}</td>
                   <td className="py-4 px-5 text-right">
                     {ord.status === 'PAID' && (
@@ -254,8 +265,9 @@ export const PaymentManagement: React.FC = () => {
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              );
+            })}
+          </tbody>
           </table>
         )}
       </div>

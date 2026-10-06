@@ -226,7 +226,7 @@ export const ContentManagement: React.FC = () => {
                   <th className="py-3 px-4">Hero UID</th>
                   <th className="py-3 px-4">Hero Name</th>
                   <th className="py-3 px-4">Passive Skill</th>
-                  <th className="py-3 px-4">Class IDs</th>
+                  <th className="py-3 px-4">Class Designation</th>
                   <th className="py-3 px-4">Initial Hero</th>
                   <th className="py-3 px-4">Stats By Grade</th>
                 </tr>
@@ -241,11 +241,33 @@ export const ContentManagement: React.FC = () => {
                       </div>
                       <span className="text-sm">{u.unitName}</span>
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-[#78644e]">
-                      {u.passiveSkillId && u.passiveSkillId !== -1 ? `Skill #${u.passiveSkillId}` : 'None'}
+                    <td className="py-3.5 px-4">
+                      {u.passiveSkillId && u.passiveSkillId !== -1 ? (
+                        <span className="px-2.5 py-0.5 rounded bg-[#fef3c7] text-[#92400e] text-xs font-mono font-semibold border border-[#f59e0b]/40 inline-flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-[#d97706]" /> Skill #{u.passiveSkillId}
+                        </span>
+                      ) : (
+                        <span className="text-[#8c7456] italic">None</span>
+                      )}
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-[#6b5842]">
-                      Class {u.classIds?.map((c) => `#${c}`).join(', ') || '#1'}
+                    <td className="py-3.5 px-4">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {u.classIds && u.classIds.length > 0 ? (
+                          u.classIds.map((cId) => {
+                            const cls = classes.find((c) => c.classId === cId);
+                            return (
+                              <span
+                                key={cId}
+                                className="px-2.5 py-0.5 rounded bg-[#e8dcbf] text-[#3a2518] text-xs font-bold font-cinzel border border-[#c89b3c]/50 shadow-sm"
+                              >
+                                {cls?.name || `Class #${cId}`}
+                              </span>
+                            );
+                          })
+                        ) : (
+                          <span className="text-[#8c7456] italic">Novice</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 font-bold">
                       {u.givenAtRegister ? (
@@ -347,8 +369,22 @@ export const ContentManagement: React.FC = () => {
                   <tr key={w.id || idx} className="hover:bg-[#efe5cd] transition-colors">
                     <td className="py-3.5 px-4 font-mono font-bold text-[#b45309]">#{w.weaponId}</td>
                     <td className="py-3.5 px-4 font-bold font-cinzel text-[#3a2518] text-sm">{w.name}</td>
-                    <td className="py-3.5 px-4 text-[#6b5842]">Class #{w.classId}</td>
-                    <td className="py-3.5 px-4 font-mono text-[#b45309]">Skill #{w.skillId}</td>
+                    <td className="py-3.5 px-4">
+                      {(() => {
+                        const cls = classes.find((c) => c.classId === w.classId);
+                        return (
+                          <span className="px-2.5 py-0.5 rounded bg-[#e8dcbf] text-[#3a2518] text-xs font-bold font-cinzel border border-[#c89b3c]/50 inline-flex items-center gap-1 shadow-sm">
+                            <Shield className="w-3 h-3 text-[#c89b3c]" />
+                            {cls?.name || (w.classId ? `Class #${w.classId}` : 'All Classes')}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-0.5 rounded bg-[#fef3c7] text-[#92400e] text-xs font-mono font-semibold border border-[#f59e0b]/40 inline-flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-[#d97706]" /> Skill #{w.skillId}
+                      </span>
+                    </td>
                     <td className="py-3.5 px-4 font-mono text-[#15803d] font-bold">
                       {w.statModifiers && (w.statModifiers.speed || w.statModifiers.maxHP || w.statModifiers.maxSkillPoint) ? (
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -418,7 +454,11 @@ export const ContentManagement: React.FC = () => {
                   <tr key={t.id || idx} className="hover:bg-[#efe5cd] transition-colors">
                     <td className="py-3.5 px-4 font-mono font-bold text-[#b45309]">#{t.trinketId}</td>
                     <td className="py-3.5 px-4 font-bold font-cinzel text-[#3a2518] text-sm">{t.name}</td>
-                    <td className="py-3.5 px-4 font-mono text-[#b45309]">Skill #{t.skillId}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-0.5 rounded bg-[#fef3c7] text-[#92400e] text-xs font-mono font-semibold border border-[#f59e0b]/40 inline-flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#d97706]" /> Skill #{t.skillId}
+                      </span>
+                    </td>
                     <td className="py-3.5 px-4 font-mono text-[#15803d] font-bold">
                       {t.statModifiers && (t.statModifiers.speed || t.statModifiers.maxHP || t.statModifiers.maxSkillPoint) ? (
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -510,10 +550,17 @@ export const ContentManagement: React.FC = () => {
               {skills.map((s, idx) => (
                 <div
                   key={s.id || idx}
-                  className="p-3.5 rounded bg-[#f4ecd8] border border-[#c89b3c]/50 text-xs font-serif text-center space-y-1 shadow-sm"
+                  className="p-3.5 rounded bg-[#f4ecd8] border border-[#c89b3c]/50 text-xs font-serif text-center space-y-1.5 shadow-sm hover:border-[#c89b3c] transition-all"
                 >
-                  <Sparkles className="w-4 h-4 mx-auto text-[#d97706]" />
-                  <span className="font-bold font-mono text-[#b45309] block text-xs">Skill #{s.skillId}</span>
+                  <div className="w-8 h-8 mx-auto rounded-full bg-[#e8dcbf] border border-[#c89b3c] flex items-center justify-center shadow-inner">
+                    <Sparkles className="w-4 h-4 text-[#d97706]" />
+                  </div>
+                  <span className="font-bold font-cinzel text-[#3a2518] block text-xs">
+                    Skill Invocation
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-[#3a2518] text-[#ffe082] text-xs font-mono font-bold inline-block border border-[#c89b3c]/40">
+                    #{s.skillId}
+                  </span>
                 </div>
               ))}
             </div>

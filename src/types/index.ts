@@ -148,9 +148,12 @@ export interface TopUpPackDto {
 
 export interface ActiveChatPlayerDto {
   playerId: string;
-  username: string;
-  lastMessage: string;
-  lastMessageAt: string;
+  username?: string;
+  playerName?: string;
+  latestMessageText?: string;
+  latestMessageTime?: string;
+  lastMessage?: string;
+  lastMessageAt?: string;
 }
 
 export interface SupportMessageDto {
