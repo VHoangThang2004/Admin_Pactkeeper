@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminClient } from '../api/adminClient';
-import type { ServerState } from '../types';
+import type { ServerState, CounselRole } from '../types';
 import {
   Gem,
   Coins,
@@ -14,11 +14,32 @@ import {
   ShieldAlert,
   Crown,
   Scroll,
-  Users
+  Users,
+  ShieldX
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
-export const DashboardOverview: React.FC = () => {
+interface DashboardOverviewProps {
+  role?: CounselRole;
+}
+
+/**
+ * Dashboard Overview & Realm Telemetry Page
+ * 
+ * Features:
+ * 1. Live Telemetry Aggregation: Real-time unit counts, active gacha banners,
+ *    top-up store packs, PayOS ledger total revenue, and active support tickets.
+ * 2. Activity Timeline: Recharts area chart showing player activity curve over time.
+ * 3. Emergency Counsel Overrides:
+ *    - Player Login Blocking (/api/admin/update-login-status)
+ *    - PvP Matchmaking Queue Control (/api/admin/update-queue-status)
+ *    - Emergency Session Reset (/api/admin/force-stop-all)
+ *    * Note: Overrides are strictly locked for non-Administrator roles (RBAC).
+ */
+export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Admin' }) => {
+  const isAdmin = role === 'Admin' || role === 'Server';
+
+  // Local state persistence for Emergency Overrides switches across reloads
   const [serverState, setServerState] = useState<ServerState>(() => {
     const saved = localStorage.getItem('admin_server_state');
     if (saved) {
@@ -32,6 +53,7 @@ export const DashboardOverview: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('admin_server_state', JSON.stringify(serverState));
   }, [serverState]);
+
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [activeUnitsCount, setActiveUnitsCount] = useState<number>(0);
@@ -41,6 +63,9 @@ export const DashboardOverview: React.FC = () => {
   const [activePlayersCount, setActivePlayersCount] = useState<number>(0);
   const [chartData, setChartData] = useState<{ time: string; ccu: number }[]>([]);
 
+  /**
+   * Fetches real telemetry metrics from backend endpoints simultaneously.
+   */
   const fetchRealTelemetry = async () => {
     try {
       const [uRes, bRes, pRes, hRes, sRes] = await Promise.allSettled([
@@ -143,16 +168,16 @@ export const DashboardOverview: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-8">
-      {/* Top Mahogany Header Banner (PactKeeper Treasury Style) */}
-      <div className="mahogany-banner p-4 text-center rounded-lg relative overflow-hidden">
-        <h1 className="text-xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
+    <div className="space-y-6 pb-8 font-sans">
+      {/* Top Mahogany Header Banner */}
+      <div className="mahogany-banner p-5 text-center rounded-lg relative overflow-hidden">
+        <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
           TREASURY & REALM COMMAND
         </h1>
-        <p className="text-xs text-[#c4b49e] font-serif mt-0.5">High Counsel Realm Telemetry & Operational Control</p>
+        <p className="text-xs text-[#d5c7b3] font-serif mt-1">High Counsel Realm Telemetry & Operational Control</p>
         <button
           onClick={fetchRealTelemetry}
-          className="absolute right-4 top-3.5 px-3 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
+          className="absolute right-4 top-4 px-3.5 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
         >
           <RotateCcw className="w-3.5 h-3.5 text-[#c89b3c]" /> REFRESH
         </button>
@@ -174,17 +199,17 @@ export const DashboardOverview: React.FC = () => {
         </div>
       )}
 
-      {/* Hero Profile Banner (PactKeeper Mahogany Panel Style from Screenshot) */}
+      {/* Hero Profile Banner */}
       <div className="mahogany-banner p-6 rounded-lg space-y-4">
         <div className="flex items-center justify-between border-b border-[#593d29] pb-3">
           <div>
-            <span className="text-[10px] font-mono text-[#c89b3c] uppercase font-bold tracking-widest block">KEEPER OF RECORDS</span>
+            <span className="text-xs font-mono text-[#c89b3c] uppercase font-bold tracking-wider block">KEEPER OF RECORDS</span>
             <h2 className="text-xl font-extrabold text-[#ffe082] tracking-wide font-cinzel">
               KEEPER OF RECORDS (K18 HCM)
             </h2>
             <div className="flex items-center gap-2 mt-1">
-              <span className="px-2 py-0.5 rounded crimson-badge text-[10px] font-bold">LEVEL 99</span>
-              <span className="text-xs text-[#c4b49e] font-serif">EXP: 9999 / 9999</span>
+              <span className="px-2.5 py-0.5 rounded crimson-badge text-xs font-bold font-mono">LEVEL 99</span>
+              <span className="text-xs text-[#d5c7b3] font-serif">EXP: 9999 / 9999</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -194,18 +219,18 @@ export const DashboardOverview: React.FC = () => {
           </div>
         </div>
 
-        {/* Current Realm Revenue / Gems Box */}
+        {/* Current Realm Revenue Box */}
         <div className="p-4 rounded bg-[#26170d] border border-[#c89b3c] flex items-center justify-between">
           <div>
-            <span className="text-[10px] text-[#c4b49e] uppercase font-cinzel font-bold block tracking-wider">CURRENT REALM TREASURY (PAYOS)</span>
-            <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-[#d5c7b3] uppercase font-cinzel font-bold block tracking-wider">CURRENT REALM TREASURY (PAYOS)</span>
+            <div className="flex items-center gap-2.5 mt-1.5">
               <Coins className="w-6 h-6 text-[#f59e0b]" />
               <span className="text-2xl font-extrabold font-mono text-[#ffe082]">{totalRevenue.toLocaleString()} VNĐ</span>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-xs text-[#c89b3c] font-cinzel font-bold">{packsCount} Store Packs Configured</span>
-            <span className="text-[11px] text-[#c4b49e] block font-serif">payOS Webhook Active</span>
+            <span className="text-xs text-[#c89b3c] font-cinzel font-bold block">{packsCount} Store Packs Configured</span>
+            <span className="text-xs text-[#d5c7b3] block font-serif mt-0.5">payOS Webhook Active</span>
           </div>
         </div>
       </div>
@@ -217,15 +242,15 @@ export const DashboardOverview: React.FC = () => {
         <span>❖</span>
       </div>
 
-      {/* 4 Cards Grid (Parchment Card Style from Screenshot) */}
+      {/* 4 Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1 */}
         <div className="parchment-card p-5 rounded-lg relative overflow-hidden">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">ACTIVE SUPPORT TICKETS</p>
+              <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">ACTIVE SUPPORT TICKETS</p>
               <h3 className="text-2xl font-extrabold text-[#3a2518] mt-1 font-mono">{activePlayersCount} Players</h3>
-              <span className="text-[11px] text-[#15803d] font-bold flex items-center gap-1 mt-1 font-serif">
+              <span className="text-xs text-[#15803d] font-bold flex items-center gap-1 mt-1 font-serif">
                 <TrendingUp className="w-3.5 h-3.5" /> SignalR Hub Connected
               </span>
             </div>
@@ -239,9 +264,9 @@ export const DashboardOverview: React.FC = () => {
         <div className="parchment-card p-5 rounded-lg relative overflow-hidden">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">SRPG DEFINITIONS</p>
+              <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">SRPG DEFINITIONS</p>
               <h3 className="text-2xl font-extrabold text-[#3a2518] mt-1 font-mono">{activeUnitsCount} Units</h3>
-              <span className="text-[11px] text-[#8b5cf6] font-bold flex items-center gap-1 mt-1 font-serif">
+              <span className="text-xs text-[#8b5cf6] font-bold flex items-center gap-1 mt-1 font-serif">
                 <Swords className="w-3.5 h-3.5" /> MongoDB Collections
               </span>
             </div>
@@ -255,9 +280,9 @@ export const DashboardOverview: React.FC = () => {
         <div className="parchment-card p-5 rounded-lg relative overflow-hidden">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">SUMMON BANNERS</p>
+              <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">SUMMON BANNERS</p>
               <h3 className="text-2xl font-extrabold text-[#3a2518] mt-1 font-mono">{bannersCount} Banners</h3>
-              <span className="text-[11px] text-[#b45309] font-bold flex items-center gap-1 mt-1 font-serif">
+              <span className="text-xs text-[#b45309] font-bold flex items-center gap-1 mt-1 font-serif">
                 <Gem className="w-3.5 h-3.5 text-[#d97706]" /> Active Gacha Pools
               </span>
             </div>
@@ -271,9 +296,9 @@ export const DashboardOverview: React.FC = () => {
         <div className="parchment-card p-5 rounded-lg relative overflow-hidden">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">REALM GATEWAY</p>
+              <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">REALM GATEWAY</p>
               <h3 className="text-lg font-extrabold text-[#3a2518] mt-1 font-mono">ONLINE (.NET 9)</h3>
-              <span className="text-[11px] text-[#6b7280] font-mono mt-1 block">:5276 / MongoDB</span>
+              <span className="text-xs text-[#6b7280] font-mono mt-1 block">:5276 / MongoDB</span>
             </div>
             <div className="w-12 h-12 rounded-full bg-[#f4ecd8] border-2 border-[#c89b3c] flex items-center justify-center shadow">
               <Server className="w-6 h-6 text-[#3a2518]" />
@@ -284,27 +309,44 @@ export const DashboardOverview: React.FC = () => {
 
       {/* Emergency Counsel Override Actions */}
       <div className="mahogany-banner p-6 rounded-lg space-y-4">
-        <div className="flex items-center gap-3 border-b border-[#593d29] pb-3">
-          <ShieldAlert className="w-6 h-6 text-[#ef4444]" />
-          <div>
-            <h3 className="text-base font-bold text-[#ffe082] uppercase font-cinzel">EMERGENCY REALM OVERRIDES</h3>
-            <p className="text-xs text-[#c4b49e] font-serif">Direct operational overrides via AdminController endpoints.</p>
+        <div className="flex items-center justify-between border-b border-[#593d29] pb-3">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-6 h-6 text-[#ef4444]" />
+            <div>
+              <h3 className="text-base font-bold text-[#ffe082] uppercase font-cinzel">EMERGENCY REALM OVERRIDES</h3>
+              <p className="text-xs text-[#c4b49e] font-serif">Direct operational overrides via AdminController endpoints.</p>
+            </div>
           </div>
+          {!isAdmin && (
+            <span className="px-2.5 py-1 rounded bg-[#7f1d1d]/60 border border-[#ef4444] text-[#fca5a5] text-xs font-cinzel font-bold flex items-center gap-1">
+              <ShieldX className="w-3.5 h-3.5" /> ADMIN ONLY
+            </span>
+          )}
         </div>
+
+        {!isAdmin && (
+          <div className="p-3 rounded bg-[#7f1d1d]/30 border border-[#ef4444]/60 text-[#fca5a5] text-xs flex items-center gap-2 font-serif">
+            <ShieldX className="w-4 h-4 text-[#f87171] shrink-0" />
+            <span>
+              <strong>Restricted Operations:</strong> Emergency server overrides are restricted to High Counsel Administrators. Buttons are locked.
+            </span>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Toggle Login */}
           <div className="p-4 rounded bg-[#26170d] border border-[#c89b3c] flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-[#ffe082] font-cinzel">PLAYER AUTHENTICATION</p>
-              <p className="text-[11px] text-[#c4b49e] mt-1">
+              <p className="text-xs text-[#c4b49e] mt-1">
                 Status: {serverState.loginBlocked ? <span className="text-[#fca5a5] font-bold">BLOCKED</span> : <span className="text-[#86efac] font-bold">ACTIVE</span>}
               </p>
             </div>
             <button
               onClick={toggleLoginStatus}
-              disabled={loadingAction === 'login'}
-              className="px-3 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel flex items-center gap-1.5"
+              disabled={!isAdmin || loadingAction === 'login'}
+              title={!isAdmin ? 'Administrator privilege required' : 'Toggle login status'}
+              className="px-3 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {serverState.loginBlocked ? <Unlock className="w-3.5 h-3.5 text-[#34d399]" /> : <Lock className="w-3.5 h-3.5 text-[#f87171]" />}
               {serverState.loginBlocked ? 'UNBLOCK' : 'BLOCK'}
@@ -315,14 +357,15 @@ export const DashboardOverview: React.FC = () => {
           <div className="p-4 rounded bg-[#26170d] border border-[#c89b3c] flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-[#ffe082] font-cinzel">PVP MATCH QUEUE</p>
-              <p className="text-[11px] text-[#c4b49e] mt-1">
+              <p className="text-xs text-[#c4b49e] mt-1">
                 Status: {serverState.matchmakingBlocked ? <span className="text-[#fcd34d] font-bold">PAUSED</span> : <span className="text-[#86efac] font-bold">ACTIVE</span>}
               </p>
             </div>
             <button
               onClick={toggleQueueStatus}
-              disabled={loadingAction === 'queue'}
-              className="px-3 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel flex items-center gap-1.5"
+              disabled={!isAdmin || loadingAction === 'queue'}
+              title={!isAdmin ? 'Administrator privilege required' : 'Toggle queue status'}
+              className="px-3 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {serverState.matchmakingBlocked ? <Unlock className="w-3.5 h-3.5 text-[#34d399]" /> : <Lock className="w-3.5 h-3.5 text-[#fbbf24]" />}
               {serverState.matchmakingBlocked ? 'RESUME' : 'PAUSE'}
@@ -333,12 +376,13 @@ export const DashboardOverview: React.FC = () => {
           <div className="p-4 rounded bg-[#26170d] border border-[#8b1e1e] flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-[#fca5a5] font-cinzel">RESET MATCHES</p>
-              <p className="text-[11px] text-[#c4b49e] mt-1">Terminates active sessions</p>
+              <p className="text-xs text-[#c4b49e] mt-1">Terminates active sessions</p>
             </div>
             <button
               onClick={handleForceStopAll}
-              disabled={loadingAction === 'forceStop'}
-              className="px-3 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel flex items-center gap-1.5 shadow"
+              disabled={!isAdmin || loadingAction === 'forceStop'}
+              title={!isAdmin ? 'Administrator privilege required' : 'Force stop all active sessions'}
+              className="px-3 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel flex items-center gap-1.5 shadow disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Power className="w-3.5 h-3.5" />
               FORCE STOP

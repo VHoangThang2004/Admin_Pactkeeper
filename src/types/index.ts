@@ -1,14 +1,16 @@
+export type CounselRole = 'Admin' | 'Server' | 'Moderator' | 'Support';
+
 export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'Player' | 'Admin';
+  role: 'Player' | CounselRole;
 }
 
 export interface AuthResponse {
   token: string;
   username: string;
-  role: string;
+  role: CounselRole | string;
   playerId?: string;
 }
 

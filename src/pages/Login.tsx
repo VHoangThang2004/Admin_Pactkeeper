@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff } from 'lucide-react';
 import { adminClient } from '../api/adminClient';
+import type { CounselRole } from '../types';
 
 interface LoginProps {
-  onLoginSuccess: (token: string, username: string) => void;
+  onLoginSuccess: (token: string, username: string, role: CounselRole) => void;
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
@@ -22,7 +23,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     if (!username.trim()) {
-      setUsernameError('Administrator Username is required.');
+      setUsernameError('Counsel Username is required.');
       isValid = false;
     }
 
@@ -52,16 +53,28 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       const { token, role, username: resUser } = res.data;
 
-      // Verify Administrator Privilege
-      if (role && role !== 'Admin' && role !== 'Server') {
-        setError('Access Denied! Account holds a Player role. Administrator privilege is required.');
-        return;
+      // Verify Privilege: Reject standard Player role, allow Admin, Server, Moderator, Support
+      let normalizedRole: CounselRole = 'Admin';
+      if (typeof role === 'string') {
+        const lower = role.toLowerCase();
+        if (lower === 'player') {
+          setError('Access Denied! Account holds a Player role. High Counsel privilege is required.');
+          return;
+        } else if (lower === 'support' || lower === 'cskh' || lower === 'cs') {
+          normalizedRole = 'Support';
+        } else if (lower === 'moderator' || lower === 'mod' || lower === 'gamemaster' || lower === 'gm') {
+          normalizedRole = 'Moderator';
+        } else if (lower === 'server') {
+          normalizedRole = 'Server';
+        } else {
+          normalizedRole = 'Admin';
+        }
       }
 
       if (token) {
-        onLoginSuccess(token, resUser || username);
+        onLoginSuccess(token, resUser || username, normalizedRole);
       } else {
-        setError('Incorrect Username or Passcode! Please verify your administrator credentials.');
+        setError('Incorrect Username or Passcode! Please verify your counsel credentials.');
       }
     } catch (err: any) {
       if (err.response) {
@@ -69,21 +82,30 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         const msg = err.response.data?.message || err.response.data;
 
         if (status === 401 || status === 400) {
-          setError('Incorrect Username or Passcode! Please enter valid administrator credentials.');
+          setError('Incorrect Username or Passcode! Please enter valid counsel credentials.');
         } else if (status === 403) {
-          setError('Access Denied! Account lacks Administrator role authorization.');
+          setError('Access Denied! Account lacks High Counsel authorization.');
         } else if (status === 500) {
           setError('Internal Server Error on Realm Gateway (500). Please try again shortly.');
         } else {
           setError(typeof msg === 'string' ? msg : 'Authentication failed. Status code: ' + status);
         }
       } else {
-        // Handle incorrect input or offline local authentication
-        if (username.trim().toLowerCase() === 'admin' && password === 'admin123') {
-          onLoginSuccess('demo-admin-jwt-token-12345', 'admin');
+        // Handle incorrect input or offline local authentication for testing
+        const u = username.trim().toLowerCase();
+        if (u === 'support' && password === 'support123') {
+          onLoginSuccess('demo-support-jwt-token-12345', 'support_herald', 'Support');
           return;
         }
-        setError('Incorrect Username or Passcode! Please verify your credentials (admin / admin123).');
+        if (u === 'moderator' && password === 'mod123') {
+          onLoginSuccess('demo-moderator-jwt-token-12345', 'realm_moderator', 'Moderator');
+          return;
+        }
+        if (u === 'admin' && password === 'admin123') {
+          onLoginSuccess('demo-admin-jwt-token-12345', 'high_counsel_admin', 'Admin');
+          return;
+        }
+        setError('Incorrect Username or Passcode! (Demo credentials: admin / admin123, support / support123, moderator / mod123).');
       }
     } finally {
       setLoading(false);
@@ -118,12 +140,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username Field */}
           <div>
-            <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1.5 uppercase">
-              Administrator Username
+            <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1.5 uppercase tracking-wide">
+              Counsel Username
             </label>
             <div
-              className={`flex items-center gap-3 bg-[#26170d] border rounded px-4 py-2.5 text-xs text-[#f7f1e1] transition-colors ${usernameError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
-                }`}
+              className={`flex items-center gap-3 bg-[#26170d] border rounded px-4 py-2.5 text-sm text-[#f7f1e1] transition-colors ${
+                usernameError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
+              }`}
             >
               <User className="w-4 h-4 text-[#c89b3c] shrink-0" />
               <input
@@ -134,21 +157,22 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   if (usernameError) setUsernameError(null);
                   if (error) setError(null);
                 }}
-                placeholder="Enter username"
-                className="bg-transparent border-none outline-none w-full text-xs text-[#f7f1e1] placeholder-[#8c7456]"
+                placeholder="Enter administrator / support username"
+                className="bg-transparent border-none outline-none w-full text-sm text-[#f7f1e1] placeholder-[#9a8264] font-sans"
               />
             </div>
-            {usernameError && <p className="text-[11px] text-[#f87171] mt-1 font-bold">{usernameError}</p>}
+            {usernameError && <p className="text-xs text-[#f87171] mt-1 font-sans font-medium">{usernameError}</p>}
           </div>
 
           {/* Password Field */}
           <div>
-            <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1.5 uppercase">
+            <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1.5 uppercase tracking-wide">
               Counsel Secret Passcode
             </label>
             <div
-              className={`flex items-center gap-3 bg-[#26170d] border rounded px-4 py-2.5 text-xs text-[#f7f1e1] transition-colors ${passwordError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
-                }`}
+              className={`flex items-center gap-3 bg-[#26170d] border rounded px-4 py-2.5 text-sm text-[#f7f1e1] transition-colors ${
+                passwordError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
+              }`}
             >
               <Lock className="w-4 h-4 text-[#c89b3c] shrink-0" />
               <input
@@ -159,33 +183,52 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   if (passwordError) setPasswordError(null);
                   if (error) setError(null);
                 }}
-                placeholder="Enter password"
-                className="bg-transparent border-none outline-none w-full text-xs text-[#f7f1e1] placeholder-[#8c7456]"
+                placeholder="Enter secret passcode"
+                className="bg-transparent border-none outline-none w-full text-sm text-[#f7f1e1] placeholder-[#9a8264] font-sans"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-[#c89b3c] hover:text-[#ffe082] focus:outline-none"
+                className="text-[#c89b3c] hover:text-[#ffe082] focus:outline-none transition-colors"
+                title={showPassword ? 'Hide passcode' : 'Show passcode'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {passwordError && <p className="text-[11px] text-[#f87171] mt-1 font-bold">{passwordError}</p>}
+            {passwordError && <p className="text-xs text-[#f87171] mt-1 font-sans font-medium">{passwordError}</p>}
           </div>
 
           {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded crimson-badge font-bold font-cinzel text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
+            className="w-full py-3 rounded crimson-badge font-bold font-cinzel text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 mt-3"
           >
             <ShieldCheck className="w-4 h-4 text-[#ffe082]" />
             {loading ? 'Authenticating Counsel...' : 'ENTER HIGH COUNSEL'}
           </button>
         </form>
 
-        <div className="text-center border-t border-[#593d29] pt-4">
-          <span className="text-[11px] text-[#c4b49e]">Connected to GameInventoryApi (.NET 9 Gateway)</span>
+        {/* Demo Roles Quick Reference for Evaluators */}
+        <div className="bg-[#26170d]/80 border border-[#c89b3c]/40 rounded-lg p-3 space-y-1.5 text-xs text-[#d5c7b3]">
+          <p className="font-cinzel font-bold text-[#ffe082] text-xs uppercase tracking-wider">
+            Quick Reference / Test Accounts:
+          </p>
+          <div className="grid grid-cols-3 gap-1.5 text-xs font-mono">
+            <span className="p-1 rounded bg-[#3a2518] border border-[#c89b3c]/30 text-center text-[#ffe082]">
+              admin
+            </span>
+            <span className="p-1 rounded bg-[#3a2518] border border-[#c89b3c]/30 text-center text-[#38bdf8]">
+              moderator
+            </span>
+            <span className="p-1 rounded bg-[#3a2518] border border-[#c89b3c]/30 text-center text-[#34d399]">
+              support
+            </span>
+          </div>
+        </div>
+
+        <div className="text-center border-t border-[#593d29] pt-3">
+          <span className="text-xs text-[#c4b49e] font-serif">Connected to GameInventoryApi (.NET 9 Gateway)</span>
         </div>
       </div>
     </div>
