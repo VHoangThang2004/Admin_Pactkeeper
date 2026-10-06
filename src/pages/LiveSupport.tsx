@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { adminClient } from '../api/adminClient';
-import { MessageSquare, Send, User, ShieldCheck, Circle, Clock, RefreshCw, Inbox, Copy } from 'lucide-react';
+import { MessageSquare, Send, User, ShieldCheck, Circle, Clock, RefreshCw, Inbox, Copy, Swords } from 'lucide-react';
 import * as signalR from '@microsoft/signalr';
+import { getPlayerPresence } from '../utils/presence';
 
 /**
  * Live Support & Real-Time Player Communications (Customer Support Portal)
@@ -20,6 +21,7 @@ export const LiveSupport: React.FC = () => {
   const [replyText, setReplyText] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeMatchesMap, setActiveMatchesMap] = useState<Map<string, { matchId: string; mode?: string }>>(new Map());
 
   const activePlayer = players.find((p) => p.playerId === selectedPlayerId);
   const activePlayerRealName =
@@ -30,9 +32,27 @@ export const LiveSupport: React.FC = () => {
   const fetchPlayers = async () => {
     setLoading(true);
     try {
-      const res = await adminClient.get('/support/admin/players');
-      if (Array.isArray(res.data)) {
-        const mapped: ActiveChatPlayerDto[] = res.data.map((p: any) => {
+      const [supportRes, matchRes] = await Promise.allSettled([
+        adminClient.get('/support/admin/players'),
+        adminClient.get('/Match/history'),
+      ]);
+
+      const matchMap = new Map<string, { matchId: string; mode?: string }>();
+      if (matchRes.status === 'fulfilled' && Array.isArray(matchRes.value.data)) {
+        matchRes.value.data.forEach((m: any) => {
+          const s = (m.status || '').toLowerCase();
+          const isLive = s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
+          if (isLive) {
+            const mId = m.matchId || m.id || '';
+            if (m.player1Id) matchMap.set(m.player1Id, { matchId: mId, mode: m.mode });
+            if (m.player2Id) matchMap.set(m.player2Id, { matchId: mId, mode: m.mode });
+          }
+        });
+      }
+      setActiveMatchesMap(matchMap);
+
+      if (supportRes.status === 'fulfilled' && Array.isArray(supportRes.value.data)) {
+        const mapped: ActiveChatPlayerDto[] = supportRes.value.data.map((p: any) => {
           const resolvedName = (p.playerName || p.username || '').trim();
           const messageSnippet = p.latestMessageText || p.lastMessage || '';
           const timeSnippet = p.latestMessageTime
@@ -185,6 +205,8 @@ export const LiveSupport: React.FC = () => {
                   : (isSelected && activePlayerRealName && !activePlayerRealName.startsWith('Traveler')
                       ? activePlayerRealName
                       : `Traveler #${p.playerId.slice(-4).toUpperCase()}`);
+                const presence = getPlayerPresence(p.playerId, activeMatchesMap, p.latestMessageTime || p.lastMessageAt);
+
                 return (
                   <div
                     key={p.playerId}
@@ -195,15 +217,26 @@ export const LiveSupport: React.FC = () => {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-[#3a2518] border border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-xs font-cinzel shrink-0 shadow-inner">
-                          {displayName.slice(0, 2).toUpperCase()}
+                        <div className="relative">
+                          <div className="w-7 h-7 rounded-full bg-[#3a2518] border border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-xs font-cinzel shrink-0 shadow-inner">
+                            {displayName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#2b1b11] ${presence.dotColor}`}
+                            title={presence.label}
+                          />
                         </div>
-                        <span className="font-bold text-[#3a2518] text-sm font-cinzel">{displayName}</span>
+                        <div>
+                          <span className="font-bold text-[#3a2518] text-sm font-cinzel block leading-tight">{displayName}</span>
+                          <span className={`text-[10px] font-cinzel font-bold ${presence.badgeText}`}>
+                            {presence.label}
+                          </span>
+                        </div>
                       </div>
                       <span className="text-xs text-[#78644e] font-mono">{p.lastMessageAt || ''}</span>
                     </div>
-                    <p className="text-xs text-[#523e2b] font-sans truncate pl-8">{p.lastMessage || 'No recent messages'}</p>
-                    <div className="flex items-center gap-1.5 pl-8 mt-1">
+                    <p className="text-xs text-[#523e2b] font-sans truncate pl-9">{p.lastMessage || 'No recent messages'}</p>
+                    <div className="flex items-center gap-1.5 pl-9 mt-1">
                       <span className="text-xs font-mono text-[#8c7456]">Ref: #{p.playerId.slice(-6).toUpperCase()}</span>
                     </div>
                   </div>
@@ -217,11 +250,25 @@ export const LiveSupport: React.FC = () => {
         <div className="md:col-span-2 parchment-card rounded-lg flex flex-col overflow-hidden">
           {selectedPlayerId ? (
             <>
-              <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] flex items-center justify-between font-cinzel">
+              <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-cinzel">
                 <div>
-                  <h4 className="text-sm font-bold">
-                    COUNSEL THREAD: <span className="text-[#ffe082]">{activePlayerRealName}</span>
-                  </h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-bold">
+                      COUNSEL THREAD: <span className="text-[#ffe082]">{activePlayerRealName}</span>
+                    </h4>
+                    {/* Live Presence Badge */}
+                    {(() => {
+                      const selPresence = getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime || activePlayer?.lastMessageAt);
+                      return (
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold border inline-flex items-center gap-1 ${selPresence.badgeBg} ${selPresence.badgeBorder} ${selPresence.badgeText}`}>
+                          {selPresence.state === 'InBattle' && <Swords className="w-3 h-3 text-[#f59e0b]" />}
+                          {selPresence.state === 'Online' && <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />}
+                          {selPresence.state === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
+                          {selPresence.label} • {selPresence.activityDescription}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-[#c4b49e] font-sans">
                       Player: <strong className="text-[#ffe082]">{activePlayerRealName}</strong>
