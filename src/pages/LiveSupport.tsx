@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { adminClient } from '../api/adminClient';
-import { MessageSquare, Send, User, ShieldCheck, Circle, Clock, RefreshCw, Inbox } from 'lucide-react';
+import { MessageSquare, Send, User, ShieldCheck, Circle, Clock, RefreshCw, Inbox, Copy } from 'lucide-react';
 import * as signalR from '@microsoft/signalr';
 
 /**
@@ -22,17 +22,39 @@ export const LiveSupport: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const activePlayer = players.find((p) => p.playerId === selectedPlayerId);
+  const activePlayerRealName =
+    (activePlayer?.playerName || activePlayer?.username || '').trim() ||
+    messages.find((m) => m.sender !== 'admin' && m.sender !== 'Admin' && m.senderName && m.senderName.trim())?.senderName?.trim() ||
+    (selectedPlayerId ? `Traveler #${selectedPlayerId.slice(-4).toUpperCase()}` : 'Traveler');
 
   const fetchPlayers = async () => {
     setLoading(true);
     try {
       const res = await adminClient.get('/support/admin/players');
       if (Array.isArray(res.data)) {
-        setPlayers(res.data);
-        if (!selectedPlayerId && res.data.length > 0) {
-          setSelectedPlayerId(res.data[0].playerId);
+        const mapped: ActiveChatPlayerDto[] = res.data.map((p: any) => {
+          const resolvedName = (p.playerName || p.username || '').trim();
+          const messageSnippet = p.latestMessageText || p.lastMessage || '';
+          const timeSnippet = p.latestMessageTime
+            ? new Date(p.latestMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : (p.lastMessageAt || '');
+          return {
+            playerId: p.playerId,
+            playerName: resolvedName,
+            username: resolvedName,
+            latestMessageText: messageSnippet,
+            lastMessage: messageSnippet,
+            latestMessageTime: p.latestMessageTime || '',
+            lastMessageAt: timeSnippet,
+          };
+        });
+        setPlayers(mapped);
+        if (!selectedPlayerId && mapped.length > 0) {
+          setSelectedPlayerId(mapped[0].playerId);
         }
-      } else setPlayers([]);
+      } else {
+        setPlayers([]);
+      }
     } catch {
       setPlayers([]);
     } finally {
@@ -46,7 +68,23 @@ export const LiveSupport: React.FC = () => {
       const res = await adminClient.get(`/support/admin/chat/${playerId}`);
       if (Array.isArray(res.data)) {
         setMessages(res.data);
-      } else setMessages([]);
+        // Extract real player name if available from non-admin message history
+        const playerMsg = res.data.find(
+          (m: any) => m.sender !== 'admin' && m.sender !== 'Admin' && m.senderName && m.senderName.trim()
+        );
+        if (playerMsg) {
+          const realName = playerMsg.senderName.trim();
+          setPlayers((prev) =>
+            prev.map((p) =>
+              p.playerId === playerId && (!p.username || p.username.startsWith('Traveler'))
+                ? { ...p, username: realName, playerName: realName }
+                : p
+            )
+          );
+        }
+      } else {
+        setMessages([]);
+      }
     } catch {
       setMessages([]);
     }
@@ -130,7 +168,7 @@ export const LiveSupport: React.FC = () => {
         <div className="parchment-card rounded-lg flex flex-col overflow-hidden shadow-md">
           <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-xs flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-[#c89b3c]" />
-            ACTIVE HERO TICKETS ({players.length})
+            ACTIVE COUNSEL INQUIRIES ({players.length})
           </div>
           {players.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-[#8c7456] p-6 space-y-2 font-serif">
@@ -139,22 +177,38 @@ export const LiveSupport: React.FC = () => {
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto divide-y divide-[#dcd1b5]">
-              {players.map((p) => (
-                <div
-                  key={p.playerId}
-                  onClick={() => setSelectedPlayerId(p.playerId)}
-                  className={`p-3.5 cursor-pointer transition-all ${
-                    selectedPlayerId === p.playerId ? 'bg-[#efe5cd] border-l-4 border-[#c89b3c]' : 'hover:bg-[#f4ecd8]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-[#3a2518] text-sm font-cinzel">{p.username || p.playerId}</span>
-                    <span className="text-xs text-[#78644e] font-mono">{p.lastMessageAt || ''}</span>
+              {players.map((p) => {
+                const isSelected = selectedPlayerId === p.playerId;
+                const pName = (p.playerName || p.username || '').trim();
+                const displayName = pName
+                  ? pName
+                  : (isSelected && activePlayerRealName && !activePlayerRealName.startsWith('Traveler')
+                      ? activePlayerRealName
+                      : `Traveler #${p.playerId.slice(-4).toUpperCase()}`);
+                return (
+                  <div
+                    key={p.playerId}
+                    onClick={() => setSelectedPlayerId(p.playerId)}
+                    className={`p-3.5 cursor-pointer transition-all ${
+                      selectedPlayerId === p.playerId ? 'bg-[#efe5cd] border-l-4 border-[#c89b3c]' : 'hover:bg-[#f4ecd8]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-[#3a2518] border border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-xs font-cinzel shrink-0 shadow-inner">
+                          {displayName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span className="font-bold text-[#3a2518] text-sm font-cinzel">{displayName}</span>
+                      </div>
+                      <span className="text-xs text-[#78644e] font-mono">{p.lastMessageAt || ''}</span>
+                    </div>
+                    <p className="text-xs text-[#523e2b] font-sans truncate pl-8">{p.lastMessage || 'No recent messages'}</p>
+                    <div className="flex items-center gap-1.5 pl-8 mt-1">
+                      <span className="text-xs font-mono text-[#8c7456]">Ref: #{p.playerId.slice(-6).toUpperCase()}</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-[#523e2b] font-sans truncate">{p.lastMessage || 'No recent messages'}</p>
-                  <span className="text-xs text-[#b45309] font-mono mt-1 block font-semibold">{p.playerId}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -165,10 +219,24 @@ export const LiveSupport: React.FC = () => {
             <>
               <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] flex items-center justify-between font-cinzel">
                 <div>
-                  <h4 className="text-xs font-bold">
-                    COUNSEL THREAD: <span className="text-[#ffe082]">{activePlayer?.username || selectedPlayerId}</span>
+                  <h4 className="text-sm font-bold">
+                    COUNSEL THREAD: <span className="text-[#ffe082]">{activePlayerRealName}</span>
                   </h4>
-                  <span className="text-xs text-[#c4b49e] font-serif">Hero ID: {selectedPlayerId}</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-[#c4b49e] font-sans">
+                      Player: <strong className="text-[#ffe082]">{activePlayerRealName}</strong>
+                    </span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#21140c] text-[#ffe082] border border-[#523725]">
+                      Ref #{selectedPlayerId.slice(-6).toUpperCase()}
+                    </span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(selectedPlayerId)}
+                      title={`Copy full ID: ${selectedPlayerId}`}
+                      className="text-[#c89b3c] hover:text-[#ffe082] transition-colors p-0.5"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
                 <span className="text-xs text-[#c4b49e] flex items-center gap-1 font-serif">
                   <Clock className="w-3.5 h-3.5 text-[#c89b3c]" /> LIVE THREAD
