@@ -12,49 +12,56 @@
 
 ## 📊 Báo Cáo Tiến Trình Dự Án (Project Progress)
 
-### Trạng Thái Tổng Thể: **Giai đoạn 1 Hoàn Tất (Phase 1 Completed - 100%)**
+### Trạng Thái Tổng Thể: **Giai đoạn 1 & Các Tính Năng Nâng Cao Hoàn Tất (100% Core Features & RBAC)**
 
 | Hạng mục / Module | Tiến độ | Trạng thái | Ghi chú |
 | :--- | :---: | :---: | :--- |
 | **Kiến trúc & Hạ tầng Frontend** | 100% | ✅ Hoàn thành | Vite 8 + React 19 + TypeScript + Tailwind CSS v4, Vercel SPA routing |
 | **PactKeeper RPG Design System** | 100% | ✅ Hoàn thành | Cinzel font, Mahogany & Parchment cards, Gold borders, responsive |
-| **Xác thực & Phân quyền (Auth)** | 100% | ✅ Hoàn thành | JWT Bearer, chặn quyền Player, lưu session & auto logout khi 401 |
-| **Tổng quan & Điều khiển Realm** | 100% | ✅ Hoàn thành | Đo lường CCU thực, doanh thu, tổng thực thể, nút dừng khẩn cấp (Emergency Overrides) |
-| **Quản lý Người chơi (Players)** | 100% | ✅ Hoàn thành | Tổng hợp người chơi đa nguồn (OAuth/Steam/Chat/PayOS), Ban/Unban, cộng trừ Vàng & Đá quý |
+| **Phân quyền Đa vai trò (RBAC Auth)** | 100% | ✅ Hoàn thành | Hỗ trợ 3 vai trò High Counsel (Admin, Moderator, Support Desk) với phân quyền truy cập chặt chẽ |
+| **Tổng quan Realm & Live Telemetry** | 100% | ✅ Hoàn thành | Đo lường CCU thực, theo dõi người chơi Online & Đang chiến đấu (In-Battle), nút dừng khẩn cấp |
+| **Quản lý Người chơi (Players)** | 100% | ✅ Hoàn thành | Tổng hợp người chơi đa nguồn, làm sạch ID/Alias, Ban/Unban, điều chỉnh tiền tệ theo quyền hạn |
 | **Quản lý Banner Triệu hồi (Gacha)** | 100% | ✅ Hoàn thành | Xem danh sách banner thực tế, tỷ lệ & bảo hiểm (Pity), tạo mới banner gacha |
 | **Kho Lưu trữ SRPG (Game CMS)** | 100% | ✅ Hoàn thành | 6 Tabs dữ liệu gốc: Anh hùng (Heroes), Chương (Chapters/Scenes), Vũ khí, Phụ kiện, Hệ phái, Kỹ năng |
 | **Sổ cái Doanh thu & PayOS Ledger** | 100% | ✅ Hoàn thành | Kết nối cổng PayOS, thống kê giao dịch PAID/PENDING/CANCELLED, quản lý gói nạp Top-Up |
-| **Hỗ trợ Trực tuyến (Live Support)** | 100% | ✅ Hoàn thành | Chat Real-time qua **SignalR WebSocket**, quản lý hàng đợi người chơi cần hỗ trợ |
+| **Hỗ trợ Trực tuyến (Live Support)** | 100% | ✅ Hoàn thành | Chat Real-time qua **SignalR WebSocket**, đồng bộ định danh người chơi thời gian thực |
+| **Quốc tế hóa & Chuẩn hóa UI (i18n)** | 100% | ✅ Hoàn thành | 100% giao diện tiếng Anh đồng nhất, chuẩn hóa định dạng tiền tệ và typography |
 
 ---
 
 ## 🚀 Tính Năng Chi Tiết (Detailed Features)
 
-### 1. 🛡️ Cổng Đăng Nhập High Counsel (`/login`)
-- Xác thực tài khoản quản trị qua API `POST /Auth/login`.
-- Kiểm tra vai trò: Yêu cầu quyền `Admin` hoặc `Server`; tự động từ chối nếu là role `Player`.
-- Tính năng ẩn/hiện mật khẩu, kiểm tra hợp lệ dữ liệu đầu vào (client-side validation), thông báo lỗi trực quan.
+### 1. 🛡️ Cổng Đăng Nhập & Phân Quyền High Counsel (`/login`)
+- Xác thực tài khoản quản trị qua API `POST /Auth/login` với JWT Bearer.
+- **Bộ chọn vai trò tương tác (Interactive Role Selector):**
+  - **High Counsel Admin (Full Authority):** Toàn quyền truy cập mọi tính năng, bảng điều khiển khẩn cấp, điều chỉnh kinh tế và CMS.
+  - **Realm Moderator (Game Master / Arbiter):** Giám sát hồ sơ người chơi, theo dõi hiện diện và thực thi kỷ luật Khóa/Mở khóa tài khoản (Ban/Unban).
+  - **Counsel Herald (Support Desk):** Vận hành tổng đài chat SignalR hai chiều với người chơi, tra cứu danh sách người chơi ở chế độ an toàn (Read-Only).
+- Tự động điều hướng đến trang chuyên trách sau khi đăng nhập thành công.
+- Tự động chặn và từ chối các tài khoản role `Player`.
 
-### 2. 🏰 Tổng Quan Vương Quốc (`/`)
-- **Chỉ số Telemetry thời gian thực:**
-  - Tổng số Tướng (Heroes/Units) trong game.
-  - Tổng số Banner Gacha đang hoạt động.
-  - Số lượng gói nạp (Packs) khả dụng.
-  - Tổng doanh thu thực tế được tính từ các đơn hàng PayOS thành công (`PAID`).
-  - Lượng người chơi đang hoạt động (Active CCU) cùng biểu đồ biến thiên Recharts.
-- **Bảng điều khiển Khẩn cấp (Emergency Overrides):**
+### 2. 🏰 Tổng Quan Vương Quốc & Live Telemetry (`/`)
+- **Chỉ số Telemetry & Trạng thái Thời gian thực:**
+  - **Live Online & In-Battle Presence Recognition:** Nhận diện người chơi đang trực tuyến (Online) và người chơi đang trong trận chiến (In-Battle) từ backend API Match/Support.
+  - Thẻ đếm số lượng trận đấu đang diễn ra và tổng số trận trong ngày.
+  - Bộ lọc hiện diện người chơi tức thì: `ALL`, `ONLINE`, `BATTLE`, `OFFLINE`.
+  - Tổng số Tướng (Heroes/Units), Banner Gacha và Gói nạp khả dụng.
+  - Tổng doanh thu thực tế tổng hợp từ các đơn hàng PayOS thành công (`PAID`).
+- **Bảng điều khiển Khẩn cấp (Emergency Overrides - Dành riêng cho Admin):**
   - Chặn / Mở đăng nhập người chơi toàn server (`/admin/update-login-status`).
   - Chặn / Mở ghép trận (Matchmaking) (`/admin/update-matchmaking-status`).
   - Dừng toàn bộ hệ thống khẩn cấp (`/admin/force-stop-all`).
   - Lưu trữ trạng thái công tắc khẩn cấp qua `localStorage`.
 
 ### 3. 👥 Quản Lý Người Chơi & Kiểm Duyệt (`/players`)
-- Tự động tập hợp danh sách người chơi từ nhiều nguồn: Phiên đăng nhập Google OAuth / Steam / Tài khoản thường, lịch sử thanh toán PayOS và hàng đợi chat hỗ trợ.
+- Tự động tập hợp danh sách người chơi từ nhiều nguồn: Google OAuth, Steam, tài khoản thông thường, lịch sử PayOS và hàng đợi chat hỗ trợ.
+- **Làm sạch định danh:** Chuẩn hóa các ID database/OAuth thô thành bí danh (Alias) người chơi trực quan, dễ quản lý.
 - Tra cứu nhanh theo `PlayerId` hoặc thêm thủ công ID người chơi vào danh sách giám sát.
 - Xem chi tiết hồ sơ: Cấp độ, Điểm kinh nghiệm, Số dư Vàng (Gold), Đá quý (Gems), Thời gian đăng nhập gần nhất.
-- Thao tác quản trị:
-  - Khóa tài khoản (Ban) / Mở khóa tài khoản (Unban) qua `/admin/ban-player` và `/admin/unban-player`.
-  - Điều chỉnh tài nguyên (Cộng/Trừ Đá quý và Vàng) trực tiếp qua `/admin/adjust-currency`.
+- **Phân quyền thao tác theo Role:**
+  - `Admin`: Toàn quyền Ban/Unban và điều chỉnh tiền tệ (Cộng/Trừ Gems & Gold) qua modal tương tác.
+  - `Moderator`: Thực thi Ban/Unban kỷ luật người chơi.
+  - `Support`: Chế độ chỉ đọc (Read-Only) an toàn, ngăn ngừa thao tác nhầm lẫn.
 
 ### 4. ✨ Quản Lý Banner Triệu Hồi Gacha (`/gacha`)
 - Hiển thị danh sách banner gacha đang hoạt động từ API `/gachabanner`.
@@ -78,6 +85,7 @@ Phân tách thành 6 thẻ lưu trữ hiển thị đầy đủ thông số trò
 ### 7. 💬 Tổng Đài Hỗ Trợ Real-time SignalR (`/support`)
 - Kết nối WebSocket trực tiếp đến `/hubs/support`.
 - Danh sách người chơi gửi yêu cầu hỗ trợ theo thời gian thực (`/support/admin/players`).
+- Đồng bộ tên danh xưng người chơi thật giữa cơ sở dữ liệu và hàng đợi hỗ trợ, loại bỏ chuỗi mã hóa khó nhận diện.
 - Khung chat hai chiều tức thì với người chơi: Lịch sử tin nhắn, định dạng thời gian, gửi tin nhắn phản hồi từ Admin trực tiếp tới Client game.
 
 ---
@@ -111,19 +119,21 @@ Admin_Pactkeeper/
 │   ├── components/
 │   │   ├── Header.tsx      # Thanh điều hướng trên cùng, profile Admin
 │   │   ├── Layout.tsx      # Khung layout tổng thể (Sidebar + Content + Header)
-│   │   └── Sidebar.tsx     # Menu điều hướng chính mang phong cách High Counsel
+│   │   └── Sidebar.tsx     # Menu điều hướng chính lọc quyền theo vai trò (RBAC)
 │   ├── pages/
 │   │   ├── ContentManagement.tsx   # CMS quản lý 6 danh mục SRPG
-│   │   ├── DashboardOverview.tsx   # Tổng quan, chỉ số CCU & nút khẩn cấp
+│   │   ├── DashboardOverview.tsx   # Tổng quan, Live Telemetry CCU/In-Battle & nút khẩn cấp
 │   │   ├── GachaManagement.tsx     # Quản lý sự kiện và banner triệu hồi
 │   │   ├── LiveSupport.tsx         # Chat hỗ trợ trực tuyến qua SignalR
-│   │   ├── Login.tsx               # Màn hình đăng nhập quyền Admin
+│   │   ├── Login.tsx               # Màn hình đăng nhập hỗ trợ chọn vai trò (Admin/Mod/Support)
 │   │   ├── PaymentManagement.tsx   # Quản lý đơn hàng PayOS & Gói nạp
-│   │   └── PlayerManagement.tsx    # Giám sát, Ban/Unban & điều chỉnh tài nguyên
+│   │   └── PlayerManagement.tsx    # Giám sát, Ban/Unban & điều chỉnh tài nguyên theo role
 │   ├── types/
-│   │   └── index.ts        # TypeScript interfaces & DTOs
+│   │   └── index.ts        # TypeScript interfaces, DTOs & CounselRole
+│   ├── utils/
+│   │   └── presence.ts     # Phân tích trạng thái người chơi Online & In-Battle
 │   ├── App.css
-│   ├── App.tsx             # Định tuyến Router & Quản lý trạng thái Token
+│   ├── App.tsx             # Định tuyến Router & Quản lý trạng thái Token/Role
 │   ├── index.css           # Cấu hình Tailwind CSS & Custom RPG classes
 │   └── main.tsx            # Điểm khởi chạy ứng dụng React
 ├── index.html
@@ -184,11 +194,17 @@ npm run preview
 
 ---
 
-## 🗺️ Kế Hoạch Phát Triển Tiếp Theo (Roadmap - Phase 2)
+## 🗺️ Kế Hoạch Phát Triển Tiếp Theo (Roadmap)
 
+### Đã hoàn thành gần đây:
+- [x] **Phân quyền Đa cấp độ (Role-Based Access Control):** Tách biệt các cấp độ High Counsel (Admin / Server, Moderator, Support Desk) với thanh điều hướng lọc động và giới hạn thao tác theo quyền hạn.
+- [x] **Giám sát Telemetry & Nhận diện Hiện diện (Live Presence):** Theo dõi thời gian thực người chơi Online, đang trong trận chiến (In-Battle Presence) cùng danh sách trận đấu thực tế.
+- [x] **Đồng bộ Định danh & Chuẩn hóa hiển thị:** Chuyển đổi định danh thô từ DB sang bí danh dễ đọc trong giao diện Player & Hàng đợi Live Support.
+- [x] **Quốc tế hóa giao diện (100% English UI Consistency):** Đồng nhất toàn bộ nhãn, nút bấm, bảng và định dạng tiền tệ sang chuẩn tiếng Anh.
+
+### Kế hoạch tiếp theo (Upcoming Features):
 - [ ] **Chỉnh sửa nâng cao SRPG Definitions:** Bổ sung tính năng Chỉnh sửa (Edit) và Xóa (Delete) trực tiếp cho Vũ khí, Trang bị, Kỹ năng và Cốt truyện trên giao diện.
 - [ ] **Hệ thống Thư & Quà tặng Toàn máy chủ (Server Mail / Compensation):** Gửi thư đền bù vật phẩm, đá quý hoặc vàng hàng loạt tới toàn bộ người chơi hoặc theo danh sách chỉ định.
-- [ ] **Báo cáo & Phân tích Nâng cao:** Lọc lịch sử doanh thu PayOS theo khoảng thời gian tùy chọn (ngày/tuần/tháng), biểu đồ tỷ lệ giữ chân người chơi (Retention Rate).
-- [ ] **Phân quyền Đa cấp độ (Role-Based Access Control):** Tách biệt các cấp độ quản trị viên (Super Admin, Game Master, Support Agent, Data Viewer).
+- [ ] **Báo cáo & Phân tích Doanh thu Nâng cao:** Lọc lịch sử doanh thu PayOS theo khoảng thời gian tùy chọn (ngày/tuần/tháng), xuất báo cáo thống kê.
 - [ ] **Tối ưu hóa Bundle (Code Splitting):** Áp dụng React.lazy / Suspense cho các trang quản trị để giảm dung lượng file nạp ban đầu.
 - [ ] **Kiểm thử tự động:** Tích hợp bộ kiểm thử Component và E2E testing (Vitest + Playwright).
