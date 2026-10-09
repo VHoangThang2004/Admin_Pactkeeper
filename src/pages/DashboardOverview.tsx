@@ -51,6 +51,8 @@ interface DashboardOverviewProps {
  */
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Admin' }) => {
   const isAdmin = role === 'Admin' || role === 'Server';
+  const isTechSupport = role === 'Technical Support' || role === 'Support';
+  const canOverride = isAdmin || isTechSupport;
 
   // Local state persistence for Emergency Overrides switches across reloads
   const [serverState, setServerState] = useState<ServerState>(() => {
@@ -302,10 +304,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       {/* Top Mahogany Header Banner */}
       <div className="mahogany-banner p-5 text-center rounded-lg relative overflow-hidden shadow-md">
         <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
-          TREASURY & REALM COMMAND
+          {isTechSupport ? 'SYSTEM STATUS & TELEMETRY MONITOR' : 'TREASURY & REALM COMMAND'}
         </h1>
         <p className="text-xs md:text-sm text-[#d5c7b3] font-serif mt-1">
-          High Counsel Realm Telemetry, Player Population & Operational Control
+          {isTechSupport
+            ? 'Technical Support Station: Monitor System/Server Status and Configure System Overrides'
+            : 'Admin Dashboard: Live Telemetry, Player Concurrency, Revenue and High Counsel Controls'}
         </p>
         <button
           onClick={fetchRealTelemetry}
@@ -750,18 +754,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               <p className="text-xs text-[#c4b49e] font-serif">Direct operational overrides via AdminController endpoints.</p>
             </div>
           </div>
-          {!isAdmin && (
+          {!canOverride && (
             <span className="px-2.5 py-1 rounded bg-[#7f1d1d]/60 border border-[#ef4444] text-[#fca5a5] text-xs font-cinzel font-bold flex items-center gap-1">
-              <ShieldX className="w-3.5 h-3.5" /> ADMIN ONLY
+              <ShieldX className="w-3.5 h-3.5" /> RESTRICTED
             </span>
           )}
         </div>
 
-        {!isAdmin && (
+        {!canOverride && (
           <div className="p-3 rounded bg-[#7f1d1d]/30 border border-[#ef4444]/60 text-[#fca5a5] text-xs flex items-center gap-2 font-serif">
             <ShieldX className="w-4 h-4 text-[#f87171] shrink-0" />
             <span>
-              <strong>Restricted Operations:</strong> Emergency server overrides are restricted to High Counsel Administrators. Buttons are locked.
+              <strong>Restricted Operations:</strong> Emergency server overrides are restricted to Technical Support & Administrators (Use Case: Configure System).
             </span>
           </div>
         )}
@@ -777,8 +781,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             </div>
             <button
               onClick={toggleLoginStatus}
-              disabled={!isAdmin || loadingAction === 'login'}
-              title={!isAdmin ? 'Administrator privilege required' : 'Toggle login status'}
+              disabled={!canOverride || loadingAction === 'login'}
+              title={!canOverride ? 'Privilege required' : 'Toggle login status'}
               className="px-3 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {serverState.loginBlocked ? <Unlock className="w-3.5 h-3.5 text-[#34d399]" /> : <Lock className="w-3.5 h-3.5 text-[#f87171]" />}
@@ -796,8 +800,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             </div>
             <button
               onClick={toggleQueueStatus}
-              disabled={!isAdmin || loadingAction === 'queue'}
-              title={!isAdmin ? 'Administrator privilege required' : 'Toggle queue status'}
+              disabled={!canOverride || loadingAction === 'queue'}
+              title={!canOverride ? 'Privilege required' : 'Toggle queue status'}
               className="px-3 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {serverState.matchmakingBlocked ? <Unlock className="w-3.5 h-3.5 text-[#34d399]" /> : <Lock className="w-3.5 h-3.5 text-[#fbbf24]" />}
@@ -813,8 +817,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             </div>
             <button
               onClick={handleForceStopAll}
-              disabled={!isAdmin || loadingAction === 'forceStop'}
-              title={!isAdmin ? 'Administrator privilege required' : 'Force stop all active sessions'}
+              disabled={!canOverride || loadingAction === 'forceStop'}
+              title={!canOverride ? 'Privilege required' : 'Force stop all active sessions'}
               className="px-3 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel flex items-center gap-1.5 shadow disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Power className="w-3.5 h-3.5" />

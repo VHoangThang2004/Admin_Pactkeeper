@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff, ShieldAlert, MessageSquare, ArrowRight, Sparkles } from 'lucide-react';
+import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff, ArrowRight, Sparkles, Activity, ScrollText } from 'lucide-react';
 import { adminClient } from '../api/adminClient';
 import type { CounselRole } from '../types';
 
@@ -7,7 +7,7 @@ interface LoginProps {
   onLoginSuccess: (token: string, username: string, role: CounselRole) => void;
 }
 
-type SelectableRole = 'Admin' | 'Moderator' | 'Support';
+type SelectableRole = 'Admin' | 'Moderator' | 'Technical Support';
 
 interface RoleConfig {
   id: SelectableRole;
@@ -28,44 +28,44 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
   Admin: {
     id: 'Admin',
     label: 'High Counsel Admin',
-    roleSubtitle: 'Supreme Administrator',
+    roleSubtitle: 'Accounts & Admin Dashboard',
     icon: Crown,
-    badgeText: 'FULL AUTHORITY',
-    landingPath: 'Treasury Overview (/)',
+    badgeText: 'ACCOUNTS & DASHBOARD',
+    landingPath: 'Admin Dashboard (/)',
     defaultUsername: 'admin',
     defaultPasscode: 'admin123',
     themeColor: '#ffe082',
     activeBg: 'bg-[#4a3324]',
     activeBorder: 'border-[#c89b3c]',
-    scopeSummary: 'Full command of Treasury Overview, PayOS Revenue, Gacha Summon Banners, SRPG Archives, and Player Moderation.',
+    scopeSummary: 'Context & Use Case Diagram: Direct responsibility for Manage User Accounts (Profiles, Bans, Balances) and View Admin Dashboard.',
   },
   Moderator: {
     id: 'Moderator',
     label: 'Realm Moderator',
-    roleSubtitle: 'Game Master / Arbiter',
-    icon: ShieldAlert,
-    badgeText: 'MODERATION',
-    landingPath: 'Heroes & Players (/players)',
+    roleSubtitle: 'Gacha, Story, Items & Match Inspect',
+    icon: ScrollText,
+    badgeText: 'GACHA, ITEMS & MATCHES',
+    landingPath: 'Summon Banners (/gacha)',
     defaultUsername: 'moderator',
     defaultPasscode: 'mod123',
     themeColor: '#38bdf8',
     activeBg: 'bg-[#0c4a6e]/50',
     activeBorder: 'border-[#0284c7]',
-    scopeSummary: 'Inspect active player profiles, review telemetry presence, enforce disciplinary Account Ban / Unban actions.',
+    scopeSummary: 'Context & Use Case Diagram: Direct responsibility for Gacha/Story Config, Item/Combat Reward Config, and Inspect PvP Matches (Team Formation & Logs).',
   },
-  Support: {
-    id: 'Support',
-    label: 'Counsel Herald',
-    roleSubtitle: 'Customer Support Desk',
-    icon: MessageSquare,
-    badgeText: 'LIVE SUPPORT',
-    landingPath: 'Counsel Board (/support)',
-    defaultUsername: 'support',
+  'Technical Support': {
+    id: 'Technical Support',
+    label: 'Technical Support',
+    roleSubtitle: 'System Status, Overrides & Alerts',
+    icon: Activity,
+    badgeText: 'SYSTEM STATUS & ALERTS',
+    landingPath: 'System Monitor & Status (/)',
+    defaultUsername: 'techsupport',
     defaultPasscode: 'support123',
     themeColor: '#34d399',
     activeBg: 'bg-[#064e3b]/50',
     activeBorder: 'border-[#10b981]',
-    scopeSummary: 'Operate two-way real-time player chat desk via SignalR WebSockets and inspect traveler profiles in read-only mode.',
+    scopeSummary: 'Context & Use Case Diagram: Direct responsibility for Monitor System/Server Status, Configure System Overrides & Statistic Requests, and View Logs & Alerts.',
   },
 };
 
@@ -141,7 +141,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     const inputUser = username.trim().toLowerCase();
     const isTestModerator = (inputUser === 'moderator' && password === 'mod123') || (selectedRole === 'Moderator' && inputUser === 'moderator');
-    const isTestSupport = (inputUser === 'support' && password === 'support123') || (selectedRole === 'Support' && inputUser === 'support');
+    const isTestSupport = ((inputUser === 'techsupport' || inputUser === 'support') && (password === 'support123' || password === 'support')) ||
+      (selectedRole === 'Technical Support' && (inputUser === 'techsupport' || inputUser === 'support'));
     const isTestAdmin = (inputUser === 'admin' && (password === 'admin123' || password === 'admin'));
 
     try {
@@ -159,8 +160,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (lower === 'player') {
           setError('Access Denied! Account holds a standard Player role. High Counsel privilege is required.');
           return;
-        } else if (lower === 'support' || lower === 'cskh' || lower === 'cs') {
-          normalizedRole = 'Support';
+        } else if (lower === 'support' || lower === 'technical support' || lower === 'technicalsupport' || lower === 'techsupport' || lower === 'cskh' || lower === 'cs') {
+          normalizedRole = 'Technical Support';
         } else if (lower === 'moderator' || lower === 'mod' || lower === 'gamemaster' || lower === 'gm') {
           normalizedRole = 'Moderator';
         } else if (lower === 'server') {
@@ -184,9 +185,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      if (isTestSupport && password === 'support123') {
+      if (isTestSupport) {
         const gatewayToken = await fetchGatewayJwt();
-        onLoginSuccess(gatewayToken, username || 'counsel_herald', 'Support');
+        onLoginSuccess(gatewayToken, username || 'technical_support', 'Technical Support');
         return;
       }
 
@@ -200,7 +201,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       if (err.response) {
         const status = err.response.status;
         if (status === 401 || status === 400) {
-          setError(`Incorrect Credentials for ${selectedRole}! Demo accounts: admin / admin123, moderator / mod123, support / support123.`);
+          setError(`Incorrect Credentials for ${selectedRole}! Demo accounts: admin / admin123, moderator / mod123, techsupport / support123.`);
         } else if (status === 403) {
           setError('Access Denied! Account lacks High Counsel authorization.');
         } else if (status === 500) {
@@ -209,7 +210,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           setError(`Authentication failed with status code ${status}.`);
         }
       } else {
-        setError(`Unable to connect to Realm Gateway. (Demo credentials: admin/admin123, moderator/mod123, support/support123).`);
+        setError(`Unable to connect to Realm Gateway. (Demo credentials: admin/admin123, moderator/mod123, techsupport/support123).`);
       }
     } finally {
       setLoading(false);
@@ -435,14 +436,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </button>
             <button
               type="button"
-              onClick={() => handleSelectRole('Support')}
+              onClick={() => handleSelectRole('Technical Support')}
               className={`p-1.5 rounded border text-center transition-all ${
-                selectedRole === 'Support'
+                selectedRole === 'Technical Support'
                   ? 'bg-[#34d399]/20 border-[#34d399] text-[#34d399] font-bold shadow'
                   : 'bg-[#3a2518] border-[#c89b3c]/30 text-[#e6d0a7] hover:border-[#34d399]'
               }`}
             >
-              🎧 support
+              🎧 techsupport
             </button>
           </div>
         </div>
