@@ -1,4 +1,4 @@
-export type CounselRole = 'Admin' | 'Server' | 'Moderator' | 'Support';
+export type CounselRole = 'Admin' | 'Server' | 'Moderator' | 'Technical Support' | 'Support';
 
 export interface User {
   id: string;

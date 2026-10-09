@@ -244,10 +244,12 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       {/* Header Banner */}
       <div className="mahogany-banner p-5 text-center rounded-lg relative">
         <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
-          HEROES & REALM PLAYERS
+          {role === 'Moderator' ? 'INSPECT PVP MATCHES & TEAMS' : 'MANAGE USER ACCOUNTS'}
         </h1>
         <p className="text-xs text-[#d5c7b3] font-serif mt-1">
-          Inspect player inventories, grant resources & moderate realm accounts
+          {role === 'Moderator'
+            ? 'Moderator Scope: Inspect player presence in battle, formations, and match activity logs (Diagram: Inspect PvP Match)'
+            : 'Admin Scope: Full player account management, economy balance adjustments, and standing oversight (Diagram: Manage User Accounts)'}
         </p>
         <button
           onClick={() => fetchPlayers()}
@@ -258,11 +260,11 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       </div>
 
       {/* Role Access Notice */}
-      {role === 'Support' && (
+      {(role === 'Technical Support' || role === 'Support') && (
         <div className="p-3.5 rounded bg-[#064e3b]/30 border border-[#10b981]/50 text-[#86efac] text-xs font-serif flex items-center gap-2.5 shadow-sm">
           <Info className="w-4 h-4 text-[#34d399] shrink-0" />
           <span>
-            <strong>Customer Support Herald Mode:</strong> Read-only player lookup enabled. Treasury adjustments and account bans are restricted to Realm Moderators and High Counsel Administrators.
+            <strong>Technical Support Station:</strong> Read-only player inquiry mode. Currency adjustments and account moderation are restricted to Realm Administrators.
           </span>
         </div>
       )}
@@ -270,7 +272,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         <div className="p-3.5 rounded bg-[#0c4a6e]/30 border border-[#0284c7]/50 text-[#7dd3fc] text-xs font-serif flex items-center gap-2.5 shadow-sm">
           <Info className="w-4 h-4 text-[#38bdf8] shrink-0" />
           <span>
-            <strong>Realm Moderator Mode:</strong> Disciplinary actions (Account Ban / Unban) enabled. Direct treasury currency adjustments are restricted to High Counsel Administrators.
+            <strong>Realm Moderator Inspection Mode:</strong> Live presence tracking and match inspection enabled. Account balance adjustments are managed by High Counsel Administrators.
           </span>
         </div>
       )}
@@ -486,7 +488,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                     )}
                   </td>
                   <td className="py-4 px-5 text-right space-x-2">
-                    {role === 'Support' ? (
+                    {(role === 'Technical Support' || role === 'Support') ? (
                       <span className="text-xs font-mono text-[#8c7456] italic px-2.5 py-1 rounded bg-[#2b1b11] border border-[#4d3525] inline-block">
                         Read-Only
                       </span>

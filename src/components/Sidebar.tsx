@@ -9,7 +9,8 @@ import {
   MessageSquare,
   LogOut,
   Crown,
-  ScrollText
+  ScrollText,
+  Activity
 } from 'lucide-react';
 import type { CounselRole } from '../types';
 
@@ -21,42 +22,43 @@ interface SidebarProps {
 /**
  * Sidebar Navigation Component for PactKeeper High Counsel
  * 
- * Features:
- * 1. Role-Based Access Control (RBAC): Automatically filters navigation modules
- *    according to the authenticated role (Admin / Moderator / Support).
- * 2. Medieval RPG visual identity (Cinzel typography, mahogany textures, gold borders).
- * 3. Real-time server gateway & database status indicator with active role readout.
+ * Configured directly in accordance with the system Context Diagram and Use Case Diagram:
+ * - Admin: View Admin Dashboard, Manage User Accounts, PayOS Revenue Ledger
+ * - Moderator: Gacha/Story Config, Item/Combat Reward Config, Inspect PvP Match & Teams
+ * - Technical Support: Monitor System Status, Configure System Overrides & Statistic Requests, View Logs & Alerts
  */
 export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
-  // Navigation matrix with strict role access mapping
+  const isTechSupport = role === 'Technical Support' || role === 'Support';
+
+  // Navigation matrix with strict role access mapping from diagrams
   const allNavItems = [
     { 
       path: '/', 
-      label: 'TREASURY OVERVIEW', 
-      icon: Gem, 
-      tag: 'OVERVIEW', 
-      allowedRoles: ['Admin', 'Server'] 
+      label: isTechSupport ? 'SYSTEM STATUS & MONITOR' : 'ADMIN DASHBOARD', 
+      icon: isTechSupport ? Activity : Gem, 
+      tag: isTechSupport ? 'STATUS' : 'OVERVIEW', 
+      allowedRoles: ['Admin', 'Server', 'Technical Support', 'Support'] 
     },
     { 
       path: '/players', 
-      label: 'HEROES & PLAYERS', 
+      label: role === 'Moderator' ? 'INSPECT MATCHES & TEAMS' : 'MANAGE USER ACCOUNTS', 
       icon: Shield, 
-      tag: 'RECORDS', 
-      allowedRoles: ['Admin', 'Server', 'Moderator', 'Support'] 
+      tag: role === 'Moderator' ? 'INSPECT' : 'ACCOUNTS', 
+      allowedRoles: ['Admin', 'Server', 'Moderator'] 
     },
     { 
       path: '/gacha', 
-      label: 'SUMMON BANNER', 
+      label: 'GACHA / STORY BANNER', 
       icon: Sparkles, 
-      tag: 'BANNER', 
-      allowedRoles: ['Admin', 'Server'] 
+      tag: 'CONFIG', 
+      allowedRoles: ['Moderator', 'Admin', 'Server'] 
     },
     { 
       path: '/content', 
-      label: 'SRPG DEFINITIONS', 
+      label: 'ITEM & REWARD CONFIG', 
       icon: Scroll, 
-      tag: 'ARCHIVES', 
-      allowedRoles: ['Admin', 'Server'] 
+      tag: 'ITEMS', 
+      allowedRoles: ['Moderator', 'Admin', 'Server'] 
     },
     { 
       path: '/payments', 
@@ -67,10 +69,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
     },
     { 
       path: '/support', 
-      label: 'COUNSEL BOARD', 
+      label: 'LOGS & ALERTS BOARD', 
       icon: MessageSquare, 
-      tag: 'MISSIVES', 
-      allowedRoles: ['Admin', 'Server', 'Moderator', 'Support'] 
+      tag: 'ALERTS', 
+      allowedRoles: ['Technical Support', 'Support', 'Admin', 'Server'] 
     },
   ];
 
@@ -80,12 +82,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
   // Dynamic module section header based on role privileges
   const getSectionTitle = () => {
     switch (role) {
+      case 'Technical Support':
       case 'Support':
-        return 'CUSTOMER SUPPORT MODULES';
+        return 'TECHNICAL SUPPORT (STATUS & ALERTS)';
       case 'Moderator':
-        return 'REALM MODERATION MODULES';
+        return 'MODERATOR (GACHA, ITEMS, MATCHES)';
       default:
-        return 'HIGH COUNSEL MODULES';
+        return 'HIGH COUNSEL (ACCOUNTS & DASHBOARD)';
     }
   };
 

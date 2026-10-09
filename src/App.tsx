@@ -58,13 +58,18 @@ export const App: React.FC = () => {
 
   /**
    * Resolves the primary landing path tailored to the user's privilege tier.
+   * Based on Context Diagram and Use Case Diagram:
+   * - Technical Support: Lands on System Monitor & Status (/)
+   * - Moderator: Lands on Gacha Summon Banners (/gacha)
+   * - Admin: Lands on Admin Dashboard (/)
    */
   const getDefaultPath = (): string => {
     switch (role) {
+      case 'Technical Support':
       case 'Support':
-        return '/support';
+        return '/';
       case 'Moderator':
-        return '/players';
+        return '/gacha';
       case 'Server':
       case 'Admin':
       default:
@@ -72,16 +77,9 @@ export const App: React.FC = () => {
     }
   };
 
-  /**
-   * High Counsel Administrator Route Guard.
-   * Restricts sensitive economy and definition routes to Administrator roles.
-   */
-  const requireAdmin = (element: React.ReactElement) => {
-    if (role === 'Admin' || role === 'Server') {
-      return element;
-    }
-    return <Navigate to={getDefaultPath()} replace />;
-  };
+  const isTechSupport = role === 'Technical Support' || role === 'Support';
+  const isMod = role === 'Moderator';
+  const isAdmin = role === 'Admin' || role === 'Server';
 
   return (
     <BrowserRouter>
@@ -99,18 +97,41 @@ export const App: React.FC = () => {
             )
           }
         >
-          {/* Overview is only for Admin & Server, others redirect to their home */}
+          {/* Dashboard / System Status: Admin & Technical Support */}
           <Route
             path="/"
-            element={role === 'Admin' || role === 'Server' ? <DashboardOverview role={role} /> : <Navigate to={getDefaultPath()} replace />}
+            element={!isMod ? <DashboardOverview role={role} /> : <Navigate to="/gacha" replace />}
           />
-          <Route path="/players" element={<PlayerManagement role={role} />} />
-          <Route path="/support" element={<LiveSupport />} />
 
-          {/* High Counsel Admin Only Routes */}
-          <Route path="/gacha" element={requireAdmin(<GachaManagement />)} />
-          <Route path="/content" element={requireAdmin(<ContentManagement />)} />
-          <Route path="/payments" element={requireAdmin(<PaymentManagement />)} />
+          {/* User Accounts & Match Inspect: Admin & Moderator */}
+          <Route
+            path="/players"
+            element={!isTechSupport ? <PlayerManagement role={role} /> : <Navigate to="/" replace />}
+          />
+
+          {/* Logs, Alerts & Support: Technical Support & Admin */}
+          <Route
+            path="/support"
+            element={!isMod ? <LiveSupport /> : <Navigate to="/gacha" replace />}
+          />
+
+          {/* Gacha / Story Config: Moderator & Admin */}
+          <Route
+            path="/gacha"
+            element={!isTechSupport ? <GachaManagement /> : <Navigate to="/" replace />}
+          />
+
+          {/* Item & Combat Reward Config (SRPG Definitions): Moderator & Admin */}
+          <Route
+            path="/content"
+            element={!isTechSupport ? <ContentManagement /> : <Navigate to="/" replace />}
+          />
+
+          {/* PayOS Financial Ledger: Admin Only */}
+          <Route
+            path="/payments"
+            element={isAdmin ? <PaymentManagement /> : <Navigate to={getDefaultPath()} replace />}
+          />
         </Route>
         <Route path="*" element={<Navigate to={getDefaultPath()} replace />} />
       </Routes>

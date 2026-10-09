@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Crown, MessageSquare, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Crown, Activity, ScrollText } from 'lucide-react';
 import type { CounselRole } from '../types';
 
 interface HeaderProps {
@@ -13,23 +13,24 @@ interface HeaderProps {
  * Displays:
  * 1. Tactical SRPG Realm branding and counsel portal status
  * 2. Active administrator credentials and high counsel avatar
- * 3. Role-based badge with distinct iconography and colors for Admin, Moderator, and Support
+ * 3. Role-based badge with distinct iconography and colors for Admin, Moderator, and Technical Support
  */
 export const Header: React.FC<HeaderProps> = ({ adminName, role }) => {
   // Compute theme badge metadata based on authenticated role
   const getRoleBadge = () => {
     switch (role) {
+      case 'Technical Support':
       case 'Support':
         return {
-          title: 'Counsel Herald (CS Support)',
-          icon: <MessageSquare className="w-3.5 h-3.5 text-[#34d399]" />,
+          title: 'Technical Support (Status & Alerts)',
+          icon: <Activity className="w-3.5 h-3.5 text-[#34d399]" />,
           colorClass: 'text-[#34d399]',
           borderClass: 'border-[#10b981]/50 bg-[#064e3b]/40',
         };
       case 'Moderator':
         return {
-          title: 'Realm Arbiter (Game Master)',
-          icon: <ShieldAlert className="w-3.5 h-3.5 text-[#38bdf8]" />,
+          title: 'Realm Moderator (Gacha, Items & Inspect)',
+          icon: <ScrollText className="w-3.5 h-3.5 text-[#38bdf8]" />,
           colorClass: 'text-[#38bdf8]',
           borderClass: 'border-[#0284c7]/50 bg-[#0c4a6e]/40',
         };
@@ -37,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ adminName, role }) => {
       case 'Admin':
       default:
         return {
-          title: 'High Counsel Commander (Admin)',
+          title: 'High Counsel Admin (Accounts & Dashboard)',
           icon: <Crown className="w-3.5 h-3.5 text-[#f59e0b]" />,
           colorClass: 'text-[#ffe082]',
           borderClass: 'border-[#c89b3c]/60 bg-[#3a2518]',
