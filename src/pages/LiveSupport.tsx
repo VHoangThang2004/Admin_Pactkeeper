@@ -1,20 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { adminClient } from '../api/adminClient';
-import { MessageSquare, Send, User, ShieldCheck, Circle, Clock, RefreshCw, Inbox, Copy, Swords } from 'lucide-react';
+import {
+  MessageSquare,
+  Send,
+  User,
+  ShieldCheck,
+  Circle,
+  Clock,
+  RefreshCw,
+  Inbox,
+  Copy,
+  Swords,
+  Terminal
+} from 'lucide-react';
 import * as signalR from '@microsoft/signalr';
 import { getPlayerPresence } from '../utils/presence';
+import { MatchLogInspector } from '../components/MatchLogInspector';
 
 /**
- * Live Support & Real-Time Player Communications (Customer Support Portal)
+ * Logs & Alerts Board (Customer Support & Match Server Log Inspector)
  * 
  * Features:
  * 1. Two-way WebSocket messaging with players via Microsoft SignalR (/hubs/support).
  * 2. Active hero tickets list (/api/Support/admin/players).
  * 3. Historical message retrieval (/api/Support/admin/chat/{playerId}).
  * 4. Dispatch administrative replies directly into the game client.
+ * 5. Dedicated Match Server Log Inspector: Real-time telemetry and error investigation
+ *    for Unity Headless Dedicated Server match sessions.
  */
 export const LiveSupport: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = (searchParams.get('tab') as 'support' | 'logs') || 'support';
+  const queryMatchId = searchParams.get('matchId') || '';
+
+  // Support Chat states
   const [players, setPlayers] = useState<ActiveChatPlayerDto[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [messages, setMessages] = useState<SupportMessageDto[]>([]);
@@ -29,7 +50,7 @@ export const LiveSupport: React.FC = () => {
     messages.find((m) => m.sender !== 'admin' && m.sender !== 'Admin' && m.senderName && m.senderName.trim())?.senderName?.trim() ||
     (selectedPlayerId ? `Traveler #${selectedPlayerId.slice(-4).toUpperCase()}` : 'Traveler');
 
-  const fetchPlayers = async () => {
+  const fetchPlayers = useCallback(async () => {
     setLoading(true);
     try {
       const [supportRes, matchRes] = await Promise.allSettled([
@@ -69,56 +90,40 @@ export const LiveSupport: React.FC = () => {
           };
         });
         setPlayers(mapped);
-        if (!selectedPlayerId && mapped.length > 0) {
+        if (mapped.length > 0 && !selectedPlayerId) {
           setSelectedPlayerId(mapped[0].playerId);
         }
-      } else {
-        setPlayers([]);
       }
     } catch {
-      setPlayers([]);
+      // Graceful fallback
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPlayerId]);
 
-  const fetchMessagesForPlayer = async (playerId: string) => {
+  const fetchMessagesForPlayer = useCallback(async (playerId: string) => {
     if (!playerId) return;
     try {
       const res = await adminClient.get(`/support/admin/chat/${playerId}`);
       if (Array.isArray(res.data)) {
         setMessages(res.data);
-        // Extract real player name if available from non-admin message history
-        const playerMsg = res.data.find(
-          (m: any) => m.sender !== 'admin' && m.sender !== 'Admin' && m.senderName && m.senderName.trim()
-        );
-        if (playerMsg) {
-          const realName = playerMsg.senderName.trim();
-          setPlayers((prev) =>
-            prev.map((p) =>
-              p.playerId === playerId && (!p.username || p.username.startsWith('Traveler'))
-                ? { ...p, username: realName, playerName: realName }
-                : p
-            )
-          );
-        }
       } else {
         setMessages([]);
       }
     } catch {
       setMessages([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchPlayers();
-  }, []);
+  }, [fetchPlayers]);
 
   useEffect(() => {
     if (selectedPlayerId) {
       fetchMessagesForPlayer(selectedPlayerId);
     }
-  }, [selectedPlayerId]);
+  }, [selectedPlayerId, fetchMessagesForPlayer]);
 
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
@@ -143,10 +148,11 @@ export const LiveSupport: React.FC = () => {
     return () => {
       connection.stop();
     };
-  }, [selectedPlayerId]);
+  }, [selectedPlayerId, fetchPlayers]);
 
   const handleSendMessage = async () => {
     if (!replyText.trim() || !selectedPlayerId) return;
+
     const textToSend = replyText;
     setReplyText('');
 
@@ -160,203 +166,298 @@ export const LiveSupport: React.FC = () => {
     }
   };
 
+  const handleTabChange = (tab: 'support' | 'logs') => {
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', tab);
+    setSearchParams(params);
+  };
+
   return (
     <div className="space-y-6 pb-8 font-sans">
       {/* Header Banner */}
-      <div className="mahogany-banner p-5 text-center rounded-lg relative">
+      <div className="mahogany-banner p-5 text-center rounded-lg relative shadow-md">
         <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
-          COUNSEL BOARD & LIVE MISSIVES
+          LOGS & ALERTS COMMAND BOARD
         </h1>
-        <p className="text-xs text-[#d5c7b3] font-serif mt-1">Real-time Hero Support Tickets & SignalR Communication</p>
-        <div className="absolute right-4 top-4 flex items-center gap-3">
-          <button
-            onClick={() => fetchPlayers()}
-            className="px-3.5 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> REFRESH
-          </button>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#26170d] border border-[#c89b3c] text-xs font-cinzel font-bold text-[#ffe082]">
-            <Circle className={`w-2.5 h-2.5 rounded-full fill-current ${isConnected ? 'text-[#34d399] animate-pulse' : 'text-[#f59e0b]'}`} />
-            <span>{isConnected ? 'SIGNALR ACTIVE' : 'HUB READY'}</span>
+        <p className="text-xs text-[#d5c7b3] font-serif mt-1">
+          Real-time Player Assistance & Dedicated Match Server Diagnostics
+        </p>
+
+        {currentTab === 'support' && (
+          <div className="absolute right-4 top-4 hidden sm:flex items-center gap-3">
+            <button
+              onClick={() => fetchPlayers()}
+              className="px-3 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> REFRESH
+            </button>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#26170d] border border-[#c89b3c] text-xs font-cinzel font-bold text-[#ffe082]">
+              <Circle className={`w-2.5 h-2.5 rounded-full fill-current ${isConnected ? 'text-[#34d399] animate-pulse' : 'text-[#f59e0b]'}`} />
+              <span>{isConnected ? 'SIGNALR ACTIVE' : 'HUB READY'}</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Main Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]">
-        {/* Player List */}
-        <div className="parchment-card rounded-lg flex flex-col overflow-hidden shadow-md">
-          <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-xs flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-[#c89b3c]" />
-            ACTIVE COUNSEL INQUIRIES ({players.length})
-          </div>
-          {players.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-[#8c7456] p-6 space-y-2 font-serif">
-              <Inbox className="w-8 h-8 text-[#c89b3c]" />
-              <p className="text-sm font-bold font-cinzel">No active missives recorded.</p>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto divide-y divide-[#dcd1b5]">
-              {players.map((p) => {
-                const isSelected = selectedPlayerId === p.playerId;
-                const pName = (p.playerName || p.username || '').trim();
-                const displayName = pName
-                  ? pName
-                  : (isSelected && activePlayerRealName && !activePlayerRealName.startsWith('Traveler')
-                      ? activePlayerRealName
-                      : `Traveler #${p.playerId.slice(-4).toUpperCase()}`);
-                const presence = getPlayerPresence(p.playerId, activeMatchesMap, p.latestMessageTime || p.lastMessageAt);
+      {/* Tabs Navigation */}
+      <div className="flex items-center gap-2 border-b-2 border-[#c89b3c] pb-2">
+        <button
+          type="button"
+          onClick={() => handleTabChange('support')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-bold font-cinzel transition-all ${
+            currentTab === 'support'
+              ? 'bg-[#3a2518] text-[#ffe082] border-2 border-[#c89b3c] border-b-0 shadow-md'
+              : 'text-[#78644e] hover:text-[#3a2518]'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 text-[#c89b3c]" />
+          <span>PLAYER SUPPORT DESK ({players.length})</span>
+        </button>
 
-                return (
-                  <div
-                    key={p.playerId}
-                    onClick={() => setSelectedPlayerId(p.playerId)}
-                    className={`p-3.5 cursor-pointer transition-all ${
-                      selectedPlayerId === p.playerId ? 'bg-[#efe5cd] border-l-4 border-[#c89b3c]' : 'hover:bg-[#f4ecd8]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className="relative">
-                          <div className="w-7 h-7 rounded-full bg-[#3a2518] border border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-xs font-cinzel shrink-0 shadow-inner">
-                            {displayName.slice(0, 2).toUpperCase()}
-                          </div>
-                          <span
-                            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#2b1b11] ${presence.dotColor}`}
-                            title={presence.label}
-                          />
-                        </div>
-                        <div>
-                          <span className="font-bold text-[#3a2518] text-sm font-cinzel block leading-tight">{displayName}</span>
-                          <span className={`text-[10px] font-cinzel font-bold ${presence.badgeText}`}>
-                            {presence.label}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-xs text-[#78644e] font-mono">{p.lastMessageAt || ''}</span>
-                    </div>
-                    <p className="text-xs text-[#523e2b] font-sans truncate pl-9">{p.lastMessage || 'No recent messages'}</p>
-                    <div className="flex items-center gap-1.5 pl-9 mt-1">
-                      <span className="text-xs font-mono text-[#8c7456]">Ref: #{p.playerId.slice(-6).toUpperCase()}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => handleTabChange('logs')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-bold font-cinzel transition-all ${
+            currentTab === 'logs'
+              ? 'bg-[#3a2518] text-[#ffe082] border-2 border-[#c89b3c] border-b-0 shadow-md'
+              : 'text-[#78644e] hover:text-[#3a2518]'
+          }`}
+        >
+          <Terminal className="w-4 h-4 text-[#c89b3c]" />
+          <span>MATCH SERVER LOG INSPECTOR</span>
+          <span className="text-[10px] px-1.5 py-0.2 bg-[#ef4444]/20 border border-[#ef4444]/40 text-[#fca5a5] rounded font-mono">
+            LIVE-OPS
+          </span>
+        </button>
+      </div>
 
-        {/* Chat Thread */}
-        <div className="md:col-span-2 parchment-card rounded-lg flex flex-col overflow-hidden">
-          {selectedPlayerId ? (
-            <>
-              <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-cinzel">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="text-sm font-bold">
-                      COUNSEL THREAD: <span className="text-[#ffe082]">{activePlayerRealName}</span>
-                    </h4>
-                    {/* Live Presence Badge */}
-                    {(() => {
-                      const selPresence = getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime || activePlayer?.lastMessageAt);
-                      return (
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold border inline-flex items-center gap-1 ${selPresence.badgeBg} ${selPresence.badgeBorder} ${selPresence.badgeText}`}>
-                          {selPresence.state === 'InBattle' && <Swords className="w-3 h-3 text-[#f59e0b]" />}
-                          {selPresence.state === 'Online' && <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />}
-                          {selPresence.state === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
-                          {selPresence.label} • {selPresence.activityDescription}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-[#c4b49e] font-sans">
-                      Player: <strong className="text-[#ffe082]">{activePlayerRealName}</strong>
-                    </span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#21140c] text-[#ffe082] border border-[#523725]">
-                      Ref #{selectedPlayerId.slice(-6).toUpperCase()}
-                    </span>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(selectedPlayerId)}
-                      title={`Copy full ID: ${selectedPlayerId}`}
-                      className="text-[#c89b3c] hover:text-[#ffe082] transition-colors p-0.5"
+      {/* Tab 1: Live Support Chat */}
+      {currentTab === 'support' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]">
+          {/* Player List */}
+          <div className="parchment-card rounded-lg flex flex-col overflow-hidden shadow-md">
+            <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-[#c89b3c]" />
+                ACTIVE INQUIRIES ({players.length})
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchPlayers()}
+                className="text-[#c89b3c] hover:text-[#ffe082] p-1"
+                title="Refresh list"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            {players.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-[#8c7456] p-6 space-y-2 font-serif">
+                <Inbox className="w-8 h-8 text-[#c89b3c]" />
+                <p className="text-sm font-bold font-cinzel">No active missives recorded.</p>
+                <p className="text-xs text-[#78644e]">Waiting for player support inquiries.</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto divide-y divide-[#dcd1b5]">
+                {players.map((p) => {
+                  const isSelected = selectedPlayerId === p.playerId;
+                  const pName = (p.playerName || p.username || '').trim();
+                  const displayName = pName
+                    ? pName
+                    : (isSelected && activePlayerRealName && !activePlayerRealName.startsWith('Traveler')
+                        ? activePlayerRealName
+                        : `Traveler #${p.playerId.slice(-4).toUpperCase()}`);
+                  const presence = getPlayerPresence(p.playerId, activeMatchesMap, p.latestMessageTime || p.lastMessageAt);
+
+                  return (
+                    <div
+                      key={p.playerId}
+                      onClick={() => setSelectedPlayerId(p.playerId)}
+                      className={`p-3.5 cursor-pointer transition-all ${
+                        selectedPlayerId === p.playerId ? 'bg-[#efe5cd] border-l-4 border-[#c89b3c]' : 'hover:bg-[#f4ecd8]'
+                      }`}
                     >
-                      <Copy className="w-3 h-3" />
-                    </button>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <div className="relative">
+                            <div className="w-8 h-8 rounded-full bg-[#3a2518] border border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-cinzel font-bold text-xs shrink-0 shadow">
+                              {displayName.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span
+                              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#2b1b11] ${presence.dotColor}`}
+                              title={presence.label}
+                            />
+                          </div>
+                          <div>
+                            <span className="font-bold font-cinzel text-xs text-[#3a2518] block leading-tight">
+                              {displayName}
+                            </span>
+                            <span className="text-[10px] text-[#78644e] font-mono">
+                              ID: #{p.playerId.slice(-4).toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-[#78644e] flex items-center gap-1 font-mono">
+                          <Clock className="w-3 h-3 text-[#c89b3c]" />
+                          {p.lastMessageAt || 'Recent'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#523e2b] line-clamp-1 italic font-serif mt-1">
+                        "{p.latestMessageText || 'No message snippet'}"
+                      </p>
+                      {presence.state === 'InBattle' && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-[#d97706] font-bold">
+                          <Swords className="w-3 h-3 animate-bounce" />
+                          <span>Combat in progress</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Chat Window */}
+          <div className="md:col-span-2 parchment-card rounded-lg flex flex-col overflow-hidden shadow-md">
+            {selectedPlayerId ? (
+              <>
+                {/* Chat Header */}
+                <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-9 h-9 rounded-full bg-[#2b1b11] border border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-cinzel font-bold text-sm shadow">
+                        {activePlayerRealName.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border border-[#2b1b11] ${
+                          getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime).dotColor
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <h3 className="font-bold font-cinzel text-sm text-[#ffe082] leading-tight">
+                        {activePlayerRealName}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-mono text-[#d4c5b0]">
+                          GUID: {selectedPlayerId}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedPlayerId);
+                            alert('Copied Player ID to clipboard.');
+                          }}
+                          className="text-[#c89b3c] hover:text-[#ffe082]"
+                          title="Copy ID"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {activeMatchesMap.has(selectedPlayerId) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const mId = activeMatchesMap.get(selectedPlayerId)?.matchId;
+                          if (mId) {
+                            const params = new URLSearchParams();
+                            params.set('tab', 'logs');
+                            params.set('matchId', mId);
+                            setSearchParams(params);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded bg-[#b45309]/30 hover:bg-[#b45309]/50 border border-[#d97706] text-[#fcd34d] text-[11px] font-cinzel font-bold flex items-center gap-1.5 transition-all shadow"
+                        title="Inspect Live Match Log"
+                      >
+                        <Terminal className="w-3.5 h-3.5" />
+                        <span>INSPECT MATCH LOG</span>
+                      </button>
+                    )}
+                    <span className="text-xs px-2.5 py-1 rounded bg-[#2b1b11] border border-[#c89b3c] text-[#ffe082] font-cinzel font-bold">
+                      {getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime).label}
+                    </span>
                   </div>
                 </div>
-                <span className="text-xs text-[#c4b49e] flex items-center gap-1 font-serif">
-                  <Clock className="w-3.5 h-3.5 text-[#c89b3c]" /> LIVE THREAD
-                </span>
-              </div>
 
-              <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#f4ecd8]/60 font-serif">
-                {messages.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-[#8c7456] text-xs font-cinzel">
-                    No missive exchange history recorded yet.
-                  </div>
-                ) : (
-                  messages.map((msg, idx) => {
-                    const isAdmin = msg.sender === 'admin' || msg.sender === 'Admin';
-                    return (
-                      <div
-                        key={msg.id || idx}
-                        className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1 text-xs text-[#78644e]">
-                          {isAdmin ? (
-                            <>
-                              <span className="font-bold text-[#b45309] font-cinzel">{msg.senderName || 'Keeper of Records'}</span>
-                              <ShieldCheck className="w-3 h-3 text-[#b45309]" />
-                            </>
-                          ) : (
-                            <>
-                              <User className="w-3 h-3 text-[#3a2518]" />
-                              <span className="font-bold text-[#3a2518] font-cinzel">{msg.senderName || 'Wanderer'}</span>
-                            </>
-                          )}
-                          <span>• {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                {/* Messages Body */}
+                <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#fdfbf7]/80">
+                  {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-[#8c7456] space-y-2 font-serif">
+                      <MessageSquare className="w-8 h-8 text-[#c89b3c]" />
+                      <p className="text-sm font-bold font-cinzel">No previous dispatches exchanged.</p>
+                      <p className="text-xs text-[#78644e]">Begin the counsel by sending a formal response below.</p>
+                    </div>
+                  ) : (
+                    messages.map((m, index) => {
+                      const isAdmin = m.sender === 'admin' || m.sender === 'Admin' || m.senderName === 'System Admin' || m.senderName === 'Support';
+                      const stableKey = m.id || `${m.sender}-${m.createdAt || ''}-${index}`;
+                      return (
+                        <div key={stableKey} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                          <div
+                            className={`max-w-[75%] rounded-lg p-3 shadow-md ${
+                              isAdmin
+                                ? 'bg-[#3a2518] text-[#f7f1e1] border border-[#c89b3c]'
+                                : 'bg-[#e8dcbf] text-[#2b1b11] border border-[#bfa37c]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-4 mb-1 text-[10px] opacity-80 border-b border-current/20 pb-1">
+                              <span className="font-bold font-cinzel flex items-center gap-1">
+                                {isAdmin ? <ShieldCheck className="w-3 h-3 text-[#f59e0b]" /> : <User className="w-3 h-3 text-[#3a2518]" />}
+                                {isAdmin ? 'HIGH COUNSEL OPERATOR' : (m.senderName || activePlayerRealName)}
+                              </span>
+                              <span className="font-mono">
+                                {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                              </span>
+                            </div>
+                            <p className="text-xs font-serif whitespace-pre-wrap leading-relaxed mt-1">
+                              {m.text}
+                            </p>
+                          </div>
                         </div>
-                        <div
-                          className={`max-w-md p-3 rounded-lg text-xs leading-relaxed ${
-                            isAdmin
-                              ? 'bg-[#3a2518] text-[#ffe082] border border-[#c89b3c] shadow'
-                              : 'bg-[#e8dcbf] text-[#2b1b11] border border-[#c89b3c]/60'
-                          }`}
-                        >
-                          {msg.text}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                      );
+                    })
+                  )}
+                </div>
 
-              {/* Chat Input */}
-              <div className="p-3.5 bg-[#3a2518] border-t-2 border-[#c89b3c] flex items-center gap-3">
-                <input
-                  type="text"
-                  placeholder="Dispatch missive reply to Hero..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className="flex-1 bg-[#26170d] border border-[#c89b3c] rounded px-4 py-2 text-xs text-[#f7f1e1] placeholder-[#a38f78] outline-none font-serif"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  className="px-4 py-2 rounded crimson-badge text-xs font-bold font-cinzel flex items-center gap-2 shadow"
-                >
-                  <Send className="w-3.5 h-3.5" /> SEND MISSIVE
-                </button>
+                {/* Reply Input */}
+                <div className="p-3 bg-[#eedebc] border-t-2 border-[#c89b3c] flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder={`Compose counsel response to ${activePlayerRealName}...`}
+                    className="flex-1 bg-[#fdfbf7] border border-[#bfa37c] focus:border-[#c89b3c] rounded px-3 py-2 text-xs text-[#2b1b11] outline-none shadow-inner"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!replyText.trim()}
+                    className="px-4 py-2 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow disabled:opacity-40"
+                  >
+                    <Send className="w-3.5 h-3.5 text-[#c89b3c]" />
+                    <span>SEND</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-[#8c7456] space-y-2 font-serif">
+                <MessageSquare className="w-12 h-12 text-[#c89b3c]" />
+                <p className="text-base font-bold font-cinzel text-[#3a2518]">No Traveler Selected</p>
+                <p className="text-xs text-[#78644e]">Select an inquiry from the roster on the left to read and respond.</p>
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-[#8c7456] text-xs font-cinzel">
-              Select a Hero missive ticket from the list.
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Tab 2: Match Server Log Inspector */}
+      {currentTab === 'logs' && (
+        <MatchLogInspector initialMatchId={queryMatchId} />
+      )}
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import type { PlayerProfile, CounselRole } from '../types';
 import { adminClient } from '../api/adminClient';
-import { Search, UserCheck, UserX, Coins, Gem, Shield, Edit3, CheckCircle2, Inbox, RefreshCw, UserPlus, Info, Copy, Swords } from 'lucide-react';
+import { Search, UserCheck, UserX, Coins, Gem, Shield, Edit3, CheckCircle2, Inbox, RefreshCw, UserPlus, Info, Copy, Swords, Terminal } from 'lucide-react';
 import { getPlayerPresence } from '../utils/presence';
 
 interface PlayerManagementProps {
@@ -454,22 +455,33 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   {/* Live Presence */}
                   <td className="py-4 px-5">
                     <div>
-                      <span
-                        className={`px-2.5 py-0.5 rounded text-xs font-bold font-cinzel inline-flex items-center gap-1.5 border shadow-sm ${
-                          player.presence === 'InBattle'
-                            ? 'bg-[#78350f]/40 border-[#f59e0b]/60 text-[#fcd34d]'
-                            : player.presence === 'Online'
-                            ? 'bg-[#064e3b]/40 border-[#10b981]/60 text-[#86efac]'
-                            : 'bg-[#2b1b11]/30 border-[#523725]/50 text-[#a89984]'
-                        }`}
-                      >
-                        {player.presence === 'InBattle' && <Swords className="w-3 h-3 text-[#f59e0b]" />}
-                        {player.presence === 'Online' && (
-                          <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded text-xs font-bold font-cinzel inline-flex items-center gap-1.5 border shadow-sm ${
+                            player.presence === 'InBattle'
+                              ? 'bg-[#78350f]/40 border-[#f59e0b]/60 text-[#fcd34d]'
+                              : player.presence === 'Online'
+                              ? 'bg-[#064e3b]/40 border-[#10b981]/60 text-[#86efac]'
+                              : 'bg-[#2b1b11]/30 border-[#523725]/50 text-[#a89984]'
+                          }`}
+                        >
+                          {player.presence === 'InBattle' && <Swords className="w-3 h-3 text-[#f59e0b]" />}
+                          {player.presence === 'Online' && (
+                            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                          )}
+                          {player.presence === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
+                          {player.presence === 'InBattle' ? 'IN BATTLE' : player.presence === 'Online' ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                        {player.presence === 'InBattle' && (
+                          <Link
+                            to="/support?tab=logs"
+                            className="px-2 py-0.5 rounded bg-[#b45309]/20 hover:bg-[#b45309]/40 border border-[#d97706] text-[#b45309] text-[10px] font-cinzel font-bold inline-flex items-center gap-1 transition-all shadow-sm"
+                            title="Inspect Dedicated Server Log for this Battle"
+                          >
+                            <Terminal className="w-3 h-3" /> LOGS
+                          </Link>
                         )}
-                        {player.presence === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
-                        {player.presence === 'InBattle' ? 'IN BATTLE' : player.presence === 'Online' ? 'ONLINE' : 'OFFLINE'}
-                      </span>
+                      </div>
                       <span className="text-xs text-[#78644e] block font-serif mt-1">
                         {player.lastSeen || player.presenceDetails || player.lastLogin}
                       </span>

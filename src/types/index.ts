@@ -180,3 +180,38 @@ export interface PurchaseOrder {
   status: 'PAID' | 'PENDING' | 'CANCELLED';
   createdAt: string;
 }
+
+export type MatchLogLevel = 'INFO' | 'WARN' | 'ERROR' | 'SYSTEM';
+
+export interface MatchLogLine {
+  lineNumber: number;
+  raw: string;
+  level: MatchLogLevel;
+  tag?: string;
+  timestamp?: string;
+  message: string;
+}
+
+export interface MatchLogResponse {
+  matchId: string;
+  logPath?: string;
+  source?: string;
+  lines: MatchLogLine[];
+  rawText: string;
+  retrievedAt: string;
+  serverStatus?: 'active' | 'completed' | 'crashed' | 'terminated';
+}
+
+export interface MatchHistoryItem {
+  matchId: string;
+  id?: string;
+  mode?: string;
+  status?: string | number;
+  player1Id?: string;
+  player2Id?: string;
+  player1Name?: string;
+  player2Name?: string;
+  createdAt?: string;
+  winnerPlayerId?: string;
+}
+

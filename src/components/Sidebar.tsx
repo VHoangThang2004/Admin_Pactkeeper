@@ -6,11 +6,11 @@ import {
   Sparkles,
   Scroll,
   Coins,
-  MessageSquare,
   LogOut,
   Crown,
   ScrollText,
-  Activity
+  Activity,
+  Terminal
 } from 'lucide-react';
 import type { CounselRole } from '../types';
 
@@ -70,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
     { 
       path: '/support', 
       label: 'LOGS & ALERTS BOARD', 
-      icon: MessageSquare, 
+      icon: Terminal, 
       tag: 'ALERTS', 
       allowedRoles: ['Technical Support', 'Support', 'Admin', 'Server'] 
     },

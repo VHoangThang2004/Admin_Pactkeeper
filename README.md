@@ -72,10 +72,12 @@ Centralized CMS for game balance and asset definitions, organized into 6 interac
 - **Real-Time Ledger:** Filterable order log showing PayOS `orderCode`, player ID, purchased pack, transaction amount, and status (`PAID`, `PENDING`, `CANCELLED`).
 - **Top-Up Pack Catalog:** Live management of Gem packs and bundled hero gifts, with instant availability switches (`PATCH /api/topuppack/{id}/availability`).
 
-### 💬 6. Live Support Desk (`/support`)
-- **Bidirectional WebSocket Engine:** Direct connection to the backend ASP.NET SignalR Hub (`/hubs/support`).
-- **Real-Time Player Ticket Queue:** Displays players awaiting assistance with timestamped latest messages.
-- **Operator Console:** Real-time conversational interface enabling support agents to reply directly to players in the client game.
+### 📜 6. Logs & Alerts Command Board (`/support`)
+- **Bidirectional WebSocket Engine (Support Desk):** Direct connection to the backend ASP.NET SignalR Hub (`/hubs/support`) displaying active hero assistance queues with instant operator replies.
+- **Match Server Log Inspector (Dedicated Server Diagnostics):**
+  - Direct live-ops telemetry and error investigation for Unity Headless Dedicated Server instances.
+  - Console Terminal UI with line numbering, log level filtering (`ERROR`, `WARN`, `SYSTEM`, `INFO`), and syntax highlighting.
+  - Real-time integration: Connects directly to backend VPS endpoint (`GET /api/Match/{matchId}/logs`) to stream and parse raw server log files.
 
 ---
 

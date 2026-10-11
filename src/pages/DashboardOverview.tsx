@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { adminClient } from '../api/adminClient';
 import type { ServerState, CounselRole } from '../types';
 import {
@@ -21,9 +22,11 @@ import {
   CheckCircle2,
   Clock,
   Radio,
-  Copy
+  Copy,
+  Terminal
 } from 'lucide-react';
 import { getPlayerPresence, type PlayerPresenceInfo } from '../utils/presence';
+
 
 interface TrackedPlayerPresence {
   playerId: string;
@@ -435,7 +438,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           </div>
           <div className="mt-3 pt-2 border-t border-[#dcd1b5] text-xs text-[#78644e] flex items-center justify-between font-mono">
             <span>Match Sessions:</span>
-            <span className="font-bold text-[#3a2518]">{totalMatchesCount} Total</span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-[#3a2518]">{totalMatchesCount} Total</span>
+              <Link
+                to="/support?tab=logs"
+                className="text-[10px] text-[#b45309] hover:text-[#78350f] font-cinzel font-bold underline flex items-center gap-0.5 transition-colors"
+                title="View Dedicated Server Logs"
+              >
+                <Terminal className="w-2.5 h-2.5" /> Logs
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -627,16 +639,27 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
                       {/* Presence Badge */}
                       <td className="py-3.5 px-5">
-                        <span
-                          className={`px-3 py-1 rounded text-xs font-bold font-cinzel inline-flex items-center gap-1.5 border shadow-sm ${player.presence.badgeBg} ${player.presence.badgeBorder} ${player.presence.badgeText}`}
-                        >
-                          {player.presence.state === 'InBattle' && <Swords className="w-3.5 h-3.5 animate-bounce" />}
-                          {player.presence.state === 'Online' && (
-                            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-3 py-1 rounded text-xs font-bold font-cinzel inline-flex items-center gap-1.5 border shadow-sm ${player.presence.badgeBg} ${player.presence.badgeBorder} ${player.presence.badgeText}`}
+                          >
+                            {player.presence.state === 'InBattle' && <Swords className="w-3.5 h-3.5 animate-bounce" />}
+                            {player.presence.state === 'Online' && (
+                              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                            )}
+                            {player.presence.state === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
+                            {player.presence.label}
+                          </span>
+                          {player.presence.state === 'InBattle' && (
+                            <Link
+                              to="/support?tab=logs"
+                              className="px-2 py-0.5 rounded bg-[#b45309]/20 hover:bg-[#b45309]/40 border border-[#d97706] text-[#b45309] text-[10px] font-cinzel font-bold inline-flex items-center gap-1 transition-all shadow-sm"
+                              title="Inspect Dedicated Server Log for this Battle"
+                            >
+                              <Terminal className="w-3 h-3" /> LOGS
+                            </Link>
                           )}
-                          {player.presence.state === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
-                          {player.presence.label}
-                        </span>
+                        </div>
                       </td>
 
                       {/* Active Location */}
