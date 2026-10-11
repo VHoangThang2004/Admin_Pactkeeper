@@ -10,7 +10,7 @@ export const adminClient = axios.create({
 });
 
 adminClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -22,7 +22,7 @@ adminClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        localStorage.removeItem('adminToken');
+        sessionStorage.removeItem('adminToken');
         window.location.href = '/login';
       }
     }

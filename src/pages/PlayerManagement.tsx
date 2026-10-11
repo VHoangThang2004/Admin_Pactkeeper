@@ -60,9 +60,9 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
       const foundMap = new Map<string, PlayerProfile>();
 
-      // 2. Read active player profile from current session / localStorage (Google OAuth & Active logins)
-      const localPlayerId = localStorage.getItem('player_id') || localStorage.getItem('playerId') || localStorage.getItem('adminPlayerId');
-      const localUsername = localStorage.getItem('username') || localStorage.getItem('adminUsername');
+      // 2. Read active player profile from current session / sessionStorage (Google OAuth & Active logins)
+      const localPlayerId = sessionStorage.getItem('player_id') || sessionStorage.getItem('playerId') || sessionStorage.getItem('adminPlayerId') || localStorage.getItem('player_id') || localStorage.getItem('playerId');
+      const localUsername = sessionStorage.getItem('username') || sessionStorage.getItem('adminUsername') || localStorage.getItem('username');
       if (localPlayerId) {
         foundMap.set(localPlayerId, {
           playerId: localPlayerId,

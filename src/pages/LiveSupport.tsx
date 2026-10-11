@@ -123,7 +123,7 @@ export const LiveSupport: React.FC = () => {
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/support', {
-        accessTokenFactory: () => localStorage.getItem('adminToken') || '',
+        accessTokenFactory: () => sessionStorage.getItem('adminToken') || '',
       })
       .withAutomaticReconnect()
       .build();

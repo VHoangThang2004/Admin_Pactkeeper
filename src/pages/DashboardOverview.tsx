@@ -54,9 +54,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   const isTechSupport = role === 'Technical Support' || role === 'Support';
   const canOverride = isAdmin || isTechSupport;
 
-  // Local state persistence for Emergency Overrides switches across reloads
+  // Session state persistence for Emergency Overrides switches across reloads
   const [serverState, setServerState] = useState<ServerState>(() => {
-    const saved = localStorage.getItem('admin_server_state');
+    const saved = sessionStorage.getItem('admin_server_state') || localStorage.getItem('admin_server_state');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -66,7 +66,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   });
 
   useEffect(() => {
-    localStorage.setItem('admin_server_state', JSON.stringify(serverState));
+    sessionStorage.setItem('admin_server_state', JSON.stringify(serverState));
   }, [serverState]);
 
   // Telemetry Metrics State
@@ -162,8 +162,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       setInMatchPlayersCount(activeMatchPlayerMap.size);
 
       // 4. Genuine Player Presence Recognition
-      const localPlayerId = localStorage.getItem('player_id') || localStorage.getItem('playerId') || localStorage.getItem('adminPlayerId');
-      const localUsername = localStorage.getItem('username') || localStorage.getItem('adminUsername') || 'Admin Counsel';
+      const localPlayerId = sessionStorage.getItem('player_id') || sessionStorage.getItem('playerId') || sessionStorage.getItem('adminPlayerId') || localStorage.getItem('player_id') || localStorage.getItem('playerId');
+      const localUsername = sessionStorage.getItem('username') || sessionStorage.getItem('adminUsername') || localStorage.getItem('username') || 'Admin Counsel';
 
       const playerMap = new Map<string, { username: string; lastSeen: string; isCurrentSession?: boolean }>();
 

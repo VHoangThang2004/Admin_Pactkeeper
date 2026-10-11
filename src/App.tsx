@@ -15,8 +15,8 @@ import type { CounselRole } from './types';
  * 
  * Features:
  * 1. Session & Token State Management:
- *    - Persists JWT Bearer token ('adminToken'), display name ('adminName'),
- *      and authenticated role ('adminRole') in localStorage.
+ *    - Stores JWT Bearer token ('adminToken'), display name ('adminName'),
+ *      and authenticated role ('adminRole') in sessionStorage (cleared upon tab close).
  * 2. Role-Based Access Control (RBAC) Route Guards:
  *    - Support (CSKH): Automatically redirected to Counsel Board (/support) on login;
  *      restricted from accessing financial, gacha, and definition modules.
@@ -27,20 +27,20 @@ import type { CounselRole } from './types';
  *    to the role's permitted landing page.
  */
 export const App: React.FC = () => {
-  // Session authentication states loaded from persistent browser storage
-  const [token, setToken] = useState<string | null>(localStorage.getItem('adminToken'));
-  const [adminName, setAdminName] = useState<string>(localStorage.getItem('adminName') || 'System Admin');
+  // Session authentication states loaded from tab session storage
+  const [token, setToken] = useState<string | null>(sessionStorage.getItem('adminToken'));
+  const [adminName, setAdminName] = useState<string>(sessionStorage.getItem('adminName') || 'System Admin');
   const [role, setRole] = useState<CounselRole>(
-    (localStorage.getItem('adminRole') as CounselRole) || 'Admin'
+    (sessionStorage.getItem('adminRole') as CounselRole) || 'Admin'
   );
 
   /**
    * Commits session credentials and role authority upon successful authentication.
    */
   const handleLoginSuccess = (newToken: string, name: string, newRole: CounselRole) => {
-    localStorage.setItem('adminToken', newToken);
-    localStorage.setItem('adminName', name);
-    localStorage.setItem('adminRole', newRole);
+    sessionStorage.setItem('adminToken', newToken);
+    sessionStorage.setItem('adminName', name);
+    sessionStorage.setItem('adminRole', newRole);
     setToken(newToken);
     setAdminName(name);
     setRole(newRole);
@@ -50,9 +50,9 @@ export const App: React.FC = () => {
    * Clears session credentials and resets authentication state.
    */
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminName');
-    localStorage.removeItem('adminRole');
+    sessionStorage.removeItem('adminToken');
+    sessionStorage.removeItem('adminName');
+    sessionStorage.removeItem('adminRole');
     setToken(null);
   };
 
