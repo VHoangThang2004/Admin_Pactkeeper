@@ -347,7 +347,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             </h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="px-2 py-0.5 rounded bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40 text-xs font-bold font-mono">
-                GATEWAY - 5276 ONLINE
+                GATEWAY - ONLINE
               </span>
             </div>
           </div>
@@ -502,7 +502,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                 REAL-TIME HERO PRESENCE ROSTER
               </h3>
               <p className="text-xs text-[#d5c7b3] font-serif">
-                Ground-truth presence verified across Gateway :5276 & SignalR Support Hub
+                Ground-truth presence verified across Realm Gateway & SignalR Support Hub
               </p>
             </div>
           </div>
@@ -563,7 +563,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           <div className="p-8 text-center text-[#8c7456] space-y-1 font-serif">
             <Users className="w-8 h-8 mx-auto text-[#c89b3c]" />
             <p className="text-sm font-bold font-cinzel">No active player sessions currently detected.</p>
-            <p className="text-xs text-[#78644e]">Gateway telemetry is listening for hero logins on :5276.</p>
+            <p className="text-xs text-[#78644e]">Gateway telemetry is listening for hero logins in real-time.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -731,7 +731,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             <div>
               <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">REALM GATEWAY</p>
               <h3 className="text-lg font-extrabold text-[#3a2518] mt-1 font-mono">ONLINE (.NET 9)</h3>
-              <span className="text-xs text-[#6b7280] font-mono mt-1 block">:5276 / MongoDB Atlas</span>
+              <span className="text-xs text-[#6b7280] font-mono mt-1 block">Active / MongoDB Atlas</span>
             </div>
             <div className="w-12 h-12 rounded-full bg-[#f4ecd8] border-2 border-[#c89b3c] flex items-center justify-center shadow">
               <Server className="w-6 h-6 text-[#3a2518]" />

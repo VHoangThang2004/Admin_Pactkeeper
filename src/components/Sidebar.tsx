@@ -154,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
         <div className="text-xs text-[#d5c7b3] font-sans space-y-1.5">
           <div className="flex justify-between">
             <span>Gateway:</span>
-            <span className="text-[#ffe082] font-mono font-medium">:5276</span>
+            <span className="text-[#ffe082] font-mono font-medium">ONLINE</span>
           </div>
           <div className="flex justify-between">
             <span>Realm DB:</span>

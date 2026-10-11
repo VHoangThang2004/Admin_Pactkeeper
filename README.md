@@ -156,23 +156,13 @@ Admin_Pactkeeper/
 npm install
 ```
 
-### 3. Cấu Hình Proxy Backend
-Trong `vite.config.ts`, ứng dụng đã được cấu hình Proxy kết nối trực tiếp đến backend SRPG:
-```typescript
-proxy: {
-  '/api': {
-    target: 'http://localhost:5276',
-    changeOrigin: true,
-    secure: false,
-  },
-  '/hubs': {
-    target: 'http://localhost:5276',
-    ws: true,
-    changeOrigin: true,
-    secure: false,
-  },
-}
+### 3. Cấu Hình Môi Trường & Proxy Backend
+Tạo file `.env` tại thư mục gốc:
+```env
+VITE_BACKEND_TARGET=http://localhost:5276
 ```
+Ứng dụng sẽ tự động tải biến môi trường `VITE_BACKEND_TARGET` trong `vite.config.ts` để cấu hình Proxy chuyển tiếp các yêu cầu `/api` và `/hubs` mà không để lộ địa chỉ backend thực tế lên mã nguồn Git công khai.
+
 
 ### 4. Khởi Chạy Môi Trường Phát Triển (Development)
 ```bash
@@ -191,6 +181,18 @@ npm run build
 # Chạy thử bản build
 npm run preview
 ```
+
+### 6. Triển Khai Production (Vercel CLI)
+Do cấu hình proxy backend nhạy cảm trong `vercel.json` đã được đưa vào `.gitignore` để bảo mật khi public mã nguồn, dự án được triển khai lên Vercel thông qua Vercel CLI từ máy local/CI:
+```bash
+# 1. Cài đặt Vercel CLI nếu chưa có
+npm i -g vercel
+
+# 2. Đảm bảo file vercel.json cục bộ đã được cấu hình destination backend
+# 3. Triển khai trực tiếp lên môi trường Production
+vercel --prod
+```
+
 
 ---
 
