@@ -1,212 +1,312 @@
-# PactKeeper Admin Dashboard (High Counsel) ⚔️👑
+# PactKeeper Admin Portal (High Counsel) ⚔️👑
 
-> Hệ thống Quản trị & Điều hành Trung tâm (High Counsel Admin Portal) cho tựa game Chiến thuật Nhập vai **PactKeeper (Tactical SRPG)**.
-
----
-
-## 📌 Tổng Quan Dự Án (Project Overview)
-
-**PactKeeper Admin Dashboard** là cổng thông tin quản trị tối cao dành cho Game Master, Quản trị viên hệ thống (Administrator) và Bộ phận Hỗ trợ khách hàng (Customer Support). Hệ thống được thiết kế theo phong cách giao diện **Medieval RPG / Dark Fantasy** (phông chữ Cinzel, bảng Mahogany, thẻ Parchment, viền kim loại vàng hoàng gia và phù hiệu Crimson), tích hợp 100% dữ liệu thực từ backend .NET 9 qua RESTful API và SignalR Hub.
+> **Central Administration, Governance & Live Operations System** for the Tactical Strategy Role-Playing Game **PactKeeper (SRPG)**.  
+> Capstone Project | SEP490 — FPT University
 
 ---
 
-## 📊 Báo Cáo Tiến Trình Dự Án (Project Progress)
+## 📌 1. Project Overview & Vision
 
-### Trạng Thái Tổng Thể: **Giai đoạn 1 & Các Tính Năng Nâng Cao Hoàn Tất (100% Core Features & RBAC)**
+**PactKeeper Admin Portal (High Counsel)** is the command-and-control operations platform designed for Game Masters, System Administrators, and Customer Support Specialists. The dashboard adopts an immersive **Dark Fantasy / Medieval RPG** visual design (Cinzel typography, Mahogany framing, Parchment cards, and Crimson/Gold badges) while operating on enterprise-grade web architecture with 100% real backend telemetry and data synchronization via RESTful APIs (.NET 9) and SignalR WebSockets.
 
-| Hạng mục / Module | Tiến độ | Trạng thái | Ghi chú |
-| :--- | :---: | :---: | :--- |
-| **Kiến trúc & Hạ tầng Frontend** | 100% | ✅ Hoàn thành | Vite 8 + React 19 + TypeScript + Tailwind CSS v4, Vercel SPA routing |
-| **PactKeeper RPG Design System** | 100% | ✅ Hoàn thành | Cinzel font, Mahogany & Parchment cards, Gold borders, responsive |
-| **Phân quyền Đa vai trò (RBAC Auth)** | 100% | ✅ Hoàn thành | Hỗ trợ 3 vai trò High Counsel (Admin, Moderator, Support Desk) với phân quyền truy cập chặt chẽ |
-| **Tổng quan Realm & Live Telemetry** | 100% | ✅ Hoàn thành | Đo lường CCU thực, theo dõi người chơi Online & Đang chiến đấu (In-Battle), nút dừng khẩn cấp |
-| **Quản lý Người chơi (Players)** | 100% | ✅ Hoàn thành | Tổng hợp người chơi đa nguồn, làm sạch ID/Alias, Ban/Unban, điều chỉnh tiền tệ theo quyền hạn |
-| **Quản lý Banner Triệu hồi (Gacha)** | 100% | ✅ Hoàn thành | Xem danh sách banner thực tế, tỷ lệ & bảo hiểm (Pity), tạo mới banner gacha |
-| **Kho Lưu trữ SRPG (Game CMS)** | 100% | ✅ Hoàn thành | 6 Tabs dữ liệu gốc: Anh hùng (Heroes), Chương (Chapters/Scenes), Vũ khí, Phụ kiện, Hệ phái, Kỹ năng |
-| **Sổ cái Doanh thu & PayOS Ledger** | 100% | ✅ Hoàn thành | Kết nối cổng PayOS, thống kê giao dịch PAID/PENDING/CANCELLED, quản lý gói nạp Top-Up |
-| **Hỗ trợ Trực tuyến (Live Support)** | 100% | ✅ Hoàn thành | Chat Real-time qua **SignalR WebSocket**, đồng bộ định danh người chơi thời gian thực |
-| **Quốc tế hóa & Chuẩn hóa UI (i18n)** | 100% | ✅ Hoàn thành | 100% giao diện tiếng Anh đồng nhất, chuẩn hóa định dạng tiền tệ và typography |
+### Core Objectives:
+- **Server Governance & Telemetry:** Real-time visibility into Concurrent Users (CCU), active battles, and server health with emergency fail-safes.
+- **Role-Based Access Control (RBAC):** Strict operational segregation among Administrators, Game Moderators, and Technical Support personnel.
+- **Economic & Content Management:** Live control over game items, heroes, story progression, gacha banners, and PayOS real-money top-ups.
+- **Real-Time Player Assistance:** Low-latency two-way communication channel directly linking game operators to players in distress.
 
 ---
 
-## 🚀 Tính Năng Chi Tiết (Detailed Features)
+## 🛡️ 2. Role-Based Access Control (RBAC) Matrix
 
-### 1. 🛡️ Cổng Đăng Nhập & Phân Quyền High Counsel (`/login`)
-- Xác thực tài khoản quản trị qua API `POST /Auth/login` với JWT Bearer.
-- **Bộ chọn vai trò tương tác (Interactive Role Selector):**
-  - **High Counsel Admin (Full Authority):** Toàn quyền truy cập mọi tính năng, bảng điều khiển khẩn cấp, điều chỉnh kinh tế và CMS.
-  - **Realm Moderator (Game Master / Arbiter):** Giám sát hồ sơ người chơi, theo dõi hiện diện và thực thi kỷ luật Khóa/Mở khóa tài khoản (Ban/Unban).
-  - **Counsel Herald (Support Desk):** Vận hành tổng đài chat SignalR hai chiều với người chơi, tra cứu danh sách người chơi ở chế độ an toàn (Read-Only).
-- Tự động điều hướng đến trang chuyên trách sau khi đăng nhập thành công.
-- Tự động chặn và từ chối các tài khoản role `Player`.
+The portal strictly enforces the system's **Context Diagram** and **Use Case Specifications**, dynamically tailoring the navigation bar, actions, and data access based on the authenticated operator role:
 
-### 2. 🏰 Tổng Quan Vương Quốc & Live Telemetry (`/`)
-- **Chỉ số Telemetry & Trạng thái Thời gian thực:**
-  - **Live Online & In-Battle Presence Recognition:** Nhận diện người chơi đang trực tuyến (Online) và người chơi đang trong trận chiến (In-Battle) từ backend API Match/Support.
-  - Thẻ đếm số lượng trận đấu đang diễn ra và tổng số trận trong ngày.
-  - Bộ lọc hiện diện người chơi tức thì: `ALL`, `ONLINE`, `BATTLE`, `OFFLINE`.
-  - Tổng số Tướng (Heroes/Units), Banner Gacha và Gói nạp khả dụng.
-  - Tổng doanh thu thực tế tổng hợp từ các đơn hàng PayOS thành công (`PAID`).
-- **Bảng điều khiển Khẩn cấp (Emergency Overrides - Dành riêng cho Admin):**
-  - Chặn / Mở đăng nhập người chơi toàn server (`/admin/update-login-status`).
-  - Chặn / Mở ghép trận (Matchmaking) (`/admin/update-matchmaking-status`).
-  - Dừng toàn bộ hệ thống khẩn cấp (`/admin/force-stop-all`).
-  - Lưu trữ trạng thái công tắc khẩn cấp qua `localStorage`.
-
-### 3. 👥 Quản Lý Người Chơi & Kiểm Duyệt (`/players`)
-- Tự động tập hợp danh sách người chơi từ nhiều nguồn: Google OAuth, Steam, tài khoản thông thường, lịch sử PayOS và hàng đợi chat hỗ trợ.
-- **Làm sạch định danh:** Chuẩn hóa các ID database/OAuth thô thành bí danh (Alias) người chơi trực quan, dễ quản lý.
-- Tra cứu nhanh theo `PlayerId` hoặc thêm thủ công ID người chơi vào danh sách giám sát.
-- Xem chi tiết hồ sơ: Cấp độ, Điểm kinh nghiệm, Số dư Vàng (Gold), Đá quý (Gems), Thời gian đăng nhập gần nhất.
-- **Phân quyền thao tác theo Role:**
-  - `Admin`: Toàn quyền Ban/Unban và điều chỉnh tiền tệ (Cộng/Trừ Gems & Gold) qua modal tương tác.
-  - `Moderator`: Thực thi Ban/Unban kỷ luật người chơi.
-  - `Support`: Chế độ chỉ đọc (Read-Only) an toàn, ngăn ngừa thao tác nhầm lẫn.
-
-### 4. ✨ Quản Lý Banner Triệu Hồi Gacha (`/gacha`)
-- Hiển thị danh sách banner gacha đang hoạt động từ API `/gachabanner`.
-- Xem chi tiết: Chi phí mỗi lượt triệu hồi, loại tiền tệ, thời hạn mở/đóng banner, danh sách Tướng và Vũ khí nổi bật (Featured Items).
-- Modal tạo mới Banner Gacha (`POST /gachabanner`) với thiết lập ngày bắt đầu, ngày hết hạn và mốc bảo hiểm (Pity threshold).
-
-### 5. 📜 Kho Dữ Liệu Cấu Hình SRPG (`/content`)
-Phân tách thành 6 thẻ lưu trữ hiển thị đầy đủ thông số trò chơi từ cơ sở dữ liệu:
-- **Heroes / Units (`/UnitDefinition`):** Tên Tướng, Độ hiếm (Rarity), Hệ phái (Class), Chỉ số cơ bản (HP, ATK, DEF, Speed), Kỹ năng nội tại (Passive Skill), cờ trao tặng khi đăng ký. Hỗ trợ modal tạo mới Hero.
-- **Chapters & Scenes (`/ChapterConfig`):** Danh sách chương cốt truyện, mã Map, chi tiết từng phân cảnh (Scene ID, Tiêu hao Thể lực, Cấp độ khuyến nghị).
-- **Weapons (`/WeaponDefinition`):** Tên vũ khí, phân loại, độ hiếm, chỉ số ATK cơ bản và các hệ số điều chỉnh thuộc tính (Stat Modifiers).
-- **Trinkets (`/TrinketDefinition`):** Phụ kiện tăng cường, chỉ số HP/DEF cơ bản và bổ trợ kỹ năng.
-- **Classes (`/ClassDefinition`):** Danh sách hệ phái trong game, kỹ năng di chuyển (Movement Skill) và kỹ năng đặc trưng hệ phái.
-- **Skills (`/SkillDefinition`):** Thư viện kỹ năng, chi phí SP tiêu hao và mô tả hiệu ứng.
-
-### 6. 💰 Ngân Khố & Sổ Cái Thanh Toán PayOS (`/payments`)
-- Thống kê doanh thu thực tế (Tổng tiền nạp thành công, số giao dịch, tỷ lệ giao dịch hoàn tất).
-- Bảng lịch sử giao dịch PayOS thời gian thực (`/payment/history`): Mã đơn hàng (`orderCode`), ID người chơi, Gói nạp, Số tiền (VND), Trạng thái đơn (`PAID`, `PENDING`, `CANCELLED`), Thời gian tạo.
-- Danh mục gói nạp Kim Cương & Quà tặng (`/topuppack/all`): Bật/Tắt trạng thái mở bán gói nạp tức thì (`PATCH /topuppack/{id}/availability`).
-
-### 7. 💬 Tổng Đài Hỗ Trợ Real-time SignalR (`/support`)
-- Kết nối WebSocket trực tiếp đến `/hubs/support`.
-- Danh sách người chơi gửi yêu cầu hỗ trợ theo thời gian thực (`/support/admin/players`).
-- Đồng bộ tên danh xưng người chơi thật giữa cơ sở dữ liệu và hàng đợi hỗ trợ, loại bỏ chuỗi mã hóa khó nhận diện.
-- Khung chat hai chiều tức thì với người chơi: Lịch sử tin nhắn, định dạng thời gian, gửi tin nhắn phản hồi từ Admin trực tiếp tới Client game.
+| Module / Privilege | Admin (Full Counsel) | Moderator (Game Master) | Technical Support | Purpose & Guardrail |
+| :--- | :---: | :---: | :---: | :--- |
+| **System Status & Telemetry** | Full Access | View Only | Full Access | Live CCU, battle metrics, and emergency server switches |
+| **Emergency Overrides** | ✅ Enabled | ❌ Forbidden | ✅ Enabled | Block login, halt matchmaking, system emergency stop |
+| **Player Record Management** | Full Access | Full Access | View Only | Inspect player level, stats, and real-time presence |
+| **Account Sanctions (Ban/Unban)** | ✅ Allowed | ✅ Allowed | ❌ Forbidden | Restrict delinquent accounts from server access |
+| **Currency Adjustments** | ✅ Allowed | ❌ Forbidden | ❌ Forbidden | Credit/Debit Gold and Gems for compensation/audits |
+| **Gacha Banner Orchestration** | Full Access | Full Access | ❌ Forbidden | Schedule summons, configure pity rates & featured pools |
+| **SRPG Game CMS (6 Catalogs)** | Full Access | Full Access | ❌ Forbidden | Heroes, Chapters/Scenes, Weapons, Trinkets, Classes, Skills |
+| **PayOS Revenue Ledger** | Full Access | ❌ Forbidden | ❌ Forbidden | Inspect real-money order states (`PAID`, `PENDING`, `CANCELLED`) |
+| **Live Support WebSocket Desk** | Full Access | ❌ Forbidden | Full Access | Real-time chat via SignalR (`/hubs/support`) |
 
 ---
 
-## 🛠️ Công Nghệ Sử Dụng (Tech Stack)
+## 🚀 3. Core Feature Walkthrough
 
-| Thành phần | Công nghệ / Thư viện | Phiên bản |
-| :--- | :--- | :--- |
-| **Core Framework** | React | `^19.2.8` |
-| **Bundler & Build Tool** | Vite | `^8.2.0` |
-| **Ngôn ngữ** | TypeScript | `~6.0.2` |
-| **Styling** | Tailwind CSS v4 (`@tailwindcss/vite`) | `^4.3.3` |
-| **Routing** | React Router DOM | `^7.18.2` |
-| **HTTP Client** | Axios | `^1.19.0` |
-| **Realtime WebSockets**| Microsoft SignalR Client | `^10.0.11` |
-| **Biểu đồ & Phân tích** | Recharts | `^3.10.1` |
-| **Icon System** | Lucide React | `^1.33.0` |
-| **Linter** | Oxlint | `^1.75.0` |
+### 🏰 1. Realm Telemetry & Emergency Command (`/`)
+- **Live Presence Detection:** Real-time recognition of players categorizing them into `ONLINE`, `IN BATTLE`, and `OFFLINE` by cross-referencing match sessions and gateway pings.
+- **Ongoing Battle Monitoring:** Direct visibility into active PvP duels, participating combatant IDs, and timeline state.
+- **Emergency Overrides (Killswitches):**
+  - **Block Player Logins:** Instantly prevent new client authentication sessions (`POST /api/admin/update-login-status`).
+  - **Block Matchmaking:** Temporarily pause matchmaking queues during maintenance (`POST /api/admin/update-queue-status`).
+  - **Emergency Halt (Force Stop All):** Sever all active match sessions and lock realm gateway (`POST /api/admin/force-stop-all`).
+  - State persistence backed by `localStorage` to retain button states across page refreshes.
 
----
+### 👥 2. Player Directory & Discipline (`/players`)
+- **Multi-Source Aggregation:** Consolidates players dynamically from Google OAuth, Steam accounts, PayOS transactions, and support ticket queues.
+- **Identity Sanitization:** Automatically resolves raw database ObjectIDs and UUIDs into human-readable player aliases (e.g., `Hero #3A1F`).
+- **Disciplinary Enforcement:** Instant single-click Ban / Unban actions with persistent server-side status updates.
+- **Treasury Adjustment Modal (Admin-Only):** Safely inject or deduct Gems and Gold with automatic numeric bounds verification.
 
-## 📁 Cấu Trúc Thư Mục (Project Structure)
+### ✨ 3. Gacha Banner Management (`/gacha`)
+- **Active Summon Pools:** Displays ongoing banners, start/end schedules, summon costs, and currency types.
+- **Pity & Featured Roster:** Visual inspection of rate-up Heroes and Weapons with guaranteed pity thresholds.
+- **Banner Creation Modal:** Form-driven creation of new summoning events (`POST /api/gachabanner`).
+- **Status Toggle:** Instantly toggle active banner availability via `PATCH /api/gachabanner/{id}`.
 
-```text
-Admin_Pactkeeper/
-├── public/                 # Tài nguyên tĩnh
-├── src/
-│   ├── api/
-│   │   └── adminClient.ts  # Cấu hình Axios instance & Auth Interceptors
-│   ├── assets/             # Hình ảnh, logo, RPG textures
-│   ├── components/
-│   │   ├── Header.tsx      # Thanh điều hướng trên cùng, profile Admin
-│   │   ├── Layout.tsx      # Khung layout tổng thể (Sidebar + Content + Header)
-│   │   └── Sidebar.tsx     # Menu điều hướng chính lọc quyền theo vai trò (RBAC)
-│   ├── pages/
-│   │   ├── ContentManagement.tsx   # CMS quản lý 6 danh mục SRPG
-│   │   ├── DashboardOverview.tsx   # Tổng quan, Live Telemetry CCU/In-Battle & nút khẩn cấp
-│   │   ├── GachaManagement.tsx     # Quản lý sự kiện và banner triệu hồi
-│   │   ├── LiveSupport.tsx         # Chat hỗ trợ trực tuyến qua SignalR
-│   │   ├── Login.tsx               # Màn hình đăng nhập hỗ trợ chọn vai trò (Admin/Mod/Support)
-│   │   ├── PaymentManagement.tsx   # Quản lý đơn hàng PayOS & Gói nạp
-│   │   └── PlayerManagement.tsx    # Giám sát, Ban/Unban & điều chỉnh tài nguyên theo role
-│   ├── types/
-│   │   └── index.ts        # TypeScript interfaces, DTOs & CounselRole
-│   ├── utils/
-│   │   └── presence.ts     # Phân tích trạng thái người chơi Online & In-Battle
-│   ├── App.css
-│   ├── App.tsx             # Định tuyến Router & Quản lý trạng thái Token/Role
-│   ├── index.css           # Cấu hình Tailwind CSS & Custom RPG classes
-│   └── main.tsx            # Điểm khởi chạy ứng dụng React
-├── index.html
-├── package.json
-├── tsconfig.json
-├── vercel.json             # Cấu hình điều hướng SPA khi deploy Vercel
-└── vite.config.ts          # Thiết lập Proxy tới Backend Server (.NET 9)
-```
+### 📜 4. SRPG Configuration Archives (`/content`)
+Centralized CMS for game balance and asset definitions, organized into 6 interactive tabs:
+1. **Heroes / Units (`/api/UnitDefinition`):** Base HP, ATK, DEF, Speed, rarity, class bindings, passive skills, and creation modal.
+2. **Chapters & Scenes (`/api/ChapterConfig`):** Story progression, scene sequencing, stamina consumption, and recommended levels.
+3. **Weapons (`/api/WeaponDefinition`):** Equipment types, base attack, rarity tiers, and stat modifiers (HP, SP, Speed).
+4. **Trinkets (`/api/TrinketDefinition`):** Defensive accessories, passive skill triggers, and equipment stats.
+5. **Classes (`/api/ClassDefinition`):** SRPG class archetypes, base movement ranges, and class skill IDs.
+6. **Skills (`/api/SkillDefinition`):** Skill library, SP casting costs, and detailed combat effect descriptions.
+
+### 💰 5. PayOS Treasury & Transaction Ledger (`/payments`)
+- **Revenue Analytics:** Aggregated metrics for total gross revenue (VND), successful orders, and completion rates.
+- **Real-Time Ledger:** Filterable order log showing PayOS `orderCode`, player ID, purchased pack, transaction amount, and status (`PAID`, `PENDING`, `CANCELLED`).
+- **Top-Up Pack Catalog:** Live management of Gem packs and bundled hero gifts, with instant availability switches (`PATCH /api/topuppack/{id}/availability`).
+
+### 💬 6. Live Support Desk (`/support`)
+- **Bidirectional WebSocket Engine:** Direct connection to the backend ASP.NET SignalR Hub (`/hubs/support`).
+- **Real-Time Player Ticket Queue:** Displays players awaiting assistance with timestamped latest messages.
+- **Operator Console:** Real-time conversational interface enabling support agents to reply directly to players in the client game.
 
 ---
 
-## ⚙️ Hướng Dẫn Cài Đặt & Khởi Chạy (Getting Started)
+## 🔒 4. Security Architecture & Environment Configuration
 
-### 1. Yêu Cầu Môi Trường
-- **Node.js**: Phiên bản 18 trở lên (Khuyến nghị Node.js LTS 20+)
-- **NPM** hoặc **Yarn / PNPM**
+To prevent **Reconnaissance & Information Disclosure (CWE-200)**, the production repository is hardened against automated scrapers:
+- Production backend hostnames, IP addresses, and private gateway ports are strictly decoupled from source control.
+- Sensitive environment and deployment rewrite files (`.env`, `vercel.json`) are ignored by Git.
 
-### 2. Cài Đặt Dependencies
-```bash
-npm install
-```
+### 📄 How to Create Gitignored Files Locally
 
-### 3. Cấu Hình Môi Trường & Proxy Backend
-Tạo file `.env` tại thư mục gốc:
+#### 1. Create `.env` (Local Development Proxy)
+Create a file named `.env` in the root folder of `Admin_Pactkeeper`:
+
 ```env
-VITE_BACKEND_TARGET=http://localhost:5276
+# .env (Do NOT commit to Git)
+VITE_BACKEND_TARGET=http://your-backend-host:5276
 ```
-Ứng dụng sẽ tự động tải biến môi trường `VITE_BACKEND_TARGET` trong `vite.config.ts` để cấu hình Proxy chuyển tiếp các yêu cầu `/api` và `/hubs` mà không để lộ địa chỉ backend thực tế lên mã nguồn Git công khai.
+> **Why is this gitignored?**  
+> `vite.config.ts` dynamically reads `VITE_BACKEND_TARGET` via `loadEnv()`. This allows developers to point the local proxy to the game server without leaking the server's IP/port to public GitHub repositories.
 
+#### 2. Create `vercel.json` (Production Deployment Proxy)
+Create a file named `vercel.json` in the root folder of `Admin_Pactkeeper`:
 
-### 4. Khởi Chạy Môi Trường Phát Triển (Development)
-```bash
-npm run dev
+```json
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://your-backend-host:5276/api/:path*"
+    },
+    {
+      "source": "/hubs/:path*",
+      "destination": "http://your-backend-host:5276/hubs/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
 ```
-Truy cập hệ thống tại: `http://localhost:3001`
+> **Why is this gitignored?**  
+> Vercel rewrites forward `/api` and `/hubs` requests to the HTTP backend server, preventing browser Mixed Content errors. Keeping this file local ensures your production proxy destinations remain confidential.
 
-### 5. Kiểm Tra Code & Build Production
+---
+
+## ⚙️ 5. Installation & Local Development Walkthrough
+
+### Prerequisites
+- **Node.js:** Version 18.x or later (LTS recommended)
+- **NPM** (bundled with Node.js) or **PNPM / Yarn**
+- Running instance of the PactKeeper ASP.NET Core Backend
+
+### Step-by-Step Setup
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/VHoangThang2004/Admin_Pactkeeper.git
+   cd Admin_Pactkeeper
+   ```
+
+2. **Install project dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Configure the local environment:**
+   Create the `.env` file as described in Section 4:
+   ```bash
+   # In Windows PowerShell:
+   Set-Content -Path .env -Value "VITE_BACKEND_TARGET=http://localhost:5276"
+   ```
+   *(Replace `http://localhost:5276` with your actual backend gateway address).*
+
+4. **Launch the development server:**
+   ```bash
+   npm run dev
+   ```
+   The application will boot at `http://localhost:3001` with automated proxying configured for `/api` and `/hubs`.
+
+5. **Lint and compile checks:**
+   ```bash
+   # Run Oxlint static code analyzer
+   npm run lint
+
+   # Test TypeScript compilation and Vite production bundling
+   npm run build
+   ```
+
+---
+
+## 🚢 6. Operations & Deployment Guide (Vercel CLI)
+
+Because `vercel.json` is withheld from the public Git repository for security, deployments are published directly via the **Vercel CLI**:
+
+### Step 1: Ensure Local Configuration is Ready
+Ensure your local `vercel.json` file is present in the project root with the correct production backend destination.
+
+### Step 2: Install Vercel CLI (if not installed)
 ```bash
-# Kiểm tra linting
-npm run lint
-
-# Build production bundle
-npm run build
-
-# Chạy thử bản build
-npm run preview
-```
-
-### 6. Triển Khai Production (Vercel CLI)
-Do cấu hình proxy backend nhạy cảm trong `vercel.json` đã được đưa vào `.gitignore` để bảo mật khi public mã nguồn, dự án được triển khai lên Vercel thông qua Vercel CLI từ máy local/CI:
-```bash
-# 1. Cài đặt Vercel CLI nếu chưa có
 npm i -g vercel
+```
 
-# 2. Đảm bảo file vercel.json cục bộ đã được cấu hình destination backend
-# 3. Triển khai trực tiếp lên môi trường Production
+### Step 3: Authenticate with Vercel
+```bash
+vercel login
+```
+
+### Step 4: Deploy to Production
+Run the production deployment command:
+```bash
 vercel --prod
 ```
-
+> **Deployment Note:**  
+> The Vercel CLI reads your local `vercel.json` and uploads the proxy rewrites directly into the Vercel Edge routing layer. Any automatic Git builds triggered by pushes to GitHub will not have `vercel.json`, so always run `vercel --prod` whenever publishing a new release.
 
 ---
 
-## 🗺️ Kế Hoạch Phát Triển Tiếp Theo (Roadmap)
+## 📖 7. User Guide & Live-Ops Runbook
 
-### Đã hoàn thành gần đây:
-- [x] **Phân quyền Đa cấp độ (Role-Based Access Control):** Tách biệt các cấp độ High Counsel (Admin / Server, Moderator, Support Desk) với thanh điều hướng lọc động và giới hạn thao tác theo quyền hạn.
-- [x] **Giám sát Telemetry & Nhận diện Hiện diện (Live Presence):** Theo dõi thời gian thực người chơi Online, đang trong trận chiến (In-Battle Presence) cùng danh sách trận đấu thực tế.
-- [x] **Đồng bộ Định danh & Chuẩn hóa hiển thị:** Chuyển đổi định danh thô từ DB sang bí danh dễ đọc trong giao diện Player & Hàng đợi Live Support.
-- [x] **Quốc tế hóa giao diện (100% English UI Consistency):** Đồng nhất toàn bộ nhãn, nút bấm, bảng và định dạng tiền tệ sang chuẩn tiếng Anh.
+### Accessing the Portal (`/login`)
+1. Open the portal URL in your web browser.
+2. Select your designated role badge (**Admin**, **Moderator**, or **Technical Support**).
+3. Enter your administrative credentials (Username / Password).
+4. Click **"ENTER HIGH COUNSEL"** to authenticate. Upon success, you are redirected to your role's primary operations dashboard.
 
-### Kế hoạch tiếp theo (Upcoming Features):
-- [ ] **Chỉnh sửa nâng cao SRPG Definitions:** Bổ sung tính năng Chỉnh sửa (Edit) và Xóa (Delete) trực tiếp cho Vũ khí, Trang bị, Kỹ năng và Cốt truyện trên giao diện.
-- [ ] **Hệ thống Thư & Quà tặng Toàn máy chủ (Server Mail / Compensation):** Gửi thư đền bù vật phẩm, đá quý hoặc vàng hàng loạt tới toàn bộ người chơi hoặc theo danh sách chỉ định.
-- [ ] **Báo cáo & Phân tích Doanh thu Nâng cao:** Lọc lịch sử doanh thu PayOS theo khoảng thời gian tùy chọn (ngày/tuần/tháng), xuất báo cáo thống kê.
-- [ ] **Tối ưu hóa Bundle (Code Splitting):** Áp dụng React.lazy / Suspense cho các trang quản trị để giảm dung lượng file nạp ban đầu.
-- [ ] **Kiểm thử tự động:** Tích hợp bộ kiểm thử Component và E2E testing (Vitest + Playwright).
+### Performing Disciplinary Actions (Ban/Unban)
+1. Navigate to the **Player Management** tab (`/players`).
+2. Search for the target player by ID or Alias.
+3. Click the **Ban Account** or **Unban Account** button.
+4. The system sends an immediate update to the backend database; the player is barred from logging in or continuing active matchmaking.
+
+### Compensating Players with Currency
+1. Ensure you are signed in as **Admin**.
+2. Navigate to **Player Management** (`/players`).
+3. Locate the player and click the **Adjust Currency** action button.
+4. Input the adjustment amount for **Gold** or **Gems** (positive to grant, negative to debit).
+5. Confirm the transaction to update the player's wallet balance.
+
+### Creating a Gacha Banner
+1. Navigate to **Banner Management** (`/gacha`).
+2. Click **"Create Banner"** in the top-right corner.
+3. Specify the Banner Title, Banner Image URL, Currency Type (Gems/Gold), and Pull Cost.
+4. Define the Start Date, End Date, and Pity Threshold.
+5. Select the Featured Heroes and Weapons, then click **"Create Banner"** to publish.
+
+### Responding to Live Support Tickets
+1. Navigate to the **Live Support** desk (`/support`).
+2. Inspect the **Active Hero Queue** on the left panel. Players with unread or recent messages will appear at the top.
+3. Click on a player to load their complete chat history.
+4. Type your resolution message in the chat input and click **Send**. The response is dispatched instantly to the player's client over SignalR.
+
+### Handling Server Emergencies
+1. Navigate to **Realm Overview** (`/`).
+2. If unexpected bugs or vulnerabilities occur:
+   - Click **"BLOCK LOGIN"** to halt new incoming player sessions.
+   - Click **"BLOCK QUEUE"** to disable PvP matchmaking.
+   - Click **"FORCE STOP ALL"** if the game servers must be killed immediately for emergency maintenance.
+
+---
+
+## 🛠️ 8. Tech Stack & Directory Structure
+
+### Technology Stack
+| Layer | Framework / Library | Version | Role in Architecture |
+| :--- | :--- | :---: | :--- |
+| **Runtime & Core** | React | `^19.2.8` | UI Component rendering |
+| **Language** | TypeScript | `~6.0.2` | Static typing and contract interfaces |
+| **Build Engine** | Vite | `^8.2.0` | Development server and module bundler |
+| **Styling** | Tailwind CSS v4 | `^4.3.3` | Utility-first RPG design system |
+| **Routing** | React Router DOM | `^7.18.2` | Client-side SPA routing and guards |
+| **HTTP Transport** | Axios | `^1.19.0` | REST API client with JWT interceptors |
+| **Realtime WebSockets** | Microsoft SignalR | `^10.0.11` | Bidirectional Live Support messaging |
+| **Visual Analytics** | Recharts | `^3.10.1` | Financial analytics and chart rendering |
+| **Icons** | Lucide React | `^1.33.0` | High-fidelity vector iconography |
+| **Linter** | Oxlint | `^1.75.0` | High-performance JavaScript/TypeScript linter |
+
+### Folder Organization
+```text
+Admin_Pactkeeper/
+├── public/                 # Static public assets (Favicon, logos)
+├── src/
+│   ├── api/
+│   │   └── adminClient.ts  # Axios instance, baseURL resolution, and JWT auth interceptors
+│   ├── assets/             # Medieval RPG texture overlays and graphical elements
+│   ├── components/
+│   │   ├── Header.tsx      # Global header with active operator role, realm indicator, and logout
+│   │   ├── Layout.tsx      # Structural layout container (Sidebar + Content + Header)
+│   │   └── Sidebar.tsx     # Role-filtered navigation menu enforcing RBAC permissions
+│   ├── pages/
+│   │   ├── ContentManagement.tsx   # Game CMS for 6 SRPG definition catalogs
+│   │   ├── DashboardOverview.tsx   # Real-time CCU, battle metrics, and emergency controls
+│   │   ├── GachaManagement.tsx     # Summon banner scheduling and rate configurations
+│   │   ├── LiveSupport.tsx         # Real-time player support chat over SignalR
+│   │   ├── Login.tsx               # High Counsel authentication and interactive role selection
+│   │   ├── PaymentManagement.tsx   # PayOS order ledger and top-up package availability
+│   │   └── PlayerManagement.tsx    # Multi-source player roster, sanctions, and currency audits
+│   ├── types/
+│   │   └── index.ts        # TypeScript interfaces, DTOs, and CounselRole union types
+│   ├── utils/
+│   │   └── presence.ts     # Player presence analyzer (Online / In-Battle / Offline)
+│   ├── App.css
+│   ├── App.tsx             # Root routing configuration, role persistence, and auth guards
+│   ├── index.css           # Tailwind CSS directives, typography, and RPG parchment styling
+│   └── main.tsx            # React application entry point
+├── .gitignore              # Protects .env, vercel.json, and node_modules from Git
+├── index.html              # HTML shell with Cinzel / Serif font integrations
+├── package.json            # Scripts, project metadata, and dependency declarations
+├── tsconfig.json           # TypeScript compilation configuration
+└── vite.config.ts          # Vite configuration with dynamic environment proxy loading
+```
+
+---
+
+## 🗺️ 9. Project Milestones & Future Roadmap
+
+### ✅ Completed Milestones
+- [x] **Role-Based Access Control (RBAC):** Complete operational segregation aligned with Context and Use Case Diagrams.
+- [x] **Telemetry & Real-Time Presence:** Live detection of active player sessions (`ONLINE`, `IN BATTLE`, `OFFLINE`).
+- [x] **SignalR Live Support:** Bidirectional WebSocket messaging directly connecting support operators to game clients.
+- [x] **Identity Sanitization & Alias Mapping:** Resolution of database identifiers into human-friendly operator names.
+- [x] **Security Hardening:** Total removal of sensitive backend domains and ports from commit history via BFG Repo-Cleaner.
+
+### 🔮 Upcoming Features
+- [ ] **Interactive Definition Editing:** In-browser CRUD capabilities for weapons, trinkets, skills, and map chapters.
+- [ ] **Global Server Mail & Compensation Engine:** Mass broadcast system for distributing apologems, gold, and gift units.
+- [ ] **Advanced Revenue Analytics:** Customizable date-range filtering and CSV export for PayOS transaction logs.
+- [ ] **Automated Testing Suite:** End-to-end integration tests using Vitest and Playwright.
+
+---
+
+## 📜 License & Acknowledgments
+
+This project is developed as an academic capstone project for **SEP490 — Software Engineering Capstone Project** at **FPT University**. All rights reserved by the PactKeeper Development Team.
