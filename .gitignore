@@ -18,6 +18,8 @@ dist-ssr
 
 # Vercel deployment config (contains sensitive proxy destination)
 vercel.json
+.vercel
+
 
 
 # Editor directories and files
