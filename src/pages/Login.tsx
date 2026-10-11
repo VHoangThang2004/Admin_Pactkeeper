@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff, ArrowRight, Sparkles, Activity, ScrollText } from 'lucide-react';
+import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff, ArrowRight, Activity, ScrollText } from 'lucide-react';
 import { adminClient } from '../api/adminClient';
 import type { CounselRole } from '../types';
 
@@ -17,7 +17,6 @@ interface RoleConfig {
   badgeText: string;
   landingPath: string;
   defaultUsername: string;
-  defaultPasscode: string;
   themeColor: string;
   activeBg: string;
   activeBorder: string;
@@ -33,11 +32,10 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     badgeText: 'ACCOUNTS & DASHBOARD',
     landingPath: 'Admin Dashboard (/)',
     defaultUsername: 'admin',
-    defaultPasscode: 'admin123',
     themeColor: '#ffe082',
     activeBg: 'bg-[#4a3324]',
     activeBorder: 'border-[#c89b3c]',
-    scopeSummary: 'Context & Use Case Diagram: Direct responsibility for Manage User Accounts (Profiles, Bans, Balances) and View Admin Dashboard.',
+    scopeSummary: 'Direct responsibility for Manage User Accounts (Profiles, Bans, Balances) and View Admin Dashboard.',
   },
   Moderator: {
     id: 'Moderator',
@@ -47,11 +45,10 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     badgeText: 'GACHA, ITEMS & MATCHES',
     landingPath: 'Summon Banners (/gacha)',
     defaultUsername: 'moderator',
-    defaultPasscode: 'mod123',
     themeColor: '#38bdf8',
     activeBg: 'bg-[#0c4a6e]/50',
     activeBorder: 'border-[#0284c7]',
-    scopeSummary: 'Context & Use Case Diagram: Direct responsibility for Gacha/Story Config, Item/Combat Reward Config, and Inspect PvP Matches (Team Formation & Logs).',
+    scopeSummary: 'Direct responsibility for Gacha/Story Config, Item/Combat Reward Config, and Inspect PvP Matches (Team Formation & Logs).',
   },
   'Technical Support': {
     id: 'Technical Support',
@@ -61,30 +58,29 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     badgeText: 'SYSTEM STATUS & ALERTS',
     landingPath: 'System Monitor & Status (/)',
     defaultUsername: 'techsupport',
-    defaultPasscode: 'support123',
     themeColor: '#34d399',
     activeBg: 'bg-[#064e3b]/50',
     activeBorder: 'border-[#10b981]',
-    scopeSummary: 'Context & Use Case Diagram: Direct responsibility for Monitor System/Server Status, Configure System Overrides & Statistic Requests, and View Logs & Alerts.',
+    scopeSummary: 'Direct responsibility for Monitor System/Server Status, Configure System Overrides & Statistic Requests, and View Logs & Alerts.',
   },
 };
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [selectedRole, setSelectedRole] = useState<SelectableRole>('Admin');
   const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Switch active role and auto-populate standard credentials for easy evaluation
+  // Switch active role and clear password input to require manual entry
   const handleSelectRole = (role: SelectableRole) => {
     setSelectedRole(role);
     const config = ROLE_CONFIGS[role];
     setUsername(config.defaultUsername);
-    setPassword(config.defaultPasscode);
+    setPassword('');
     setError(null);
     setUsernameError(null);
     setPasswordError(null);
@@ -112,26 +108,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     return isValid;
   };
 
-  /**
-   * Helper to retrieve a valid JWT gateway token from backend using the system service account.
-   * This guarantees that when a Moderator or Support agent logs in, subsequent backend
-   * API calls (SignalR, players list, match history) succeed without 401 Unauthorized errors.
-   */
-  const fetchGatewayJwt = async (): Promise<string> => {
-    try {
-      const res = await adminClient.post('/Auth/login', {
-        username: 'admin',
-        password: 'admin123',
-      });
-      if (res.data?.token) {
-        return res.data.token;
-      }
-    } catch {
-      // Backend offline fallback
-    }
-    return `demo-${selectedRole.toLowerCase()}-jwt-token-${Date.now()}`;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateInputs()) return;
@@ -139,14 +115,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError(null);
 
-    const inputUser = username.trim().toLowerCase();
-    const isTestModerator = (inputUser === 'moderator' && password === 'mod123') || (selectedRole === 'Moderator' && inputUser === 'moderator');
-    const isTestSupport = ((inputUser === 'techsupport' || inputUser === 'support') && (password === 'support123' || password === 'support')) ||
-      (selectedRole === 'Technical Support' && (inputUser === 'techsupport' || inputUser === 'support'));
-    const isTestAdmin = (inputUser === 'admin' && (password === 'admin123' || password === 'admin'));
-
     try {
-      // 1. Attempt official authentication with backend .NET 9 API
+      // 1. Direct official authentication against backend ASP.NET Core API
       const res = await adminClient.post('/Auth/login', {
         username: username.trim(),
         password: password,
@@ -154,54 +124,53 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       const { token, role: apiRole, username: resUser } = res.data;
 
-      let normalizedRole: CounselRole = selectedRole;
+      // 2. Reject non-privileged Player accounts
+      if (typeof apiRole === 'string' && apiRole.toLowerCase() === 'player') {
+        setError('Access Denied! Account holds a standard Player role. High Counsel privilege is required.');
+        return;
+      }
+
+      // 3. Grant portal access strictly conforming to the role returned by the Backend JWT
+      let normalizedRole: CounselRole = 'Admin';
       if (typeof apiRole === 'string') {
         const lower = apiRole.toLowerCase();
-        if (lower === 'player') {
-          setError('Access Denied! Account holds a standard Player role. High Counsel privilege is required.');
-          return;
-        } else if (lower === 'support' || lower === 'technical support' || lower === 'technicalsupport' || lower === 'techsupport' || lower === 'cskh' || lower === 'cs') {
+        if (
+          lower === 'support' ||
+          lower === 'technical support' ||
+          lower === 'technicalsupport' ||
+          lower === 'techsupport' ||
+          lower === 'cskh' ||
+          lower === 'cs'
+        ) {
           normalizedRole = 'Technical Support';
-        } else if (lower === 'moderator' || lower === 'mod' || lower === 'gamemaster' || lower === 'gm') {
+        } else if (
+          lower === 'moderator' ||
+          lower === 'mod' ||
+          lower === 'gamemaster' ||
+          lower === 'gm'
+        ) {
           normalizedRole = 'Moderator';
         } else if (lower === 'server') {
           normalizedRole = 'Server';
+        } else if (lower === 'admin') {
+          normalizedRole = 'Admin';
         } else {
-          // If logged in via Admin credentials but user picked a specific test role, respect the chosen option
           normalizedRole = selectedRole;
         }
       }
 
       if (token) {
-        onLoginSuccess(token, resUser || username, normalizedRole);
+        onLoginSuccess(token, resUser || username.trim(), normalizedRole);
         return;
+      } else {
+        setError('Authentication succeeded but no authorization token was returned by the Gateway.');
       }
     } catch (err: any) {
-      // 2. If backend returns 401/error because moderator/support accounts are not yet seeded in DB:
-      if (isTestModerator && password === 'mod123') {
-        // Authenticate with gateway token to guarantee backend APIs work without 401 disconnects
-        const gatewayToken = await fetchGatewayJwt();
-        onLoginSuccess(gatewayToken, username || 'realm_moderator', 'Moderator');
-        return;
-      }
-
-      if (isTestSupport) {
-        const gatewayToken = await fetchGatewayJwt();
-        onLoginSuccess(gatewayToken, username || 'technical_support', 'Technical Support');
-        return;
-      }
-
-      if (isTestAdmin && (password === 'admin123' || password === 'admin')) {
-        const gatewayToken = await fetchGatewayJwt();
-        onLoginSuccess(gatewayToken, username || 'high_counsel_admin', 'Admin');
-        return;
-      }
-
-      // Handle genuine invalid credentials error
+      // Handle genuine invalid credentials error without client-side bypasses
       if (err.response) {
         const status = err.response.status;
         if (status === 401 || status === 400) {
-          setError(`Incorrect Credentials for ${selectedRole}! Demo accounts: admin / admin123, moderator / mod123, techsupport / support123.`);
+          setError(`Invalid credentials for ${selectedRole}! Please verify your username and passcode.`);
         } else if (status === 403) {
           setError('Access Denied! Account lacks High Counsel authorization.');
         } else if (status === 500) {
@@ -210,7 +179,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           setError(`Authentication failed with status code ${status}.`);
         }
       } else {
-        setError(`Unable to connect to Realm Gateway. (Demo credentials: admin/admin123, moderator/mod123, techsupport/support123).`);
+        setError('Unable to connect to Realm Gateway. Please verify the backend server is reachable.');
       }
     } finally {
       setLoading(false);
@@ -218,72 +187,65 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const activeConfig = ROLE_CONFIGS[selectedRole];
-  const ActiveIcon = activeConfig.icon;
 
   return (
-    <div className="min-h-screen bg-[#f4ecd8] flex items-center justify-center p-4 relative overflow-hidden font-serif">
-      <div className="mahogany-banner p-7 md:p-8 rounded-lg border-2 border-[#c89b3c] w-full max-w-lg space-y-5 relative z-10 shadow-2xl">
-        {/* Brand Icon & Heading */}
-        <div className="text-center space-y-1.5">
-          <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-b from-[#d4af37] to-[#aa7c11] border-2 border-[#ffe082] flex items-center justify-center shadow-xl">
-            <Crown className="w-7 h-7 text-[#2b1b11]" />
+    <div className="min-h-screen bg-[#1c120c] bg-opacity-95 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+      {/* Background Medieval Vignette & Texture */}
+      <div className="absolute inset-0 bg-[radial-gradient(#3a2518_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#c89b3c]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#8b1e1e]/20 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Login Box */}
+      <div className="w-full max-w-xl bg-[#2b1b11] border-2 border-[#c89b3c] rounded-xl shadow-2xl p-6 md:p-8 relative z-10 space-y-6">
+        {/* Header Section */}
+        <div className="text-center space-y-2 border-b border-[#593d29] pb-4">
+          <div className="inline-flex p-3 rounded-full bg-[#3a2518] border border-[#c89b3c] shadow-inner mb-1">
+            <Crown className="w-8 h-8 text-[#ffe082]" />
           </div>
-          <h1 className="text-2xl font-extrabold text-[#ffe082] tracking-wider uppercase font-cinzel">
-            PACTKEEPER
+          <h1 className="text-2xl font-black font-cinzel text-[#ffe082] tracking-wider uppercase">
+            PactKeeper High Counsel
           </h1>
-          <p className="text-xs text-[#c4b49e]">High Counsel Admin & Tactical SRPG Operations</p>
+          <p className="text-xs text-[#d5c7b3] font-serif uppercase tracking-widest">
+            Realm Governance & Administrative Gateway
+          </p>
         </div>
 
-        {/* ROLE SELECTION TABS (OPTION ROLE) */}
+        {/* Interactive Role Selector */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold font-cinzel text-[#ffe082] uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#ffe082]" />
-              AUTHENTICATION ROLE (OPTION ROLE)
-            </span>
+          <label className="text-xs font-bold font-cinzel text-[#ffe082] uppercase tracking-wider flex items-center justify-between">
+            <span>Select Target Counsel Authority:</span>
             <span className="text-[11px] font-mono font-normal text-[#c89b3c]">
-              {selectedRole.toUpperCase()}
+              Role: <strong className="text-[#ffe082]">{selectedRole}</strong>
             </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {(Object.keys(ROLE_CONFIGS) as SelectableRole[]).map((roleKey) => {
               const cfg = ROLE_CONFIGS[roleKey];
-              const IconComponent = cfg.icon;
               const isSelected = selectedRole === roleKey;
+              const Icon = cfg.icon;
 
               return (
                 <button
                   key={roleKey}
                   type="button"
                   onClick={() => handleSelectRole(roleKey)}
-                  className={`p-2.5 rounded-lg border text-left transition-all relative flex flex-col justify-between ${
+                  className={`p-3 rounded-lg border text-left transition-all relative flex flex-col justify-between ${
                     isSelected
-                      ? `${cfg.activeBg} ${cfg.activeBorder} border-2 shadow-lg scale-[1.02]`
-                      : 'bg-[#26170d]/70 border-[#593d29] hover:border-[#c89b3c]/60 opacity-80 hover:opacity-100'
+                      ? `${cfg.activeBg} ${cfg.activeBorder} shadow-lg scale-[1.02] border-2`
+                      : 'bg-[#21140c] border-[#523725] hover:border-[#c89b3c]/60 opacity-80 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <IconComponent
-                      className="w-4 h-4 shrink-0"
-                      style={{ color: cfg.themeColor }}
-                    />
-                    <span
-                      className={`text-[9px] font-mono px-1.5 py-0.2 rounded font-bold uppercase ${
-                        isSelected ? 'bg-black/40 text-white' : 'text-[#8c7456]'
-                      }`}
-                    >
-                      {cfg.badgeText}
-                    </span>
+                    <Icon className="w-4 h-4" style={{ color: cfg.themeColor }} />
+                    {isSelected && (
+                      <span className="w-2 h-2 rounded-full bg-[#ffe082] animate-pulse" />
+                    )}
                   </div>
                   <div>
-                    <p
-                      className="text-xs font-bold font-cinzel truncate leading-tight"
-                      style={{ color: isSelected ? cfg.themeColor : '#e2d3be' }}
-                    >
-                      {cfg.id}
-                    </p>
-                    <p className="text-[10px] text-[#a8957c] font-sans truncate">
+                    <h3 className="text-xs font-bold font-cinzel text-[#f7f1e1] leading-tight">
+                      {cfg.label}
+                    </h3>
+                    <p className="text-[10px] text-[#c4b49e] font-serif mt-0.5 line-clamp-1">
                       {cfg.roleSubtitle}
                     </p>
                   </div>
@@ -291,31 +253,38 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               );
             })}
           </div>
+        </div>
 
-          {/* Active Role Privilege Scope Box */}
-          <div className="bg-[#21140c] border border-[#c89b3c]/50 rounded-lg p-2.5 text-xs space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="font-cinzel font-bold text-xs flex items-center gap-1.5" style={{ color: activeConfig.themeColor }}>
-                <ActiveIcon className="w-3.5 h-3.5" />
-                {activeConfig.label} ({activeConfig.roleSubtitle})
-              </span>
-              <span className="text-[10px] font-mono text-[#ffe082] bg-[#3a2518] px-2 py-0.5 rounded border border-[#523725]">
-                {activeConfig.landingPath}
-              </span>
-            </div>
-            <p className="text-[#c4b49e] text-[11px] font-sans leading-relaxed">
-              {activeConfig.scopeSummary}
-            </p>
+        {/* Selected Role Authority Summary Banner */}
+        <div className="bg-[#21140c] border border-[#c89b3c]/40 rounded-lg p-3 space-y-1.5 text-xs">
+          <div className="flex items-center justify-between font-cinzel text-[11px]">
+            <span className="font-bold text-[#ffe082] flex items-center gap-1.5">
+              <ScrollText className="w-3.5 h-3.5 text-[#c89b3c]" />
+              AUTHORITY SCOPE:
+            </span>
+            <span
+              className="px-2 py-0.5 rounded font-mono font-bold text-[10px]"
+              style={{ backgroundColor: `${activeConfig.themeColor}20`, color: activeConfig.themeColor }}
+            >
+              {activeConfig.badgeText}
+            </span>
+          </div>
+          <p className="text-[11px] text-[#d5c7b3] font-serif leading-relaxed">
+            {activeConfig.scopeSummary}
+          </p>
+          <div className="text-[10px] text-[#a8957c] font-mono pt-1 border-t border-[#3a2518] flex items-center justify-between">
+            <span>Primary Destination:</span>
+            <span className="text-[#ffe082]">{activeConfig.landingPath}</span>
           </div>
         </div>
 
-        {/* Prominent Red Error Banner on Incorrect Login */}
+        {/* Error Alert Box */}
         {error && (
-          <div className="p-3.5 rounded-lg bg-[#7f1d1d] border-2 border-[#ef4444] text-[#fca5a5] text-xs leading-relaxed flex items-start gap-2.5 shadow-xl animate-bounce">
-            <XCircle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold font-cinzel text-[#ffe082] text-xs uppercase">AUTHENTICATION FAILED</p>
-              <p className="mt-0.5 font-serif text-[#fca5a5]">{error}</p>
+          <div className="bg-[#451212]/90 border border-[#ef4444] rounded-lg p-3 text-xs text-[#fca5a5] flex items-start gap-2 shadow font-sans">
+            <XCircle className="w-4 h-4 text-[#ef4444] shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-bold font-cinzel block text-[#fecaca] mb-0.5">Authentication Failure</span>
+              <p>{error}</p>
             </div>
           </div>
         )}
@@ -331,11 +300,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 type="button"
                 onClick={() => {
                   setUsername(activeConfig.defaultUsername);
-                  setPassword(activeConfig.defaultPasscode);
+                  setPassword('');
                 }}
                 className="text-[11px] text-[#c89b3c] hover:text-[#ffe082] underline font-sans"
               >
-                Fill Preset: {activeConfig.defaultUsername}
+                Reset Username: {activeConfig.defaultUsername}
               </button>
             </div>
             <div
@@ -378,7 +347,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   if (passwordError) setPasswordError(null);
                   if (error) setError(null);
                 }}
-                placeholder={`Enter secret passcode (${activeConfig.defaultPasscode})`}
+                placeholder="Enter secret passcode..."
                 className="bg-transparent border-none outline-none w-full text-sm text-[#f7f1e1] placeholder-[#9a8264] font-sans"
               />
               <button
@@ -405,10 +374,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* Quick 1-Click Role Switcher & Reference */}
+        {/* Quick Role Switcher Reference */}
         <div className="bg-[#26170d]/80 border border-[#c89b3c]/40 rounded-lg p-3 space-y-2 text-xs text-[#d5c7b3]">
           <p className="font-cinzel font-bold text-[#ffe082] text-xs uppercase tracking-wider flex items-center justify-between">
-            <span>Quick Test Credentials:</span>
+            <span>High Counsel Operator Roles:</span>
             <span className="text-[10px] font-mono text-[#a8957c]">Click to Switch</span>
           </p>
           <div className="grid grid-cols-3 gap-2 text-xs font-mono">
