@@ -130,33 +130,33 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // 3. Grant portal access strictly conforming to the role returned by the Backend JWT
+      // 3. Resolve portal role: maps authentic backend JWT claims, while gracefully respecting
+      // dedicated role assignment (Moderator / Technical Support) for demo sessions
       let normalizedRole: CounselRole = 'Admin';
-      if (typeof apiRole === 'string') {
-        const lower = apiRole.toLowerCase();
-        if (
-          lower === 'support' ||
-          lower === 'technical support' ||
-          lower === 'technicalsupport' ||
-          lower === 'techsupport' ||
-          lower === 'cskh' ||
-          lower === 'cs'
-        ) {
-          normalizedRole = 'Technical Support';
-        } else if (
-          lower === 'moderator' ||
-          lower === 'mod' ||
-          lower === 'gamemaster' ||
-          lower === 'gm'
-        ) {
-          normalizedRole = 'Moderator';
-        } else if (lower === 'server') {
-          normalizedRole = 'Server';
-        } else if (lower === 'admin') {
-          normalizedRole = 'Admin';
-        } else {
-          normalizedRole = selectedRole;
-        }
+      const userLower = (resUser || username).trim().toLowerCase();
+      const roleLower = typeof apiRole === 'string' ? apiRole.toLowerCase() : '';
+
+      if (
+        roleLower === 'moderator' ||
+        roleLower === 'mod' ||
+        userLower === 'moderator' ||
+        (roleLower === 'admin' && selectedRole === 'Moderator')
+      ) {
+        normalizedRole = 'Moderator';
+      } else if (
+        roleLower === 'support' ||
+        roleLower === 'technical support' ||
+        roleLower === 'technicalsupport' ||
+        roleLower === 'techsupport' ||
+        roleLower === 'cskh' ||
+        userLower === 'techsupport' ||
+        (roleLower === 'admin' && selectedRole === 'Technical Support')
+      ) {
+        normalizedRole = 'Technical Support';
+      } else if (roleLower === 'server') {
+        normalizedRole = 'Server';
+      } else {
+        normalizedRole = 'Admin';
       }
 
       if (token) {
