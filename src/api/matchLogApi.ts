@@ -1,5 +1,5 @@
 import { adminClient } from './adminClient';
-import type { MatchLogLine, MatchLogResponse, MatchLogLevel, MatchHistoryItem } from '../types';
+import type { MatchLogLine, MatchLogResponse, MatchLogLevel, MatchHistoryItem, LogFileInfo } from '../types';
 
 /**
  * Parses raw text from Unity Dedicated Server log into structured lines.
@@ -125,3 +125,26 @@ export const fetchRecentMatchesForLogs = async (): Promise<MatchHistoryItem[]> =
 
   return [];
 };
+
+/**
+ * Genuine API call: Fetches available log files on server sorted by last modified descending.
+ * Endpoint: GET /api/Match/log-files
+ */
+export const fetchAvailableLogFiles = async (): Promise<LogFileInfo[]> => {
+  try {
+    const res = await adminClient.get('/Match/log-files');
+    if (Array.isArray(res.data)) {
+      return res.data.map((f: any) => ({
+        matchId: f.matchId,
+        fileName: f.fileName,
+        fileSizeBytes: f.fileSizeBytes || 0,
+        lastModifiedUtc: f.lastModifiedUtc,
+        createdAtUtc: f.createdAtUtc,
+      }));
+    }
+  } catch (error) {
+    console.error('Failed to fetch available log files from server:', error);
+  }
+  return [];
+};
+

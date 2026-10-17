@@ -10,10 +10,12 @@ import {
   FileText,
   ArrowDownCircle,
   Radio,
-  AlertCircle
+  AlertCircle,
+  FolderOpen,
+  Clock
 } from 'lucide-react';
-import { fetchMatchLogs, fetchRecentMatchesForLogs } from '../api/matchLogApi';
-import type { MatchLogResponse, MatchLogLevel, MatchHistoryItem } from '../types';
+import { fetchMatchLogs, fetchRecentMatchesForLogs, fetchAvailableLogFiles } from '../api/matchLogApi';
+import type { MatchLogResponse, MatchLogLevel, MatchHistoryItem, LogFileInfo } from '../types';
 
 interface MatchLogInspectorProps {
   initialMatchId?: string;
@@ -26,6 +28,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatchId);
   const [inputMatchId, setInputMatchId] = useState<string>(initialMatchId);
   const [logData, setLogData] = useState<MatchLogResponse | null>(null);
+  const [availableLogFiles, setAvailableLogFiles] = useState<LogFileInfo[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchHistoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -37,19 +40,34 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
 
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Fetch real matches history from backend on mount
+  // Fetch real matches history & available log files from backend on mount
   useEffect(() => {
-    const loadRecent = async () => {
-      const matches = await fetchRecentMatchesForLogs();
+    const loadInitialData = async () => {
+      const [matches, files] = await Promise.all([
+        fetchRecentMatchesForLogs(),
+        fetchAvailableLogFiles(),
+      ]);
       setRecentMatches(matches);
-      // If no initial match ID provided, default to the most recent match if available
-      if (!selectedMatchId && matches.length > 0) {
-        setSelectedMatchId(matches[0].matchId);
-        setInputMatchId(matches[0].matchId);
+      setAvailableLogFiles(files);
+
+      // If no initial match ID was set, automatically select the most recently updated log file!
+      if (!selectedMatchId) {
+        if (files.length > 0) {
+          setSelectedMatchId(files[0].matchId);
+          setInputMatchId(files[0].matchId);
+        } else if (matches.length > 0) {
+          setSelectedMatchId(matches[0].matchId);
+          setInputMatchId(matches[0].matchId);
+        }
       }
     };
-    loadRecent();
+    loadInitialData();
   }, [selectedMatchId]);
+
+  const refreshFiles = async () => {
+    const files = await fetchAvailableLogFiles();
+    setAvailableLogFiles(files);
+  };
 
   // Fetch logs directly from backend
   const loadLogs = useCallback(async (matchIdToLoad: string) => {
@@ -236,8 +254,85 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
         </div>
       </div>
 
-      {/* Match ID Search Bar */}
+      {/* Match Log Selector & Search Bar */}
       <div className="bg-[#24160d] p-3.5 rounded-lg border border-[#c89b3c]/30 space-y-3">
+        {/* Available Log Files on Server (Sorted by Most Recently Updated) */}
+        {availableLogFiles.length > 0 && (
+          <div className="p-2.5 rounded bg-[#170e08] border border-[#c89b3c]/20 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs text-[#ffe082] font-cinzel font-bold flex items-center gap-1.5">
+                <FolderOpen className="w-3.5 h-3.5 text-[#c89b3c]" />
+                Recent Server Log Files ({availableLogFiles.length}):
+              </span>
+              <div className="flex items-center gap-2 flex-1 sm:max-w-md">
+                <select
+                  value={selectedMatchId}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setInputMatchId(e.target.value);
+                      setSelectedMatchId(e.target.value);
+                    }
+                  }}
+                  className="w-full bg-[#24160d] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-1.5 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
+                >
+                  <option value="" disabled>-- Select Recently Updated File --</option>
+                  {availableLogFiles.map((file, idx) => {
+                    const time = file.lastModifiedUtc ? new Date(file.lastModifiedUtc).toLocaleTimeString() : '';
+                    const kb = (file.fileSizeBytes / 1024).toFixed(1);
+                    return (
+                      <option key={file.fileName} value={file.matchId}>
+                        {idx === 0 ? '★ [LATEST] ' : ''}{file.fileName} ({kb} KB - {time})
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  type="button"
+                  onClick={refreshFiles}
+                  title="Rescan server log files"
+                  className="p-1.5 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] text-[#c89b3c] hover:text-[#ffe082] transition-all shrink-0"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick-Pick Pills for Latest Log Files */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[11px] text-[#8c7456] font-sans flex items-center gap-1">
+                <Clock className="w-3 h-3 text-[#c89b3c]" /> Quick pick:
+              </span>
+              {availableLogFiles.slice(0, 5).map((file, idx) => {
+                const isSelected = selectedMatchId === file.matchId;
+                const kb = (file.fileSizeBytes / 1024).toFixed(1);
+                return (
+                  <button
+                    key={file.fileName}
+                    type="button"
+                    onClick={() => {
+                      setInputMatchId(file.matchId);
+                      setSelectedMatchId(file.matchId);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
+                      isSelected
+                        ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
+                        : 'bg-[#1c120c] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
+                    }`}
+                  >
+                    {idx === 0 && (
+                      <span className="text-[9px] px-1 rounded bg-[#10b981]/20 text-[#34d399] font-sans font-bold">
+                        NEW
+                      </span>
+                    )}
+                    <span>{file.fileName.replace('.log', '')}</span>
+                    <span className="text-[10px] text-[#8c7456]">({kb} KB)</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-center gap-2">
           <div className="relative flex-1 w-full">
             <Search className="w-4 h-4 text-[#8c7456] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -245,7 +340,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
               type="text"
               value={inputMatchId}
               onChange={(e) => setInputMatchId(e.target.value)}
-              placeholder="Enter target Match GUID (e.g. e3f0e106-27bf-4a90-9756-7d5e43557f4a)..."
+              placeholder="Or enter target Match GUID manually (e.g. e3f0e106-27bf-4a90-9756-7d5e43557f4a)..."
               className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded pl-9 pr-3 py-2 text-xs font-mono text-[#ffe082] placeholder-[#78644e] outline-none transition-all shadow-inner"
             />
           </div>

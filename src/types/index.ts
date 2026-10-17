@@ -215,3 +215,12 @@ export interface MatchHistoryItem {
   winnerPlayerId?: string;
 }
 
+export interface LogFileInfo {
+  matchId: string;
+  fileName: string;
+  fileSizeBytes: number;
+  lastModifiedUtc: string;
+  createdAtUtc: string;
+}
+
+
