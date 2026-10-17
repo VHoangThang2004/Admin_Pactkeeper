@@ -12,7 +12,11 @@ import {
   Radio,
   AlertCircle,
   FolderOpen,
-  Clock
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Swords,
+  Filter
 } from 'lucide-react';
 import { fetchMatchLogs, fetchRecentMatchesForLogs, fetchAvailableLogFiles } from '../api/matchLogApi';
 import type { MatchLogResponse, MatchLogLevel, MatchHistoryItem, LogFileInfo } from '../types';
@@ -30,6 +34,9 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   const [logData, setLogData] = useState<MatchLogResponse | null>(null);
   const [availableLogFiles, setAvailableLogFiles] = useState<LogFileInfo[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchHistoryItem[]>([]);
+  const [sourceMode, setSourceMode] = useState<'files' | 'matches'>('files');
+  const [browseExpanded, setBrowseExpanded] = useState<boolean>(false);
+  const [browseSearch, setBrowseSearch] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filterLevel, setFilterLevel] = useState<MatchLogLevel | 'ALL'>('ALL');
@@ -254,55 +261,146 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
         </div>
       </div>
 
-      {/* Match Log Selector & Search Bar */}
-      <div className="bg-[#24160d] p-3.5 rounded-lg border border-[#c89b3c]/30 space-y-3">
-        {/* Available Log Files on Server (Sorted by Most Recently Updated) */}
-        {availableLogFiles.length > 0 && (
-          <div className="p-2.5 rounded bg-[#170e08] border border-[#c89b3c]/20 space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <span className="text-xs text-[#ffe082] font-cinzel font-bold flex items-center gap-1.5">
-                <FolderOpen className="w-3.5 h-3.5 text-[#c89b3c]" />
-                Recent Server Log Files ({availableLogFiles.length}):
-              </span>
-              <div className="flex items-center gap-2 flex-1 sm:max-w-md">
-                <select
-                  value={selectedMatchId}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setInputMatchId(e.target.value);
-                      setSelectedMatchId(e.target.value);
-                    }
-                  }}
-                  className="w-full bg-[#24160d] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-1.5 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
-                >
-                  <option value="" disabled>-- Select Recently Updated File --</option>
-                  {availableLogFiles.map((file, idx) => {
-                    const time = file.lastModifiedUtc ? new Date(file.lastModifiedUtc).toLocaleTimeString() : '';
-                    const kb = (file.fileSizeBytes / 1024).toFixed(1);
-                    return (
-                      <option key={file.fileName} value={file.matchId}>
-                        {idx === 0 ? '★ [LATEST] ' : ''}{file.fileName} ({kb} KB - {time})
-                      </option>
-                    );
-                  })}
-                </select>
-                <button
-                  type="button"
-                  onClick={refreshFiles}
-                  title="Rescan server log files"
-                  className="p-1.5 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] text-[#c89b3c] hover:text-[#ffe082] transition-all shrink-0"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+      {/* Compact Log Selector & Search Bar */}
+      <div className="bg-[#24160d] p-3 rounded-lg border border-[#c89b3c]/30 space-y-2.5">
+        {/* Source Mode Tabs & Quick Stats */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3d2719] pb-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSourceMode('files')}
+              className={`px-2.5 py-1 rounded text-xs font-cinzel font-bold flex items-center gap-1.5 transition-all ${
+                sourceMode === 'files'
+                  ? 'bg-[#c89b3c] text-[#1c120c] shadow'
+                  : 'bg-[#170e08] text-[#a89984] hover:text-[#ffe082] border border-[#523725]'
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>Server Log Files ({availableLogFiles.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceMode('matches')}
+              className={`px-2.5 py-1 rounded text-xs font-cinzel font-bold flex items-center gap-1.5 transition-all ${
+                sourceMode === 'matches'
+                  ? 'bg-[#c89b3c] text-[#1c120c] shadow'
+                  : 'bg-[#170e08] text-[#a89984] hover:text-[#ffe082] border border-[#523725]'
+              }`}
+            >
+              <Swords className="w-3.5 h-3.5" />
+              <span>Match Sessions ({recentMatches.length})</span>
+            </button>
+          </div>
 
-            {/* Quick-Pick Pills for Latest Log Files */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[11px] text-[#8c7456] font-sans flex items-center gap-1">
-                <Clock className="w-3 h-3 text-[#c89b3c]" /> Quick pick:
-              </span>
-              {availableLogFiles.slice(0, 5).map((file, idx) => {
+          {/* Quick Stats / Active Match indicator */}
+          <div className="text-[11px] font-mono text-[#8c7456] flex items-center gap-2">
+            <span>Selected Target:</span>
+            <span className="text-[#ffe082] font-bold">
+              {selectedMatchId ? `#${selectedMatchId.slice(0, 8)}` : 'None'}
+            </span>
+          </div>
+        </div>
+
+        {/* Primary Controls Row: Dropdown, Manual Search, Load, and Browse Drawer Toggle */}
+        <div className="flex flex-col lg:flex-row items-center gap-2">
+          {/* Main Dropdown */}
+          <div className="flex-1 w-full relative">
+            {sourceMode === 'files' ? (
+              <select
+                value={selectedMatchId}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setInputMatchId(e.target.value);
+                    setSelectedMatchId(e.target.value);
+                  }
+                }}
+                className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-2 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
+              >
+                <option value="" disabled>-- Select a Server Log File ({availableLogFiles.length} files) --</option>
+                {availableLogFiles.map((file, idx) => {
+                  const time = file.lastModifiedUtc ? new Date(file.lastModifiedUtc).toLocaleTimeString() : '';
+                  const kb = (file.fileSizeBytes / 1024).toFixed(1);
+                  return (
+                    <option key={file.fileName} value={file.matchId}>
+                      {idx === 0 ? '★ [LATEST] ' : ''}{file.fileName} ({kb} KB - {time})
+                    </option>
+                  );
+                })}
+              </select>
+            ) : (
+              <select
+                value={selectedMatchId}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setInputMatchId(e.target.value);
+                    setSelectedMatchId(e.target.value);
+                  }
+                }}
+                className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-2 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
+              >
+                <option value="" disabled>-- Select a Match Session ({recentMatches.length} matches) --</option>
+                {recentMatches.map((m, idx) => {
+                  const isLive = (m.status || '').toString().toLowerCase().includes('active');
+                  return (
+                    <option key={m.matchId} value={m.matchId}>
+                      {isLive ? '🔴 [LIVE] ' : idx === 0 ? '★ [RECENT] ' : ''}#{m.matchId.slice(0, 8)} - {m.mode || 'PVP'} ({m.status || 'Done'})
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+          </div>
+
+          {/* Manual Input + Action */}
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-56">
+              <Search className="w-3.5 h-3.5 text-[#8c7456] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={inputMatchId}
+                onChange={(e) => setInputMatchId(e.target.value)}
+                placeholder="Or paste custom GUID..."
+                className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded pl-8 pr-2 py-2 text-xs font-mono text-[#ffe082] placeholder-[#78644e] outline-none transition-all shadow-inner"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-3 py-2 rounded mahogany-button text-xs font-cinzel font-bold flex items-center justify-center gap-1 shadow shrink-0"
+            >
+              <span>LOAD</span>
+            </button>
+            <button
+              type="button"
+              onClick={refreshFiles}
+              title="Rescan server files & matches"
+              className="p-2 rounded bg-[#170e08] hover:bg-[#2b1b11] border border-[#523725] text-[#c89b3c] hover:text-[#ffe082] transition-all shrink-0"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+            {/* Toggle Drawer Button */}
+            <button
+              type="button"
+              onClick={() => setBrowseExpanded(!browseExpanded)}
+              className={`px-2.5 py-2 rounded border text-xs font-cinzel font-bold flex items-center gap-1 transition-all shrink-0 ${
+                browseExpanded
+                  ? 'bg-[#c89b3c]/20 border-[#c89b3c] text-[#ffe082]'
+                  : 'bg-[#170e08] border-[#523725] text-[#a89984] hover:text-white'
+              }`}
+              title="Toggle full browse drawer"
+            >
+              <span>Browse ({sourceMode === 'files' ? availableLogFiles.length : recentMatches.length})</span>
+              {browseExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </form>
+        </div>
+
+        {/* Quick Pick Chips (Clean, single-line, max 4 chips) */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs pt-0.5">
+          <span className="text-[11px] text-[#8c7456] font-sans flex items-center gap-1">
+            <Clock className="w-3 h-3 text-[#c89b3c]" /> Quick picks:
+          </span>
+          {sourceMode === 'files'
+            ? availableLogFiles.slice(0, 4).map((file, idx) => {
                 const isSelected = selectedMatchId === file.matchId;
                 const kb = (file.fileSizeBytes / 1024).toFixed(1);
                 return (
@@ -316,7 +414,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                     className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
                       isSelected
                         ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
-                        : 'bg-[#1c120c] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
+                        : 'bg-[#170e08] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
                     }`}
                   >
                     {idx === 0 && (
@@ -324,72 +422,124 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                         NEW
                       </span>
                     )}
-                    <span>{file.fileName.replace('.log', '')}</span>
-                    <span className="text-[10px] text-[#8c7456]">({kb} KB)</span>
+                    <span>#{file.matchId.slice(0, 8)}</span>
+                    <span className="text-[10px] text-[#8c7456]">({kb}K)</span>
+                  </button>
+                );
+              })
+            : recentMatches.slice(0, 4).map((m) => {
+                const isSelected = selectedMatchId === m.matchId;
+                const isLive = (m.status || '').toString().toLowerCase().includes('active');
+                return (
+                  <button
+                    key={m.matchId}
+                    type="button"
+                    onClick={() => {
+                      setInputMatchId(m.matchId);
+                      setSelectedMatchId(m.matchId);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
+                      isSelected
+                        ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
+                        : 'bg-[#170e08] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
+                    }`}
+                  >
+                    {isLive && (
+                      <span className="text-[9px] px-1 rounded bg-[#10b981]/20 text-[#34d399] font-sans font-bold">
+                        LIVE
+                      </span>
+                    )}
+                    <span>#{m.matchId.slice(0, 8)}</span>
+                    <span className="text-[9px] text-[#8c7456] uppercase">{m.mode || 'PVP'}</span>
                   </button>
                 );
               })}
+        </div>
+
+        {/* Collapsible Browse All Panel (Scrollable, searchable drawer) */}
+        {browseExpanded && (
+          <div className="pt-2 border-t border-[#3d2719] space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="relative flex-1 max-w-xs">
+                <Filter className="w-3 h-3 text-[#8c7456] absolute left-2 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={browseSearch}
+                  onChange={(e) => setBrowseSearch(e.target.value)}
+                  placeholder="Filter by ID, mode or keyword..."
+                  className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded pl-7 pr-2 py-1 text-[11px] font-mono text-[#ffe082] placeholder-[#78644e] outline-none"
+                />
+              </div>
+              <span className="text-[11px] text-[#8c7456] font-mono">
+                Total {sourceMode === 'files' ? availableLogFiles.length : recentMatches.length} items
+              </span>
             </div>
-          </div>
-        )}
 
-        <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-center gap-2">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-[#8c7456] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={inputMatchId}
-              onChange={(e) => setInputMatchId(e.target.value)}
-              placeholder="Or enter target Match GUID manually (e.g. e3f0e106-27bf-4a90-9756-7d5e43557f4a)..."
-              className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded pl-9 pr-3 py-2 text-xs font-mono text-[#ffe082] placeholder-[#78644e] outline-none transition-all shadow-inner"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full sm:w-auto px-4 py-2 rounded mahogany-button text-xs font-cinzel font-bold flex items-center justify-center gap-1.5 shadow shrink-0"
-          >
-            <Search className="w-3.5 h-3.5 text-[#c89b3c]" />
-            <span>FETCH MATCH LOG</span>
-          </button>
-        </form>
-
-        {/* Real Matches from /api/Match/history */}
-        {recentMatches.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-[#a89984] font-cinzel font-semibold flex items-center gap-1">
-              <FileText className="w-3 h-3 text-[#c89b3c]" /> Active / Recent Matches:
-            </span>
-            {recentMatches.map((m) => {
-              const isSelected = selectedMatchId === m.matchId;
-              const isLive = (m.status || '').toString().toLowerCase().includes('progress') || (m.status || '').toString().toLowerCase().includes('active');
-
-              return (
-                <button
-                  key={m.matchId}
-                  type="button"
-                  onClick={() => {
-                    setInputMatchId(m.matchId);
-                    setSelectedMatchId(m.matchId);
-                  }}
-                  className={`px-2.5 py-1 rounded text-[11px] font-mono transition-all flex items-center gap-1.5 border ${
-                    isSelected
-                      ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
-                      : 'bg-[#1c120c] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
-                  }`}
-                >
-                  <span>#{m.matchId.slice(0, 8)}</span>
-                  <span
-                    className={`text-[9px] px-1 rounded uppercase font-sans font-bold ${
-                      isLive
-                        ? 'bg-[#10b981]/20 text-[#34d399]'
-                        : 'bg-[#4b5563]/20 text-[#9ca3af]'
-                    }`}
-                  >
-                    {m.mode || 'MATCH'}
-                  </span>
-                </button>
-              );
-            })}
+            {/* Scrollable Chip Grid */}
+            <div className="max-h-40 overflow-y-auto p-2 rounded bg-[#170e08] border border-[#523725] flex flex-wrap gap-1.5">
+              {sourceMode === 'files'
+                ? availableLogFiles
+                    .filter((f) => !browseSearch || f.matchId.toLowerCase().includes(browseSearch.toLowerCase()))
+                    .map((file) => {
+                      const isSelected = selectedMatchId === file.matchId;
+                      const kb = (file.fileSizeBytes / 1024).toFixed(1);
+                      return (
+                        <button
+                          key={file.fileName}
+                          type="button"
+                          onClick={() => {
+                            setInputMatchId(file.matchId);
+                            setSelectedMatchId(file.matchId);
+                          }}
+                          className={`px-2 py-1 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
+                            isSelected
+                              ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
+                              : 'bg-[#24160d] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
+                          }`}
+                        >
+                          <span>#{file.matchId.slice(0, 8)}</span>
+                          <span className="text-[10px] text-[#8c7456]">({kb} KB)</span>
+                        </button>
+                      );
+                    })
+                : recentMatches
+                    .filter(
+                      (m) =>
+                        !browseSearch ||
+                        m.matchId.toLowerCase().includes(browseSearch.toLowerCase()) ||
+                        (m.mode && m.mode.toLowerCase().includes(browseSearch.toLowerCase()))
+                    )
+                    .map((m) => {
+                      const isSelected = selectedMatchId === m.matchId;
+                      const isLive =
+                        (m.status || '').toString().toLowerCase().includes('progress') ||
+                        (m.status || '').toString().toLowerCase().includes('active');
+                      return (
+                        <button
+                          key={m.matchId}
+                          type="button"
+                          onClick={() => {
+                            setInputMatchId(m.matchId);
+                            setSelectedMatchId(m.matchId);
+                          }}
+                          className={`px-2 py-1 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
+                            isSelected
+                              ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
+                              : 'bg-[#24160d] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
+                          }`}
+                        >
+                          <span>#{m.matchId.slice(0, 8)}</span>
+                          <span
+                            className={`text-[9px] px-1 rounded uppercase font-sans font-bold ${
+                              isLive ? 'bg-[#10b981]/20 text-[#34d399]' : 'bg-[#4b5563]/20 text-[#9ca3af]'
+                            }`}
+                          >
+                            {m.mode || 'MATCH'}
+                          </span>
+                        </button>
+                      );
+                    })}
+            </div>
           </div>
         )}
       </div>
@@ -481,7 +631,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
         </div>
 
         {/* Terminal Content Body */}
-        <div className="p-4 max-h-[500px] min-h-[320px] overflow-y-auto font-mono text-xs leading-relaxed space-y-1 select-text">
+        <div className="p-4 max-h-[580px] min-h-[380px] overflow-y-auto font-mono text-xs leading-relaxed space-y-1 select-text scrollbar-thin">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-[#8c7456] space-y-2">
               <RefreshCw className="w-6 h-6 animate-spin text-[#c89b3c]" />
