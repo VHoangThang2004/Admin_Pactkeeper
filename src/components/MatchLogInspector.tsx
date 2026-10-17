@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ChevronUp,
   Swords,
-  Filter
+  Filter,
+  Calendar
 } from 'lucide-react';
 import { fetchMatchLogs, fetchRecentMatchesForLogs, fetchAvailableLogFiles } from '../api/matchLogApi';
 import type { MatchLogResponse, MatchLogLevel, MatchHistoryItem, LogFileInfo } from '../types';
@@ -35,7 +36,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   const [availableLogFiles, setAvailableLogFiles] = useState<LogFileInfo[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchHistoryItem[]>([]);
   const [sourceMode, setSourceMode] = useState<'files' | 'matches'>('files');
-  const [browseExpanded, setBrowseExpanded] = useState<boolean>(false);
+  const [browseExpanded, setBrowseExpanded] = useState<boolean>(true);
   const [browseSearch, setBrowseSearch] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -47,6 +48,45 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
 
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Helper to format full date (DD/MM/YYYY) and time (HH:mm:ss)
+  const formatDateTime = useCallback((dateStr?: string) => {
+    if (!dateStr) return { date: 'N/A', time: '', full: 'N/A' };
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return { date: 'N/A', time: '', full: 'N/A' };
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      return {
+        date: `${day}/${month}/${year}`,
+        time: `${hours}:${minutes}:${seconds}`,
+        full: `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+      };
+    } catch {
+      return { date: 'N/A', time: '', full: 'N/A' };
+    }
+  }, []);
+
+  // Strict date descending sorting (newest first from top to bottom)
+  const sortedLogFiles = useMemo(() => {
+    return [...availableLogFiles].sort((a, b) => {
+      const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
+      const timeB = b.lastModifiedUtc ? new Date(b.lastModifiedUtc).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [availableLogFiles]);
+
+  const sortedMatches = useMemo(() => {
+    return [...recentMatches].sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [recentMatches]);
+
   // Fetch real matches history & available log files from backend on mount
   useEffect(() => {
     const loadInitialData = async () => {
@@ -54,17 +94,30 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
         fetchRecentMatchesForLogs(),
         fetchAvailableLogFiles(),
       ]);
-      setRecentMatches(matches);
-      setAvailableLogFiles(files);
+
+      const sortedF = [...files].sort((a, b) => {
+        const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
+        const timeB = b.lastModifiedUtc ? new Date(b.lastModifiedUtc).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      const sortedM = [...matches].sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      setRecentMatches(sortedM);
+      setAvailableLogFiles(sortedF);
 
       // If no initial match ID was set, automatically select the most recently updated log file!
       if (!selectedMatchId) {
-        if (files.length > 0) {
-          setSelectedMatchId(files[0].matchId);
-          setInputMatchId(files[0].matchId);
-        } else if (matches.length > 0) {
-          setSelectedMatchId(matches[0].matchId);
-          setInputMatchId(matches[0].matchId);
+        if (sortedF.length > 0) {
+          setSelectedMatchId(sortedF[0].matchId);
+          setInputMatchId(sortedF[0].matchId);
+        } else if (sortedM.length > 0) {
+          setSelectedMatchId(sortedM[0].matchId);
+          setInputMatchId(sortedM[0].matchId);
         }
       }
     };
@@ -73,7 +126,12 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
 
   const refreshFiles = async () => {
     const files = await fetchAvailableLogFiles();
-    setAvailableLogFiles(files);
+    const sortedF = [...files].sort((a, b) => {
+      const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
+      const timeB = b.lastModifiedUtc ? new Date(b.lastModifiedUtc).getTime() : 0;
+      return timeB - timeA;
+    });
+    setAvailableLogFiles(sortedF);
   };
 
   // Fetch logs directly from backend
@@ -316,13 +374,13 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                 }}
                 className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-2 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
               >
-                <option value="" disabled>-- Select a Server Log File ({availableLogFiles.length} files) --</option>
-                {availableLogFiles.map((file, idx) => {
-                  const time = file.lastModifiedUtc ? new Date(file.lastModifiedUtc).toLocaleTimeString() : '';
+                <option value="" disabled>-- Select Server Log File ({sortedLogFiles.length} files - Newest First) --</option>
+                {sortedLogFiles.map((file, idx) => {
+                  const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
                   const kb = (file.fileSizeBytes / 1024).toFixed(1);
                   return (
                     <option key={file.fileName} value={file.matchId}>
-                      {idx === 0 ? '★ [LATEST] ' : ''}{file.fileName} ({kb} KB - {time})
+                      {idx === 0 ? '★ [LATEST] ' : `[#${idx + 1}] `}[{dt.date} {dt.time}] - {file.fileName} ({kb} KB)
                     </option>
                   );
                 })}
@@ -338,12 +396,13 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                 }}
                 className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-2 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
               >
-                <option value="" disabled>-- Select a Match Session ({recentMatches.length} matches) --</option>
-                {recentMatches.map((m, idx) => {
+                <option value="" disabled>-- Select Match Session ({sortedMatches.length} matches - Newest First) --</option>
+                {sortedMatches.map((m, idx) => {
+                  const dt = formatDateTime(m.createdAt);
                   const isLive = (m.status || '').toString().toLowerCase().includes('active');
                   return (
                     <option key={m.matchId} value={m.matchId}>
-                      {isLive ? '🔴 [LIVE] ' : idx === 0 ? '★ [RECENT] ' : ''}#{m.matchId.slice(0, 8)} - {m.mode || 'PVP'} ({m.status || 'Done'})
+                      {isLive ? '🔴 [LIVE] ' : idx === 0 ? '★ [LATEST] ' : `[#${idx + 1}] `}[{dt.date} {dt.time}] - #{m.matchId.slice(0, 8)} - {m.mode || 'PVP'} ({m.status || 'Done'})
                     </option>
                   );
                 })}
@@ -372,7 +431,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
             <button
               type="button"
               onClick={refreshFiles}
-              title="Rescan server files & matches"
+              title="Rescan server files & match sessions"
               className="p-2 rounded bg-[#170e08] hover:bg-[#2b1b11] border border-[#523725] text-[#c89b3c] hover:text-[#ffe082] transition-all shrink-0"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -381,164 +440,274 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
             <button
               type="button"
               onClick={() => setBrowseExpanded(!browseExpanded)}
-              className={`px-2.5 py-2 rounded border text-xs font-cinzel font-bold flex items-center gap-1 transition-all shrink-0 ${
+              className={`px-3 py-2 rounded border text-xs font-cinzel font-bold flex items-center gap-1.5 transition-all shrink-0 ${
                 browseExpanded
-                  ? 'bg-[#c89b3c]/20 border-[#c89b3c] text-[#ffe082]'
-                  : 'bg-[#170e08] border-[#523725] text-[#a89984] hover:text-white'
+                  ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] shadow'
+                  : 'bg-[#170e08] border-[#523725] text-[#ffe082] hover:border-[#c89b3c]'
               }`}
-              title="Toggle full browse drawer"
+              title="Toggle log list sorted by date descending"
             >
-              <span>Browse ({sourceMode === 'files' ? availableLogFiles.length : recentMatches.length})</span>
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Log Directory ({sourceMode === 'files' ? sortedLogFiles.length : sortedMatches.length})</span>
               {browseExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </form>
         </div>
 
-        {/* Quick Pick Chips (Clean, single-line, max 4 chips) */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs pt-0.5">
-          <span className="text-[11px] text-[#8c7456] font-sans flex items-center gap-1">
-            <Clock className="w-3 h-3 text-[#c89b3c]" /> Quick picks:
-          </span>
-          {sourceMode === 'files'
-            ? availableLogFiles.slice(0, 4).map((file, idx) => {
-                const isSelected = selectedMatchId === file.matchId;
-                const kb = (file.fileSizeBytes / 1024).toFixed(1);
-                return (
-                  <button
-                    key={file.fileName}
-                    type="button"
-                    onClick={() => {
-                      setInputMatchId(file.matchId);
-                      setSelectedMatchId(file.matchId);
-                    }}
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
-                      isSelected
-                        ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
-                        : 'bg-[#170e08] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
-                    }`}
-                  >
-                    {idx === 0 && (
-                      <span className="text-[9px] px-1 rounded bg-[#10b981]/20 text-[#34d399] font-sans font-bold">
-                        NEW
-                      </span>
-                    )}
-                    <span>#{file.matchId.slice(0, 8)}</span>
-                    <span className="text-[10px] text-[#8c7456]">({kb}K)</span>
-                  </button>
-                );
-              })
-            : recentMatches.slice(0, 4).map((m) => {
-                const isSelected = selectedMatchId === m.matchId;
-                const isLive = (m.status || '').toString().toLowerCase().includes('active');
-                return (
-                  <button
-                    key={m.matchId}
-                    type="button"
-                    onClick={() => {
-                      setInputMatchId(m.matchId);
-                      setSelectedMatchId(m.matchId);
-                    }}
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
-                      isSelected
-                        ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
-                        : 'bg-[#170e08] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
-                    }`}
-                  >
-                    {isLive && (
-                      <span className="text-[9px] px-1 rounded bg-[#10b981]/20 text-[#34d399] font-sans font-bold">
-                        LIVE
-                      </span>
-                    )}
-                    <span>#{m.matchId.slice(0, 8)}</span>
-                    <span className="text-[9px] text-[#8c7456] uppercase">{m.mode || 'PVP'}</span>
-                  </button>
-                );
-              })}
+        {/* Clean Info Header / Sorting Indicator */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 px-1 text-[#8c7456]">
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-[#c89b3c]" />
+            <span className="font-serif italic">
+              Order: <strong className="text-[#ffe082] not-italic">Newest first (Top to Bottom) ↓</strong> (Full Date DD/MM/YYYY & Time)
+            </span>
+          </div>
+          {selectedMatchId && (
+            <div className="text-[11px] font-mono text-[#a89984]">
+              Selected: <span className="text-[#ffe082] font-bold">{selectedMatchId}</span>
+            </div>
+          )}
         </div>
 
-        {/* Collapsible Browse All Panel (Scrollable, searchable drawer) */}
+        {/* Vertical Ordered Log List (Newest first, top-to-bottom) */}
         {browseExpanded && (
           <div className="pt-2 border-t border-[#3d2719] space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="relative flex-1 max-w-xs">
-                <Filter className="w-3 h-3 text-[#8c7456] absolute left-2 top-1/2 -translate-y-1/2" />
+            {/* Filter toolbar inside drawer */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#170e08] p-2 rounded border border-[#3d2719]">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-cinzel font-bold text-[#ffe082] flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
+                  CHRONOLOGICAL LOG DIRECTORY
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-[#c89b3c]/20 text-[#ffe082] border border-[#c89b3c]/30 font-mono font-bold">
+                  {sourceMode === 'files' ? `${sortedLogFiles.length} files` : `${sortedMatches.length} matches`}
+                </span>
+              </div>
+
+              {/* Search input inside list */}
+              <div className="relative w-full sm:w-72">
+                <Filter className="w-3 h-3 text-[#8c7456] absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={browseSearch}
                   onChange={(e) => setBrowseSearch(e.target.value)}
-                  placeholder="Filter by ID, mode or keyword..."
-                  className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded pl-7 pr-2 py-1 text-[11px] font-mono text-[#ffe082] placeholder-[#78644e] outline-none"
+                  placeholder="Filter by date (DD/MM/YYYY), ID, file..."
+                  className="w-full bg-[#110904] border border-[#523725] focus:border-[#c89b3c] rounded pl-8 pr-2 py-1 text-xs font-mono text-[#ffe082] placeholder-[#78644e] outline-none"
                 />
               </div>
-              <span className="text-[11px] text-[#8c7456] font-mono">
-                Total {sourceMode === 'files' ? availableLogFiles.length : recentMatches.length} items
-              </span>
             </div>
 
-            {/* Scrollable Chip Grid */}
-            <div className="max-h-40 overflow-y-auto p-2 rounded bg-[#170e08] border border-[#523725] flex flex-wrap gap-1.5">
-              {sourceMode === 'files'
-                ? availableLogFiles
-                    .filter((f) => !browseSearch || f.matchId.toLowerCase().includes(browseSearch.toLowerCase()))
-                    .map((file) => {
-                      const isSelected = selectedMatchId === file.matchId;
-                      const kb = (file.fileSizeBytes / 1024).toFixed(1);
-                      return (
-                        <button
-                          key={file.fileName}
-                          type="button"
-                          onClick={() => {
-                            setInputMatchId(file.matchId);
-                            setSelectedMatchId(file.matchId);
-                          }}
-                          className={`px-2 py-1 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
-                            isSelected
-                              ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
-                              : 'bg-[#24160d] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
-                          }`}
-                        >
-                          <span>#{file.matchId.slice(0, 8)}</span>
-                          <span className="text-[10px] text-[#8c7456]">({kb} KB)</span>
-                        </button>
-                      );
-                    })
-                : recentMatches
-                    .filter(
-                      (m) =>
-                        !browseSearch ||
-                        m.matchId.toLowerCase().includes(browseSearch.toLowerCase()) ||
-                        (m.mode && m.mode.toLowerCase().includes(browseSearch.toLowerCase()))
-                    )
-                    .map((m) => {
-                      const isSelected = selectedMatchId === m.matchId;
-                      const isLive =
-                        (m.status || '').toString().toLowerCase().includes('progress') ||
-                        (m.status || '').toString().toLowerCase().includes('active');
-                      return (
-                        <button
-                          key={m.matchId}
-                          type="button"
-                          onClick={() => {
-                            setInputMatchId(m.matchId);
-                            setSelectedMatchId(m.matchId);
-                          }}
-                          className={`px-2 py-1 rounded text-[11px] font-mono transition-all flex items-center gap-1 border ${
-                            isSelected
-                              ? 'bg-[#c89b3c] text-[#1c120c] border-[#ffe082] font-bold shadow'
-                              : 'bg-[#24160d] text-[#d4c5b0] hover:text-[#ffe082] border-[#523725]'
-                          }`}
-                        >
-                          <span>#{m.matchId.slice(0, 8)}</span>
+            {/* Strictly Vertical List Container (Top to Bottom) */}
+            <div className="max-h-80 overflow-y-auto rounded bg-[#110904] border border-[#523725] divide-y divide-[#26170d] shadow-inner">
+              {sourceMode === 'files' ? (
+                (() => {
+                  const filtered = sortedLogFiles.filter((f) => {
+                    if (!browseSearch) return true;
+                    const q = browseSearch.toLowerCase();
+                    const dt = formatDateTime(f.lastModifiedUtc || f.createdAtUtc);
+                    return (
+                      f.matchId.toLowerCase().includes(q) ||
+                      f.fileName.toLowerCase().includes(q) ||
+                      dt.full.toLowerCase().includes(q)
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-6 text-center text-xs text-[#8c7456] font-mono">
+                        No server log files found matching filter &quot;{browseSearch}&quot;
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((file, idx) => {
+                    const isSelected = selectedMatchId === file.matchId;
+                    const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
+                    const kb = (file.fileSizeBytes / 1024).toFixed(1);
+
+                    return (
+                      <div
+                        key={file.fileName}
+                        onClick={() => {
+                          setInputMatchId(file.matchId);
+                          setSelectedMatchId(file.matchId);
+                        }}
+                        className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-[#c89b3c]/20 border-l-4 border-l-[#c89b3c] shadow'
+                            : 'hover:bg-[#1f130b] border-l-4 border-l-transparent'
+                        }`}
+                      >
+                        {/* 1. Date & Time Column (Newest First) */}
+                        <div className="flex items-center gap-2.5 shrink-0">
                           <span
-                            className={`text-[9px] px-1 rounded uppercase font-sans font-bold ${
-                              isLive ? 'bg-[#10b981]/20 text-[#34d399]' : 'bg-[#4b5563]/20 text-[#9ca3af]'
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
+                              idx === 0
+                                ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
+                                : 'bg-[#24160d] text-[#a89984] border border-[#3d2719]'
                             }`}
                           >
-                            {m.mode || 'MATCH'}
+                            {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
                           </span>
-                        </button>
-                      );
-                    })}
+                          <div className="flex items-center gap-1.5 text-xs font-mono">
+                            <span className="flex items-center gap-1 text-[#ffe082] font-semibold bg-[#24160d] px-2 py-0.5 rounded border border-[#3d2719]">
+                              <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
+                              {dt.date}
+                            </span>
+                            <span className="flex items-center gap-1 text-[#d4c5b0] bg-[#1a0f08] px-2 py-0.5 rounded border border-[#332014]">
+                              <Clock className="w-3 h-3 text-[#8c7456]" />
+                              {dt.time}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 2. File Name & Match ID */}
+                        <div className="flex-1 min-w-0 font-mono">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-3.5 h-3.5 text-[#c89b3c] shrink-0" />
+                            <span className="text-xs font-bold text-[#f7f1e1] truncate" title={file.fileName}>
+                              {file.fileName}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-[#8c7456] block truncate">
+                            ID: {file.matchId}
+                          </span>
+                        </div>
+
+                        {/* 3. Size & Action */}
+                        <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
+                          <span className="text-xs font-mono text-[#c4b49e] px-2 py-0.5 rounded bg-[#1c1108] border border-[#3d2719]">
+                            {kb} KB
+                          </span>
+                          {isSelected ? (
+                            <span className="text-xs font-cinzel font-bold text-[#34d399] flex items-center gap-1 px-2.5 py-1 rounded bg-[#10b981]/20 border border-[#10b981]">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              VIEWING
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-xs font-cinzel font-bold text-[#ffe082] hover:text-white px-2.5 py-1 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] transition-all"
+                            >
+                              VIEW LOG →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
+              ) : (
+                (() => {
+                  const filtered = sortedMatches.filter((m) => {
+                    if (!browseSearch) return true;
+                    const q = browseSearch.toLowerCase();
+                    const dt = formatDateTime(m.createdAt);
+                    return (
+                      m.matchId.toLowerCase().includes(q) ||
+                      (m.mode != null && String(m.mode).toLowerCase().includes(q)) ||
+                      (m.status != null && String(m.status).toLowerCase().includes(q)) ||
+                      dt.full.toLowerCase().includes(q)
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-6 text-center text-xs text-[#8c7456] font-mono">
+                        No match sessions found matching filter &quot;{browseSearch}&quot;
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((m, idx) => {
+                    const isSelected = selectedMatchId === m.matchId;
+                    const dt = formatDateTime(m.createdAt);
+                    const isLive =
+                      (m.status || '').toString().toLowerCase().includes('progress') ||
+                      (m.status || '').toString().toLowerCase().includes('active');
+
+                    return (
+                      <div
+                        key={m.matchId}
+                        onClick={() => {
+                          setInputMatchId(m.matchId);
+                          setSelectedMatchId(m.matchId);
+                        }}
+                        className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-[#c89b3c]/20 border-l-4 border-l-[#c89b3c] shadow'
+                            : 'hover:bg-[#1f130b] border-l-4 border-l-transparent'
+                        }`}
+                      >
+                        {/* 1. Date & Time */}
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <span
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
+                              idx === 0
+                                ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
+                                : 'bg-[#24160d] text-[#a89984] border border-[#3d2719]'
+                            }`}
+                          >
+                            {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-xs font-mono">
+                            <span className="flex items-center gap-1 text-[#ffe082] font-semibold bg-[#24160d] px-2 py-0.5 rounded border border-[#3d2719]">
+                              <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
+                              {dt.date}
+                            </span>
+                            <span className="flex items-center gap-1 text-[#d4c5b0] bg-[#1a0f08] px-2 py-0.5 rounded border border-[#332014]">
+                              <Clock className="w-3 h-3 text-[#8c7456]" />
+                              {dt.time}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 2. Match ID & Mode */}
+                        <div className="flex-1 min-w-0 font-mono">
+                          <div className="flex items-center gap-2">
+                            <Swords className="w-3.5 h-3.5 text-[#c89b3c] shrink-0" />
+                            <span className="text-xs font-bold text-[#f7f1e1] truncate">
+                              Match #{m.matchId.slice(0, 8)}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3d2719] text-[#ffe082] uppercase font-bold">
+                              {m.mode || 'PVP'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-[#8c7456] block truncate">
+                            GUID: {m.matchId}
+                          </span>
+                        </div>
+
+                        {/* 3. Status & Action */}
+                        <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded font-mono font-bold ${
+                              isLive
+                                ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
+                                : 'bg-[#1c1108] text-[#9ca3af] border border-[#3d2719]'
+                            }`}
+                          >
+                            {m.status || 'Finished'}
+                          </span>
+                          {isSelected ? (
+                            <span className="text-xs font-cinzel font-bold text-[#34d399] flex items-center gap-1 px-2.5 py-1 rounded bg-[#10b981]/20 border border-[#10b981]">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              VIEWING
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-xs font-cinzel font-bold text-[#ffe082] hover:text-white px-2.5 py-1 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] transition-all"
+                            >
+                              VIEW LOG →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
+              )}
             </div>
           </div>
         )}
