@@ -17,7 +17,8 @@ import {
   ChevronUp,
   Swords,
   Filter,
-  Calendar
+  Calendar,
+  SlidersHorizontal
 } from 'lucide-react';
 import { fetchMatchLogs, fetchRecentMatchesForLogs, fetchAvailableLogFiles } from '../api/matchLogApi';
 import type { MatchLogResponse, MatchLogLevel, MatchHistoryItem, LogFileInfo } from '../types';
@@ -38,6 +39,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   const [sourceMode, setSourceMode] = useState<'files' | 'matches'>('files');
   const [browseExpanded, setBrowseExpanded] = useState<boolean>(true);
   const [browseSearch, setBrowseSearch] = useState<string>('');
+  const [displayLimit, setDisplayLimit] = useState<number | 'ALL'>(50);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filterLevel, setFilterLevel] = useState<MatchLogLevel | 'ALL'>('ALL');
@@ -86,6 +88,41 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
       return timeB - timeA;
     });
   }, [recentMatches]);
+
+  // Current active total count
+  const currentTotal = sourceMode === 'files' ? sortedLogFiles.length : sortedMatches.length;
+
+  // Dynamic limit options based on total logs available: 50, 100, 150, 200,...
+  const limitOptions = useMemo(() => {
+    const total = currentTotal;
+    const opts: number[] = [];
+    const step = 50;
+    for (let i = step; i < total; i += step) {
+      opts.push(i);
+    }
+    if (total >= 50 && !opts.includes(50)) {
+      opts.unshift(50);
+    }
+    return opts;
+  }, [currentTotal]);
+
+  const selectLogFiles = useMemo(() => {
+    const list = displayLimit === 'ALL' ? sortedLogFiles : sortedLogFiles.slice(0, displayLimit);
+    if (selectedMatchId && !list.some((f) => f.matchId === selectedMatchId)) {
+      const found = sortedLogFiles.find((f) => f.matchId === selectedMatchId);
+      if (found) return [found, ...list];
+    }
+    return list;
+  }, [sortedLogFiles, displayLimit, selectedMatchId]);
+
+  const selectMatches = useMemo(() => {
+    const list = displayLimit === 'ALL' ? sortedMatches : sortedMatches.slice(0, displayLimit);
+    if (selectedMatchId && !list.some((m) => m.matchId === selectedMatchId)) {
+      const found = sortedMatches.find((m) => m.matchId === selectedMatchId);
+      if (found) return [found, ...list];
+    }
+    return list;
+  }, [sortedMatches, displayLimit, selectedMatchId]);
 
   // Fetch real matches history & available log files from backend on mount
   useEffect(() => {
@@ -374,8 +411,8 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                 }}
                 className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-2 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
               >
-                <option value="" disabled>-- Select Server Log File ({sortedLogFiles.length} files - Newest First) --</option>
-                {sortedLogFiles.map((file, idx) => {
+                <option value="" disabled>-- Select Server Log File ({selectLogFiles.length} of {sortedLogFiles.length} files - Newest First) --</option>
+                {selectLogFiles.map((file, idx) => {
                   const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
                   const kb = (file.fileSizeBytes / 1024).toFixed(1);
                   return (
@@ -396,8 +433,8 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                 }}
                 className="w-full bg-[#170e08] border border-[#523725] focus:border-[#c89b3c] rounded px-3 py-2 text-xs font-mono text-[#ffe082] outline-none transition-all cursor-pointer shadow-inner"
               >
-                <option value="" disabled>-- Select Match Session ({sortedMatches.length} matches - Newest First) --</option>
-                {sortedMatches.map((m, idx) => {
+                <option value="" disabled>-- Select Match Session ({selectMatches.length} of {sortedMatches.length} matches - Newest First) --</option>
+                {selectMatches.map((m, idx) => {
                   const dt = formatDateTime(m.createdAt);
                   const isLive = (m.status || '').toString().toLowerCase().includes('active');
                   return (
@@ -411,8 +448,8 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
           </div>
 
           {/* Manual Input + Action */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5 w-full lg:w-auto">
-            <div className="relative flex-1 lg:w-56">
+          <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-48">
               <Search className="w-3.5 h-3.5 text-[#8c7456] absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -436,6 +473,28 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
+
+            {/* Display Limit Dropdown in Primary Row */}
+            <div className="flex items-center gap-1.5 shrink-0 bg-[#170e08] border border-[#523725] rounded px-2.5 py-1.5 shadow-inner">
+              <SlidersHorizontal className="w-3 h-3 text-[#c89b3c]" />
+              <span className="text-[11px] font-mono text-[#8c7456]">Max:</span>
+              <select
+                value={displayLimit}
+                onChange={(e) => setDisplayLimit(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                className="bg-transparent text-xs font-mono text-[#ffe082] font-bold outline-none cursor-pointer"
+                title="Select maximum logs to display (50, 100, 150, 200, ... or All)"
+              >
+                {limitOptions.map((opt) => (
+                  <option key={opt} value={opt} className="bg-[#170e08] text-[#ffe082]">
+                    {opt}
+                  </option>
+                ))}
+                <option value="ALL" className="bg-[#170e08] text-[#ffe082]">
+                  All ({currentTotal})
+                </option>
+              </select>
+            </div>
+
             {/* Toggle Drawer Button */}
             <button
               type="button"
@@ -459,7 +518,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-[#c89b3c]" />
             <span className="font-serif italic">
-              Order: <strong className="text-[#ffe082] not-italic">Newest first (Top to Bottom) ↓</strong> (Full Date DD/MM/YYYY & Time)
+              Order: <strong className="text-[#ffe082] not-italic">Newest first (Top to Bottom) ↓</strong> (Full Date DD/MM/YYYY & Time) • Showing up to <span className="text-[#ffe082] font-bold">{displayLimit === 'ALL' ? currentTotal : displayLimit}</span> of {currentTotal} logs
             </span>
           </div>
           {selectedMatchId && (
@@ -484,16 +543,39 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                 </span>
               </div>
 
-              {/* Search input inside list */}
-              <div className="relative w-full sm:w-72">
-                <Filter className="w-3 h-3 text-[#8c7456] absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={browseSearch}
-                  onChange={(e) => setBrowseSearch(e.target.value)}
-                  placeholder="Filter by date (DD/MM/YYYY), ID, file..."
-                  className="w-full bg-[#110904] border border-[#523725] focus:border-[#c89b3c] rounded pl-8 pr-2 py-1 text-xs font-mono text-[#ffe082] placeholder-[#78644e] outline-none"
-                />
+              {/* Toolbar right controls: Search input + Display Limit selector */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Search input inside list */}
+                <div className="relative w-full sm:w-60">
+                  <Filter className="w-3 h-3 text-[#8c7456] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={browseSearch}
+                    onChange={(e) => setBrowseSearch(e.target.value)}
+                    placeholder="Filter by date, ID, file..."
+                    className="w-full bg-[#110904] border border-[#523725] focus:border-[#c89b3c] rounded pl-8 pr-2 py-1 text-xs font-mono text-[#ffe082] placeholder-[#78644e] outline-none"
+                  />
+                </div>
+
+                {/* Display Limit Dropdown */}
+                <div className="flex items-center gap-1.5 bg-[#110904] px-2 py-1 rounded border border-[#523725]">
+                  <SlidersHorizontal className="w-3 h-3 text-[#c89b3c]" />
+                  <span className="text-[11px] font-mono text-[#8c7456]">Show:</span>
+                  <select
+                    value={displayLimit}
+                    onChange={(e) => setDisplayLimit(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                    className="bg-transparent text-xs font-mono text-[#ffe082] font-bold outline-none cursor-pointer"
+                  >
+                    {limitOptions.map((opt) => (
+                      <option key={opt} value={opt} className="bg-[#170e08] text-[#ffe082]">
+                        {opt} logs
+                      </option>
+                    ))}
+                    <option value="ALL" className="bg-[#170e08] text-[#ffe082]">
+                      All ({currentTotal} logs)
+                    </option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -520,82 +602,101 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                     );
                   }
 
-                  return filtered.map((file, idx) => {
-                    const isSelected = selectedMatchId === file.matchId;
-                    const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
-                    const kb = (file.fileSizeBytes / 1024).toFixed(1);
+                  const displayed = displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
 
-                    return (
-                      <div
-                        key={file.fileName}
-                        onClick={() => {
-                          setInputMatchId(file.matchId);
-                          setSelectedMatchId(file.matchId);
-                        }}
-                        className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
-                          isSelected
-                            ? 'bg-[#c89b3c]/20 border-l-4 border-l-[#c89b3c] shadow'
-                            : 'hover:bg-[#1f130b] border-l-4 border-l-transparent'
-                        }`}
-                      >
-                        {/* 1. Date & Time Column (Newest First) */}
-                        <div className="flex items-center gap-2.5 shrink-0">
-                          <span
-                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
-                              idx === 0
-                                ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
-                                : 'bg-[#24160d] text-[#a89984] border border-[#3d2719]'
+                  return (
+                    <>
+                      {displayed.map((file, idx) => {
+                        const isSelected = selectedMatchId === file.matchId;
+                        const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
+                        const kb = (file.fileSizeBytes / 1024).toFixed(1);
+
+                        return (
+                          <div
+                            key={file.fileName}
+                            onClick={() => {
+                              setInputMatchId(file.matchId);
+                              setSelectedMatchId(file.matchId);
+                            }}
+                            className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
+                              isSelected
+                                ? 'bg-[#c89b3c]/20 border-l-4 border-l-[#c89b3c] shadow'
+                                : 'hover:bg-[#1f130b] border-l-4 border-l-transparent'
                             }`}
                           >
-                            {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
-                          </span>
-                          <div className="flex items-center gap-1.5 text-xs font-mono">
-                            <span className="flex items-center gap-1 text-[#ffe082] font-semibold bg-[#24160d] px-2 py-0.5 rounded border border-[#3d2719]">
-                              <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
-                              {dt.date}
-                            </span>
-                            <span className="flex items-center gap-1 text-[#d4c5b0] bg-[#1a0f08] px-2 py-0.5 rounded border border-[#332014]">
-                              <Clock className="w-3 h-3 text-[#8c7456]" />
-                              {dt.time}
-                            </span>
-                          </div>
-                        </div>
+                            {/* 1. Date & Time Column (Newest First) */}
+                            <div className="flex items-center gap-2.5 shrink-0">
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
+                                  idx === 0
+                                    ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
+                                    : 'bg-[#24160d] text-[#a89984] border border-[#3d2719]'
+                                }`}
+                              >
+                                {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs font-mono">
+                                <span className="flex items-center gap-1 text-[#ffe082] font-semibold bg-[#24160d] px-2 py-0.5 rounded border border-[#3d2719]">
+                                  <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
+                                  {dt.date}
+                                </span>
+                                <span className="flex items-center gap-1 text-[#d4c5b0] bg-[#1a0f08] px-2 py-0.5 rounded border border-[#332014]">
+                                  <Clock className="w-3 h-3 text-[#8c7456]" />
+                                  {dt.time}
+                                </span>
+                              </div>
+                            </div>
 
-                        {/* 2. File Name & Match ID */}
-                        <div className="flex-1 min-w-0 font-mono">
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-3.5 h-3.5 text-[#c89b3c] shrink-0" />
-                            <span className="text-xs font-bold text-[#f7f1e1] truncate" title={file.fileName}>
-                              {file.fileName}
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-[#8c7456] block truncate">
-                            ID: {file.matchId}
-                          </span>
-                        </div>
+                            {/* 2. File Name & Match ID */}
+                            <div className="flex-1 min-w-0 font-mono">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5 text-[#c89b3c] shrink-0" />
+                                <span className="text-xs font-bold text-[#f7f1e1] truncate" title={file.fileName}>
+                                  {file.fileName}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-[#8c7456] block truncate">
+                                ID: {file.matchId}
+                              </span>
+                            </div>
 
-                        {/* 3. Size & Action */}
-                        <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
-                          <span className="text-xs font-mono text-[#c4b49e] px-2 py-0.5 rounded bg-[#1c1108] border border-[#3d2719]">
-                            {kb} KB
-                          </span>
-                          {isSelected ? (
-                            <span className="text-xs font-cinzel font-bold text-[#34d399] flex items-center gap-1 px-2.5 py-1 rounded bg-[#10b981]/20 border border-[#10b981]">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              VIEWING
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="text-xs font-cinzel font-bold text-[#ffe082] hover:text-white px-2.5 py-1 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] transition-all"
-                            >
-                              VIEW LOG →
-                            </button>
-                          )}
+                            {/* 3. Size & Action */}
+                            <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
+                              <span className="text-xs font-mono text-[#c4b49e] px-2 py-0.5 rounded bg-[#1c1108] border border-[#3d2719]">
+                                {kb} KB
+                              </span>
+                              {isSelected ? (
+                                <span className="text-xs font-cinzel font-bold text-[#34d399] flex items-center gap-1 px-2.5 py-1 rounded bg-[#10b981]/20 border border-[#10b981]">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  VIEWING
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="text-xs font-cinzel font-bold text-[#ffe082] hover:text-white px-2.5 py-1 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] transition-all"
+                                >
+                                  VIEW LOG →
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {filtered.length > displayed.length && (
+                        <div className="p-3 text-center text-xs font-mono text-[#a89984] bg-[#170e08] border-t border-[#3d2719] flex flex-wrap items-center justify-center gap-2">
+                          <span>Showing top {displayed.length} of {filtered.length} log files.</span>
+                          <button
+                            type="button"
+                            onClick={() => setDisplayLimit('ALL')}
+                            className="px-2.5 py-1 rounded bg-[#2b1b11] border border-[#c89b3c] text-[#ffe082] hover:bg-[#3d2719] transition-all font-bold font-cinzel"
+                          >
+                            Show All ({filtered.length})
+                          </button>
                         </div>
-                      </div>
-                    );
-                  });
+                      )}
+                    </>
+                  );
                 })()
               ) : (
                 (() => {
@@ -619,93 +720,112 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                     );
                   }
 
-                  return filtered.map((m, idx) => {
-                    const isSelected = selectedMatchId === m.matchId;
-                    const dt = formatDateTime(m.createdAt);
-                    const isLive =
-                      (m.status || '').toString().toLowerCase().includes('progress') ||
-                      (m.status || '').toString().toLowerCase().includes('active');
+                  const displayed = displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
 
-                    return (
-                      <div
-                        key={m.matchId}
-                        onClick={() => {
-                          setInputMatchId(m.matchId);
-                          setSelectedMatchId(m.matchId);
-                        }}
-                        className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
-                          isSelected
-                            ? 'bg-[#c89b3c]/20 border-l-4 border-l-[#c89b3c] shadow'
-                            : 'hover:bg-[#1f130b] border-l-4 border-l-transparent'
-                        }`}
-                      >
-                        {/* 1. Date & Time */}
-                        <div className="flex items-center gap-2.5 shrink-0">
-                          <span
-                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
-                              idx === 0
-                                ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
-                                : 'bg-[#24160d] text-[#a89984] border border-[#3d2719]'
+                  return (
+                    <>
+                      {displayed.map((m, idx) => {
+                        const isSelected = selectedMatchId === m.matchId;
+                        const dt = formatDateTime(m.createdAt);
+                        const isLive =
+                          (m.status || '').toString().toLowerCase().includes('progress') ||
+                          (m.status || '').toString().toLowerCase().includes('active');
+
+                        return (
+                          <div
+                            key={m.matchId}
+                            onClick={() => {
+                              setInputMatchId(m.matchId);
+                              setSelectedMatchId(m.matchId);
+                            }}
+                            className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
+                              isSelected
+                                ? 'bg-[#c89b3c]/20 border-l-4 border-l-[#c89b3c] shadow'
+                                : 'hover:bg-[#1f130b] border-l-4 border-l-transparent'
                             }`}
                           >
-                            {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
-                          </span>
-                          <div className="flex items-center gap-1.5 text-xs font-mono">
-                            <span className="flex items-center gap-1 text-[#ffe082] font-semibold bg-[#24160d] px-2 py-0.5 rounded border border-[#3d2719]">
-                              <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
-                              {dt.date}
-                            </span>
-                            <span className="flex items-center gap-1 text-[#d4c5b0] bg-[#1a0f08] px-2 py-0.5 rounded border border-[#332014]">
-                              <Clock className="w-3 h-3 text-[#8c7456]" />
-                              {dt.time}
-                            </span>
-                          </div>
-                        </div>
+                            {/* 1. Date & Time */}
+                            <div className="flex items-center gap-2.5 shrink-0">
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
+                                  idx === 0
+                                    ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
+                                    : 'bg-[#24160d] text-[#a89984] border border-[#3d2719]'
+                                }`}
+                              >
+                                {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs font-mono">
+                                <span className="flex items-center gap-1 text-[#ffe082] font-semibold bg-[#24160d] px-2 py-0.5 rounded border border-[#3d2719]">
+                                  <Calendar className="w-3.5 h-3.5 text-[#c89b3c]" />
+                                  {dt.date}
+                                </span>
+                                <span className="flex items-center gap-1 text-[#d4c5b0] bg-[#1a0f08] px-2 py-0.5 rounded border border-[#332014]">
+                                  <Clock className="w-3 h-3 text-[#8c7456]" />
+                                  {dt.time}
+                                </span>
+                              </div>
+                            </div>
 
-                        {/* 2. Match ID & Mode */}
-                        <div className="flex-1 min-w-0 font-mono">
-                          <div className="flex items-center gap-2">
-                            <Swords className="w-3.5 h-3.5 text-[#c89b3c] shrink-0" />
-                            <span className="text-xs font-bold text-[#f7f1e1] truncate">
-                              Match #{m.matchId.slice(0, 8)}
-                            </span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3d2719] text-[#ffe082] uppercase font-bold">
-                              {m.mode || 'PVP'}
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-[#8c7456] block truncate">
-                            GUID: {m.matchId}
-                          </span>
-                        </div>
+                            {/* 2. Match ID & Mode */}
+                            <div className="flex-1 min-w-0 font-mono">
+                              <div className="flex items-center gap-2">
+                                <Swords className="w-3.5 h-3.5 text-[#c89b3c] shrink-0" />
+                                <span className="text-xs font-bold text-[#f7f1e1] truncate">
+                                  Match #{m.matchId.slice(0, 8)}
+                                </span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3d2719] text-[#ffe082] uppercase font-bold">
+                                  {m.mode || 'PVP'}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-[#8c7456] block truncate">
+                                GUID: {m.matchId}
+                              </span>
+                            </div>
 
-                        {/* 3. Status & Action */}
-                        <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded font-mono font-bold ${
-                              isLive
-                                ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
-                                : 'bg-[#1c1108] text-[#9ca3af] border border-[#3d2719]'
-                            }`}
+                            {/* 3. Status & Action */}
+                            <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded font-mono font-bold ${
+                                  isLive
+                                    ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40'
+                                    : 'bg-[#1c1108] text-[#9ca3af] border border-[#3d2719]'
+                                }`}
+                              >
+                                {m.status || 'Finished'}
+                              </span>
+                              {isSelected ? (
+                                <span className="text-xs font-cinzel font-bold text-[#34d399] flex items-center gap-1 px-2.5 py-1 rounded bg-[#10b981]/20 border border-[#10b981]">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  VIEWING
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="text-xs font-cinzel font-bold text-[#ffe082] hover:text-white px-2.5 py-1 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] transition-all"
+                                >
+                                  VIEW LOG →
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {filtered.length > displayed.length && (
+                        <div className="p-3 text-center text-xs font-mono text-[#a89984] bg-[#170e08] border-t border-[#3d2719] flex flex-wrap items-center justify-center gap-2">
+                          <span>Showing top {displayed.length} of {filtered.length} match sessions.</span>
+                          <button
+                            type="button"
+                            onClick={() => setDisplayLimit('ALL')}
+                            className="px-2.5 py-1 rounded bg-[#2b1b11] border border-[#c89b3c] text-[#ffe082] hover:bg-[#3d2719] transition-all font-bold font-cinzel"
                           >
-                            {m.status || 'Finished'}
-                          </span>
-                          {isSelected ? (
-                            <span className="text-xs font-cinzel font-bold text-[#34d399] flex items-center gap-1 px-2.5 py-1 rounded bg-[#10b981]/20 border border-[#10b981]">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              VIEWING
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="text-xs font-cinzel font-bold text-[#ffe082] hover:text-white px-2.5 py-1 rounded bg-[#2b1b11] hover:bg-[#3d2719] border border-[#523725] transition-all"
-                            >
-                              VIEW LOG →
-                            </button>
-                          )}
+                            Show All ({filtered.length})
+                          </button>
                         </div>
-                      </div>
-                    );
-                  });
+                      )}
+                    </>
+                  );
                 })()
               )}
             </div>
