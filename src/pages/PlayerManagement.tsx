@@ -10,16 +10,16 @@ interface PlayerManagementProps {
 }
 
 /**
- * Player Management & Live-Ops Moderation Page
+ * Player Management & Live-Ops Moderation Page (Screen 29 & 30)
  * 
- * Features:
- * 1. Multi-source Player Aggregation: Combines active players from Google OAuth / Steam sessions,
+ * Re-architected to HoYoverse AAA Gaming Standards:
+ * 1. Multi-source Player Aggregation: Combines Google OAuth / Steam sessions,
  *    live support chat tickets (/api/Support/admin/players), and PayOS purchase history (/api/Payment/history).
  * 2. Role-Based Permissions (RBAC):
- *    - Support Role: Read-only inspection mode (inspect levels, gems, gold, timestamps for customer support).
- *    - Moderator Role: Disciplinary authority (Account Ban / Unban actions).
- *    - Admin / Server Role: Full authority including direct treasury balance adjustments.
- * 3. Dynamic search by Player ID or Username, and manual DB Player ID loading.
+ *    - Support: Read-only inspection mode.
+ *    - Moderator: Disciplinary authority (Account Ban / Unban actions).
+ *    - Admin: Full authority including direct treasury balance adjustments with audit logging.
+ * 3. Modern Dark Fantasy Glassmorphism Roster with live presence badges and high-contrast modals.
  */
 export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admin' }) => {
   const [players, setPlayers] = useState<PlayerProfile[]>([]);
@@ -66,7 +66,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
       const foundMap = new Map<string, PlayerProfile>();
 
-      // 2. Read active player profile from current session / sessionStorage (Google OAuth & Active logins)
+      // 2. Read active player profile from current session / sessionStorage
       const localPlayerId = sessionStorage.getItem('player_id') || sessionStorage.getItem('playerId') || sessionStorage.getItem('adminPlayerId') || localStorage.getItem('player_id') || localStorage.getItem('playerId');
       const localUsername = sessionStorage.getItem('username') || sessionStorage.getItem('adminUsername') || localStorage.getItem('username');
       if (localPlayerId) {
@@ -103,14 +103,15 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         });
       }
 
-      // 4. Read payment transaction players from API
+      // 4. Read player IDs from Payment orders
       if (paymentRes.status === 'fulfilled' && Array.isArray(paymentRes.value.data)) {
-        paymentRes.value.data.forEach((ord: any) => {
-          if (ord.playerId && !foundMap.has(ord.playerId)) {
-            const time = ord.createdAt || '';
-            foundMap.set(ord.playerId, {
-              playerId: ord.playerId,
-              username: ord.playerId,
+        paymentRes.value.data.forEach((order: any) => {
+          const pid = order.playerId || order.userId;
+          if (pid && !foundMap.has(pid)) {
+            const time = order.createdAt || order.timestamp || '';
+            foundMap.set(pid, {
+              playerId: pid,
+              username: `Traveler #${pid.slice(-4).toUpperCase()}`,
               level: 1,
               experience: 0,
               gold: 0,
@@ -123,7 +124,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         });
       }
 
-      // 5. Read combatants directly from active match sessions
+      // 5. In-Match active combatants
       activeMatchPlayerMap.forEach((_, pid) => {
         if (!foundMap.has(pid)) {
           foundMap.set(pid, {
@@ -140,30 +141,50 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         }
       });
 
-      // 6. Calculate genuine presence per player profile
-      const profiles: PlayerProfile[] = [];
-      foundMap.forEach((p, pid) => {
-        const isCurrentSessionUser = pid === localPlayerId;
-        const presence = getPlayerPresence(pid, activeMatchPlayerMap, p.lastActiveTime || p.lastLogin, isCurrentSessionUser);
-        profiles.push({
-          ...p,
-          presence: presence.state,
-          presenceDetails: presence.activityDescription,
-          lastSeen: presence.relativeTime,
-        });
-      });
+      // 6. Enrich players with real live balances and presence
+      const enrichedPlayers: PlayerProfile[] = [];
+      const fetchList = Array.from(foundMap.values());
 
-      // Sort by presence priority (InBattle -> Online -> Offline)
-      profiles.sort((a, b) => {
+      await Promise.allSettled(
+        fetchList.map(async (p) => {
+          let updatedPlayer = { ...p };
+          try {
+            const profRes = await adminClient.get(`/player/profile/${p.playerId}`);
+            if (profRes.data) {
+              const d = profRes.data;
+              updatedPlayer = {
+                ...updatedPlayer,
+                username: d.username || d.playerName || updatedPlayer.username,
+                level: d.level ?? updatedPlayer.level,
+                experience: d.experience ?? updatedPlayer.experience,
+                gold: d.gold ?? updatedPlayer.gold,
+                gems: d.gems ?? updatedPlayer.gems,
+                isBanned: Boolean(d.isBanned),
+                lastActiveTime: d.lastActiveTime || d.lastLogin || updatedPlayer.lastActiveTime,
+              };
+            }
+          } catch {
+            // Keep base profile
+          }
+
+          const isCurrent = p.playerId === localPlayerId;
+          const presInfo = getPlayerPresence(p.playerId, activeMatchPlayerMap, updatedPlayer.lastActiveTime, isCurrent);
+          updatedPlayer.presence = presInfo.state;
+          enrichedPlayers.push(updatedPlayer);
+        })
+      );
+
+      // Sort by status priority: InBattle > Online > Offline
+      enrichedPlayers.sort((a, b) => {
         const order = { InBattle: 0, Online: 1, Offline: 2 };
-        const orderA = a.presence ? order[a.presence] : 2;
-        const orderB = b.presence ? order[b.presence] : 2;
-        return orderA - orderB;
+        const presA = (a.presence as keyof typeof order) || 'Offline';
+        const presB = (b.presence as keyof typeof order) || 'Offline';
+        return (order[presA] ?? 2) - (order[presB] ?? 2);
       });
 
-      setPlayers(profiles);
+      setPlayers(enrichedPlayers);
     } catch {
-      setPlayers([]);
+      // Graceful fallback
     } finally {
       setLoading(false);
     }
@@ -173,140 +194,168 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     fetchPlayers();
   }, []);
 
-  const handleAddPlayerById = () => {
+  const handleAddPlayerById = async () => {
     if (!newPlayerIdInput.trim()) return;
-    const pid = newPlayerIdInput.trim();
-    if (players.some((p) => p.playerId === pid)) {
-      setNotification(`Player ${pid} is already in the list.`);
+    const targetId = newPlayerIdInput.trim();
+
+    try {
+      setLoading(true);
+      const res = await adminClient.get(`/player/profile/${targetId}`);
+      if (res.data) {
+        const d = res.data;
+        const newP: PlayerProfile = {
+          playerId: targetId,
+          username: d.username || d.playerName || `Wanderer #${targetId.slice(-4).toUpperCase()}`,
+          level: d.level ?? 1,
+          experience: d.experience ?? 0,
+          gold: d.gold ?? 0,
+          gems: d.gems ?? 0,
+          lastLogin: new Date().toLocaleString(),
+          isBanned: Boolean(d.isBanned),
+          presence: 'Online',
+        };
+        setPlayers((prev) => [newP, ...prev.filter((p) => p.playerId !== targetId)]);
+        setNewPlayerIdInput('');
+        setNotification(`Loaded player profile for "${newP.username}" from Database.`);
+      }
+    } catch {
+      const fallbackP: PlayerProfile = {
+        playerId: targetId,
+        username: `Wanderer #${targetId.slice(-4).toUpperCase()}`,
+        level: 1,
+        experience: 0,
+        gold: 0,
+        gems: 0,
+        lastLogin: new Date().toLocaleString(),
+        isBanned: false,
+        presence: 'Offline',
+      };
+      setPlayers((prev) => [fallbackP, ...prev.filter((p) => p.playerId !== targetId)]);
+      setNewPlayerIdInput('');
+      setNotification(`Added placeholder for Player ID "${targetId}".`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveAdjustment = async () => {
+    if (!selectedPlayer) return;
+    try {
+      await adminClient.post(`/player/adjust-currencies`, {
+        playerId: selectedPlayer.playerId,
+        gems: adjustGems,
+        gold: adjustGold,
+        reason: compensationReason || 'Admin Manual Treasury Adjustment',
+      });
+      setNotification(`Successfully adjusted currencies for ${selectedPlayer.username} (${adjustGems >= 0 ? '+' : ''}${adjustGems} Gems, ${adjustGold >= 0 ? '+' : ''}${adjustGold} Gold).`);
+      setSelectedPlayer(null);
+      setAdjustGems(0);
+      setAdjustGold(0);
+      setCompensationReason('');
+      fetchPlayers();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to apply currency adjustments.');
+    }
+  };
+
+  const handleConfirmBan = async () => {
+    if (!banTargetPlayer) return;
+    if (!banReason.trim()) {
+      alert('Violation rationale is required to enforce an authoritative disciplinary sanction.');
       return;
     }
+    try {
+      await adminClient.post(`/player/ban`, {
+        playerId: banTargetPlayer.playerId,
+        duration: banDuration,
+        reason: banReason.trim(),
+      });
+      setNotification(`Account sanction enforced against ${banTargetPlayer.username} (${banDuration}) for: "${banReason.trim()}".`);
+      setBanTargetPlayer(null);
+      setBanReason('');
+      fetchPlayers();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to enforce disciplinary ban.');
+    }
+  };
 
-    const newProfile: PlayerProfile = {
-      playerId: pid,
-      username: pid,
-      level: 1,
-      experience: 0,
-      gold: 0,
-      gems: 0,
-      lastLogin: new Date().toLocaleString(),
-      isBanned: false,
-      presence: 'Offline',
-      presenceDetails: 'Manual Entry',
-      lastSeen: 'Offline',
-    };
-
-    setPlayers((prev) => [newProfile, ...prev]);
-    setNotification(`Loaded Player ${pid} into management session.`);
-    setNewPlayerIdInput('');
+  const handleConfirmUnban = async () => {
+    if (!unbanTargetPlayer) return;
+    try {
+      await adminClient.post(`/player/unban`, {
+        playerId: unbanTargetPlayer.playerId,
+      });
+      setNotification(`Account access successfully restored for ${unbanTargetPlayer.username}.`);
+      setUnbanTargetPlayer(null);
+      fetchPlayers();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to restore player account.');
+    }
   };
 
   const filteredPlayers = players.filter((p) => {
     const matchesSearch =
       p.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.playerId.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
 
+    if (!matchesSearch) return false;
     if (presenceFilter === 'ONLINE') return p.presence === 'Online';
     if (presenceFilter === 'BATTLE') return p.presence === 'InBattle';
     if (presenceFilter === 'OFFLINE') return p.presence === 'Offline';
     return true;
   });
 
-  const handleConfirmBan = () => {
-    if (!banTargetPlayer) return;
-    const reasonText = banReason.trim() || 'Unspecified rule violation';
-    setPlayers((prev) =>
-      prev.map((p) => {
-        if (p.playerId === banTargetPlayer.playerId) {
-          return { ...p, isBanned: true };
-        }
-        return p;
-      })
-    );
-    setNotification(`[SANCTION ENFORCED] Hero ${banTargetPlayer.username} banned (${banDuration}). Reason: "${reasonText}"`);
-    setBanTargetPlayer(null);
-    setBanReason('');
-    setBanDuration('PERMANENT');
-  };
-
-  const handleConfirmUnban = () => {
-    if (!unbanTargetPlayer) return;
-    setPlayers((prev) =>
-      prev.map((p) => {
-        if (p.playerId === unbanTargetPlayer.playerId) {
-          return { ...p, isBanned: false };
-        }
-        return p;
-      })
-    );
-    setNotification(`[SANCTION LIFTED] Hero ${unbanTargetPlayer.username} restored to NORMAL standing.`);
-    setUnbanTargetPlayer(null);
-  };
-
-  const handleSaveAdjustment = () => {
-    if (!selectedPlayer) return;
-    const auditText = compensationReason.trim() || 'Administrative grant';
-    setPlayers((prev) =>
-      prev.map((p) => {
-        if (p.playerId === selectedPlayer.playerId) {
-          return {
-            ...p,
-            gems: (p.gems || 0) + adjustGems,
-            gold: (p.gold || 0) + adjustGold,
-          };
-        }
-        return p;
-      })
-    );
-    setNotification(`Adjusted currencies for ${selectedPlayer.username} (+${adjustGems} Gems, +${adjustGold} Gold). Audit: "${auditText}".`);
-    setSelectedPlayer(null);
-    setAdjustGems(0);
-    setAdjustGold(0);
-    setCompensationReason('');
-  };
-
   return (
-    <div className="space-y-6 pb-8 font-sans">
-      {/* Header Banner */}
-      <div className="mahogany-banner p-5 text-center rounded-lg relative">
-        <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
-          {role === 'Moderator' ? 'USER DIRECTORY & PLAYER ROSTER' : 'MANAGE USER ACCOUNTS'}
-        </h1>
-        <p className="text-xs text-[#d5c7b3] font-serif mt-1">
-          {role === 'Moderator'
-            ? 'Moderator Scope (Screen 29): Browse and inspect registered player profiles, level, inventory items, and real-time presence.'
-            : 'Admin Scope (Screen 29 & 30): Full player account administration, disciplinary sanctions with mandatory violation reason, and treasury compensations.'}
-        </p>
-        <button
-          onClick={() => fetchPlayers()}
-          className="absolute right-4 top-4 px-3.5 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> REFRESH PLAYERS
-        </button>
+    <div className="space-y-6">
+      {/* Top Banner Astral Panel */}
+      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+        <div 
+          className="absolute -top-16 -right-16 w-64 h-64 bg-amber-500/[0.06] rounded-full blur-3xl pointer-events-none" 
+          aria-hidden="true" 
+        />
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase font-bold tracking-wider">
+                SCREEN 29 & 30 • PLAYER CARE & DISCIPLINE
+              </span>
+              <span className="text-slate-500 text-xs">•</span>
+              <span className="text-xs text-slate-400 font-mono">{role === 'Moderator' ? 'User Directory' : 'Accounts Management'}</span>
+            </div>
+            <h2 className="text-xl md:text-2xl font-extrabold tracking-wide font-cinzel uppercase gold-gradient-text">
+              {role === 'Moderator' ? 'USER DIRECTORY & DISCIPLINARY LOGS' : 'MANAGE USER ACCOUNTS & TREASURY'}
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Multi-source aggregation across Google OAuth sessions, Live Support Tickets, and In-Match Combatants.
+            </p>
+          </div>
+
+          <button
+            onClick={fetchPlayers}
+            disabled={loading}
+            className="btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 self-start md:self-auto shadow transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
+            <span>SYNC PLAYERS</span>
+          </button>
+        </div>
       </div>
 
-      {/* Role Access Notice */}
-      {(role === 'Technical Support' || role === 'Support') && (
-        <div className="p-3.5 rounded bg-[#064e3b]/30 border border-[#10b981]/50 text-[#86efac] text-xs font-serif flex items-center gap-2.5 shadow-sm">
-          <Info className="w-4 h-4 text-[#34d399] shrink-0" />
-          <span>
-            <strong>Technical Support Station:</strong> Read-only player inquiry mode. Currency adjustments and account moderation are restricted to Realm Administrators.
-          </span>
-        </div>
-      )}
+      {/* Role Notice */}
       {role === 'Moderator' && (
-        <div className="p-3.5 rounded bg-[#0c4a6e]/30 border border-[#0284c7]/50 text-[#7dd3fc] text-xs font-serif flex items-center gap-2.5 shadow-sm">
-          <Info className="w-4 h-4 text-[#38bdf8] shrink-0" />
+        <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-200 text-xs flex items-center gap-2.5 backdrop-blur-md">
+          <Info className="w-4 h-4 text-cyan-400 shrink-0" />
           <span>
-            <strong>Realm Moderator Inspection Mode:</strong> Live presence tracking and match inspection enabled. Account balance adjustments are managed by High Counsel Administrators.
+            <strong>Realm Moderator Inspection Mode:</strong> Live presence tracking and match inspection enabled. Account balance adjustments are reserved for High Counsel Administrators.
           </span>
         </div>
       )}
 
       {notification && (
-        <div className="p-4 rounded bg-[#14532d]/40 border border-[#22c55e] text-[#86efac] text-xs font-bold font-serif flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[#22c55e]" />
+        <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-lg backdrop-blur-md">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span>{notification}</span>
           </div>
           <button onClick={() => setNotification(null)} className="text-xs font-mono underline hover:text-white">
@@ -316,31 +365,31 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       )}
 
       {/* Search & Add Player Controls */}
-      <div className="parchment-card p-4 rounded-lg flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3 w-full md:w-96 bg-[#f4ecd8] border border-[#c89b3c] rounded px-3.5 py-2 text-sm text-[#3a2518]">
-          <Search className="w-4 h-4 text-[#c89b3c] shrink-0" />
+      <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border border-white/[0.08]">
+        <div className="flex items-center gap-3 w-full md:w-96 bg-slate-950/80 border border-white/[0.1] focus-within:border-amber-400 rounded-xl px-3.5 py-2 text-sm text-slate-100 transition-colors">
+          <Search className="w-4 h-4 text-slate-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by Player ID or Username..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-transparent border-none outline-none w-full text-[#3a2518] placeholder-[#78644e] text-sm font-sans"
+            className="bg-transparent border-none outline-none w-full text-slate-100 placeholder-slate-500 text-xs font-sans"
           />
         </div>
 
         <div className="flex items-center gap-2.5 w-full md:w-auto">
           <input
             type="text"
-            placeholder="Enter Player ID from DB (e.g. Google Player ID)"
+            placeholder="Enter Player ID from DB (e.g. Google ID)..."
             value={newPlayerIdInput}
             onChange={(e) => setNewPlayerIdInput(e.target.value)}
-            className="bg-[#f4ecd8] border border-[#c89b3c] rounded px-3.5 py-2 text-sm text-[#3a2518] outline-none font-sans flex-1 md:w-80"
+            className="bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono flex-1 md:w-80 transition-colors"
           />
           <button
             onClick={handleAddPlayerById}
-            className="px-3.5 py-2 rounded crimson-badge text-xs font-bold font-cinzel flex items-center gap-1.5 shrink-0 tracking-wide"
+            className="btn-primary-gold px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 shrink-0"
           >
-            <UserPlus className="w-3.5 h-3.5" /> LOAD PLAYER ID
+            <UserPlus className="w-3.5 h-3.5" /> LOAD ID
           </button>
         </div>
       </div>
@@ -351,10 +400,10 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           <button
             type="button"
             onClick={() => setPresenceFilter('ALL')}
-            className={`px-3 py-1.5 rounded text-xs font-cinzel font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               presenceFilter === 'ALL'
-                ? 'bg-[#c89b3c] text-[#26170d] shadow font-black'
-                : 'bg-[#26170d] text-[#d5c7b3] hover:text-[#ffe082] border border-[#523725]'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                : 'bg-white/[0.04] text-slate-300 hover:text-white border border-white/[0.08]'
             }`}
           >
             ALL PLAYERS ({players.length})
@@ -362,55 +411,55 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           <button
             type="button"
             onClick={() => setPresenceFilter('ONLINE')}
-            className={`px-3 py-1.5 rounded text-xs font-cinzel font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
               presenceFilter === 'ONLINE'
-                ? 'bg-[#10b981] text-[#064e3b] shadow font-black'
-                : 'bg-[#26170d] text-[#86efac] hover:text-white border border-[#10b981]/40'
+                ? 'bg-emerald-500 text-slate-950 font-bold shadow'
+                : 'bg-white/[0.04] text-emerald-300 hover:text-white border border-emerald-500/30'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-ping" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
             ONLINE ({players.filter((p) => p.presence === 'Online').length})
           </button>
           <button
             type="button"
             onClick={() => setPresenceFilter('BATTLE')}
-            className={`px-3 py-1.5 rounded text-xs font-cinzel font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
               presenceFilter === 'BATTLE'
-                ? 'bg-[#f59e0b] text-[#451a03] shadow font-black'
-                : 'bg-[#26170d] text-[#fcd34d] hover:text-white border border-[#f59e0b]/40'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                : 'bg-white/[0.04] text-amber-300 hover:text-white border border-amber-500/30'
             }`}
           >
-            <Swords className="w-3.5 h-3.5 text-[#f59e0b]" />
+            <Swords className="w-3.5 h-3.5 text-amber-400" />
             IN BATTLE ({players.filter((p) => p.presence === 'InBattle').length})
           </button>
           <button
             type="button"
             onClick={() => setPresenceFilter('OFFLINE')}
-            className={`px-3 py-1.5 rounded text-xs font-cinzel font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               presenceFilter === 'OFFLINE'
-                ? 'bg-[#78644e] text-white shadow font-black'
-                : 'bg-[#26170d] text-[#a89984] hover:text-white border border-[#523725]'
+                ? 'bg-slate-700 text-white font-bold shadow'
+                : 'bg-white/[0.04] text-slate-400 hover:text-white border border-white/[0.08]'
             }`}
           >
             OFFLINE ({players.filter((p) => p.presence === 'Offline').length})
           </button>
         </div>
-        <span className="text-xs font-serif text-[#78644e]">
+        <span className="text-xs font-mono text-slate-400">
           Showing {filteredPlayers.length} of {players.length} Heroes
         </span>
       </div>
 
-      {/* Table */}
-      <div className="parchment-card rounded-lg overflow-hidden shadow-md">
+      {/* Roster Table */}
+      <div className="glass-panel rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
         {filteredPlayers.length === 0 ? (
-          <div className="p-12 text-center text-[#8c7456] space-y-2 font-serif">
-            <Inbox className="w-8 h-8 mx-auto text-[#c89b3c]" />
-            <p className="text-sm font-bold font-cinzel">No player accounts match current search & presence filters.</p>
-            <p className="text-xs text-[#78644e] font-sans">Type a Player ID into "LOAD PLAYER ID" to query details.</p>
+          <div className="p-12 text-center text-slate-400 space-y-2">
+            <Inbox className="w-8 h-8 mx-auto text-amber-400/60" />
+            <p className="text-sm font-bold font-cinzel text-slate-200">No player accounts match current search & presence filters.</p>
+            <p className="text-xs text-slate-500 font-sans">Type a Player ID into "LOAD ID" to query details.</p>
           </div>
         ) : (
           <table className="w-full text-left text-xs font-sans">
-            <thead className="bg-[#e8dcbf] text-[#3a2518] font-cinzel font-bold text-xs border-b border-[#c89b3c] uppercase tracking-wider">
+            <thead className="bg-slate-950/80 text-slate-400 font-cinzel font-bold text-[11px] border-b border-white/[0.08] uppercase tracking-wider">
               <tr>
                 <th className="py-3.5 px-5">Player Account</th>
                 <th className="py-3.5 px-5">Level & EXP</th>
@@ -420,42 +469,42 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                 <th className="py-3.5 px-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#dcd1b5] text-[#2b1b11]">
+            <tbody className="divide-y divide-white/[0.04] text-slate-200">
               {filteredPlayers.map((player) => (
-                <tr key={player.playerId} className="hover:bg-[#efe5cd] transition-colors">
+                <tr key={player.playerId} className="hover:bg-white/[0.03] transition-colors">
                   <td className="py-4 px-5">
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <div className="w-9 h-9 rounded-full bg-[#3a2518] border-2 border-[#c89b3c] flex items-center justify-center text-[#ffe082] font-bold text-sm font-cinzel shrink-0 shadow">
+                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/[0.1] flex items-center justify-center text-amber-400 font-bold text-xs font-cinzel shrink-0 shadow">
                           {player.username.slice(0, 2).toUpperCase()}
                         </div>
                         <span
-                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b1b11] ${
+                          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080a0f] ${
                             player.presence === 'InBattle'
-                              ? 'bg-[#f59e0b] shadow-[0_0_8px_#f59e0b]'
+                              ? 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]'
                               : player.presence === 'Online'
-                              ? 'bg-[#10b981] shadow-[0_0_8px_#10b981]'
-                              : 'bg-[#78644e]'
+                              ? 'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]'
+                              : 'bg-slate-600'
                           }`}
                           title={player.presence || 'Offline'}
                         />
                       </div>
                       <div>
-                        <span className="font-bold font-cinzel text-[#3a2518] text-sm block">
+                        <span className="font-semibold text-slate-100 text-xs block">
                           {player.username}
                         </span>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-xs font-mono text-[#78644e]">
+                          <span className="text-[11px] font-mono text-slate-400">
                             Ref: #{player.playerId.slice(-6).toUpperCase()}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
                               navigator.clipboard.writeText(player.playerId);
-                              setNotification(`Copied Player ID for ${player.username} to clipboard`);
+                              setNotification(`Copied Player ID ${player.playerId} to clipboard.`);
                             }}
-                            className="text-[#c89b3c] hover:text-[#b45309] transition-colors p-0.5"
-                            title={`Copy full ID: ${player.playerId}`}
+                            className="text-amber-400 hover:text-amber-300 transition-colors p-0.5"
+                            title={`Copy: ${player.playerId}`}
                           >
                             <Copy className="w-3 h-3" />
                           </button>
@@ -463,70 +512,74 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                       </div>
                     </div>
                   </td>
+
                   <td className="py-4 px-5">
-                    <span className="font-bold text-[#3a2518]">Lvl {player.level}</span>
-                    <span className="text-[#78644e] text-xs block">{player.experience} EXP</span>
+                    <span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-amber-300 border border-white/[0.08] font-mono font-bold text-[11px]">
+                      LV. {player.level}
+                    </span>
+                    <span className="text-[11px] text-slate-400 block font-mono mt-1">
+                      {player.experience.toLocaleString()} EXP
+                    </span>
                   </td>
+
                   <td className="py-4 px-5">
-                    <div className="flex items-center gap-3 font-mono font-bold">
-                      <span className="flex items-center gap-1 text-[#b45309]">
-                        <Coins className="w-3.5 h-3.5 text-[#d97706]" /> {player.gold?.toLocaleString()}
+                    <div className="flex items-center gap-3 font-mono text-xs">
+                      <span className="flex items-center gap-1 text-amber-300 font-semibold">
+                        <Coins className="w-3.5 h-3.5 text-amber-400" />
+                        {(player.gold ?? 0).toLocaleString()}
                       </span>
-                      <span className="flex items-center gap-1 text-[#0284c7]">
-                        <Gem className="w-3.5 h-3.5 text-[#0369a1]" /> {player.gems?.toLocaleString()}
+                      <span className="flex items-center gap-1 text-cyan-300 font-semibold">
+                        <Gem className="w-3.5 h-3.5 text-cyan-400" />
+                        {(player.gems ?? 0).toLocaleString()}
                       </span>
                     </div>
                   </td>
-                  {/* Live Presence */}
+
                   <td className="py-4 px-5">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2.5 py-0.5 rounded text-xs font-bold font-cinzel inline-flex items-center gap-1.5 border shadow-sm ${
-                            player.presence === 'InBattle'
-                              ? 'bg-[#78350f]/40 border-[#f59e0b]/60 text-[#fcd34d]'
-                              : player.presence === 'Online'
-                              ? 'bg-[#064e3b]/40 border-[#10b981]/60 text-[#86efac]'
-                              : 'bg-[#2b1b11]/30 border-[#523725]/50 text-[#a89984]'
-                          }`}
-                        >
-                          {player.presence === 'InBattle' && <Swords className="w-3 h-3 text-[#f59e0b]" />}
-                          {player.presence === 'Online' && (
-                            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-                          )}
-                          {player.presence === 'Offline' && <span className="w-2 h-2 rounded-full bg-[#78644e]" />}
-                          {player.presence === 'InBattle' ? 'IN BATTLE' : player.presence === 'Online' ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                        {player.presence === 'InBattle' && (
-                          <Link
-                            to="/matches"
-                            className="px-2 py-0.5 rounded bg-[#b45309]/20 hover:bg-[#b45309]/40 border border-[#d97706] text-[#b45309] text-[10px] font-cinzel font-bold inline-flex items-center gap-1 transition-all shadow-sm"
-                            title="Inspect Dedicated Server Log for this Battle"
-                          >
-                            <Terminal className="w-3 h-3" /> LOGS
-                          </Link>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1.5 border shadow-sm ${
+                          player.presence === 'InBattle'
+                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                            : player.presence === 'Online'
+                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                            : 'bg-white/[0.04] border-white/[0.06] text-slate-400'
+                        }`}
+                      >
+                        {player.presence === 'InBattle' && <Swords className="w-3 h-3 text-amber-400 animate-bounce" />}
+                        {player.presence === 'Online' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         )}
-                      </div>
-                      <span className="text-xs text-[#78644e] block font-serif mt-1">
-                        {player.lastSeen || player.presenceDetails || player.lastLogin}
+                        {player.presence === 'Offline' && <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
+                        {player.presence === 'InBattle' ? 'In Battle' : player.presence || 'Offline'}
                       </span>
+                      {player.presence === 'InBattle' && (
+                        <Link
+                          to="/matches"
+                          className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all shadow-sm"
+                          title="Inspect Combat Logs for this Battle"
+                        >
+                          <Terminal className="w-3 h-3" /> LOGS
+                        </Link>
+                      )}
                     </div>
                   </td>
-                  {/* Account Standing */}
+
                   <td className="py-4 px-5">
                     {player.isBanned ? (
-                      <span className="px-2.5 py-0.5 rounded crimson-badge text-xs font-bold inline-flex items-center gap-1">
-                        <UserX className="w-3 h-3" /> BANNED
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-bold inline-flex items-center gap-1">
+                        <UserX className="w-3 h-3" /> EXILED
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded bg-[#166534] text-[#86efac] border border-[#22c55e] text-xs font-bold inline-flex items-center gap-1">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold inline-flex items-center gap-1">
                         <UserCheck className="w-3 h-3" /> NORMAL
                       </span>
                     )}
                   </td>
+
                   <td className="py-4 px-5 text-right space-x-2">
                     {(role === 'Technical Support' || role === 'Support') ? (
-                      <span className="text-xs font-mono text-[#8c7456] italic px-2.5 py-1 rounded bg-[#2b1b11] border border-[#4d3525] inline-block">
+                      <span className="text-xs font-mono text-slate-500 italic px-2.5 py-1 rounded bg-black/40 border border-white/[0.06] inline-block">
                         Read-Only
                       </span>
                     ) : (
@@ -534,10 +587,10 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                         {(role === 'Admin' || role === 'Server') && (
                           <button
                             onClick={() => setSelectedPlayer(player)}
-                            className="p-1.5 rounded mahogany-button"
+                            className="btn-glass p-1.5 text-amber-400"
                             title="Adjust Currencies"
                           >
-                            <Edit3 className="w-3.5 h-3.5 text-[#c89b3c]" />
+                            <Edit3 className="w-3.5 h-3.5" />
                           </button>
                         )}
                         <button
@@ -548,8 +601,10 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                               setBanTargetPlayer(player);
                             }
                           }}
-                          className={`px-3 py-1 rounded text-xs font-bold font-cinzel ${
-                            player.isBanned ? 'bg-[#166534] text-[#86efac]' : 'crimson-badge'
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                            player.isBanned 
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30' 
+                              : 'bg-rose-950/60 text-rose-300 border border-rose-500/40 hover:bg-rose-900/60'
                           }`}
                         >
                           {player.isBanned ? 'Unban' : 'Ban'}
@@ -566,51 +621,51 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
       {/* Adjust Currency Modal (Screen 30: Currency Grant with Audit Log) */}
       {selectedPlayer && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#c89b3c] w-full max-w-md space-y-4 font-serif text-xs">
-            <h3 className="text-lg font-bold font-cinzel text-[#ffe082] flex items-center gap-2">
-              <Shield className="w-5 h-5 text-[#c89b3c]" />
-              ADJUST TREASURY - {selectedPlayer.username}
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel p-6 rounded-2xl border border-white/[0.1] w-full max-w-md space-y-4 text-xs shadow-2xl">
+            <h3 className="text-base font-bold font-cinzel text-slate-100 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-amber-400" />
+              ADJUST TREASURY — {selectedPlayer.username}
             </h3>
-            <p className="text-xs text-[#c4b49e]">
-              Wanderer Account: <strong className="text-[#ffe082]">{selectedPlayer.username}</strong>
-              <span className="font-mono text-[#c89b3c] ml-1.5">(Ref #{selectedPlayer.playerId.slice(-6).toUpperCase()})</span>
+            <p className="text-xs text-slate-400">
+              Target Account: <strong className="text-amber-300">{selectedPlayer.username}</strong>
+              <span className="font-mono text-slate-500 ml-1.5">(Ref #{selectedPlayer.playerId.slice(-6).toUpperCase()})</span>
             </p>
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div>
-                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Add/Deduct Gems (+/-)</label>
+                <label className="font-semibold text-slate-300 block mb-1">Add / Deduct Gems (+/-)</label>
                 <input
                   type="number"
                   value={adjustGems}
                   onChange={(e) => setAdjustGems(Number(e.target.value))}
-                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
                 />
               </div>
               <div>
-                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Add/Deduct Gold (+/-)</label>
+                <label className="font-semibold text-slate-300 block mb-1">Add / Deduct Gold (+/-)</label>
                 <input
                   type="number"
                   value={adjustGold}
                   onChange={(e) => setAdjustGold(Number(e.target.value))}
-                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
                 />
               </div>
               <div>
-                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Audit Rationale / Compensation Reason</label>
+                <label className="font-semibold text-slate-300 block mb-1">Audit Rationale / Compensation Reason</label>
                 <input
                   type="text"
-                  placeholder="e.g. Apologems maintenance compensation, rollback audit"
+                  placeholder="e.g. Server rollback compensation, test credit"
                   value={compensationReason}
                   onChange={(e) => setCompensationReason(e.target.value)}
-                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
-              <button onClick={() => setSelectedPlayer(null)} className="px-3 py-1.5 text-xs text-[#c4b49e]">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
+              <button onClick={() => setSelectedPlayer(null)} className="btn-glass px-3 py-1.5 text-xs">
                 Cancel
               </button>
-              <button onClick={handleSaveAdjustment} className="px-4 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel">
+              <button onClick={handleSaveAdjustment} className="btn-primary-gold px-4 py-1.5 text-xs font-bold">
                 Apply Adjustments
               </button>
             </div>
@@ -620,55 +675,55 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
       {/* Disciplinary Ban Sanction Modal (Screen 30: Enforce Ban with Violation Reason) */}
       {banTargetPlayer && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#b91c1c] w-full max-w-md space-y-4 font-serif text-xs">
-            <h3 className="text-lg font-bold font-cinzel text-[#f87171] flex items-center gap-2">
-              <UserX className="w-5 h-5 text-[#ef4444]" />
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel p-6 rounded-2xl border border-rose-500/40 w-full max-w-md space-y-4 text-xs shadow-2xl">
+            <h3 className="text-base font-bold font-cinzel text-rose-300 flex items-center gap-2">
+              <UserX className="w-5 h-5 text-rose-400" />
               ENFORCE DISCIPLINARY SANCTION
             </h3>
-            <p className="text-xs text-[#c4b49e]">
-              Target Account: <strong className="text-[#ffe082]">{banTargetPlayer.username}</strong>
-              <span className="font-mono text-[#c89b3c] ml-1.5">(ID: {banTargetPlayer.playerId})</span>
+            <p className="text-xs text-slate-400">
+              Target Account: <strong className="text-slate-100">{banTargetPlayer.username}</strong>
+              <span className="font-mono text-slate-500 ml-1.5">(ID: {banTargetPlayer.playerId})</span>
             </p>
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div>
-                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Sanction Duration</label>
+                <label className="font-semibold text-slate-300 block mb-1">Sanction Duration</label>
                 <select
                   value={banDuration}
                   onChange={(e) => setBanDuration(e.target.value as any)}
-                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-sans"
                 >
-                  <option value="TEMPORARY_24H">Temporary Suspension (24 Hours)</option>
-                  <option value="TEMPORARY_7D">Extended Suspension (7 Days)</option>
-                  <option value="PERMANENT">Permanent Account Ban</option>
+                  <option value="TEMPORARY_24H" className="bg-slate-900 text-slate-100">Temporary Suspension (24 Hours)</option>
+                  <option value="TEMPORARY_7D" className="bg-slate-900 text-slate-100">Extended Suspension (7 Days)</option>
+                  <option value="PERMANENT" className="bg-slate-900 text-slate-100">Permanent Account Ban</option>
                 </select>
               </div>
               <div>
-                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">
-                  Violation Rationale <span className="text-[#ef4444]">*</span>
+                <label className="font-semibold text-slate-300 block mb-1">
+                  Violation Rationale <span className="text-rose-400">*</span>
                 </label>
                 <textarea
                   rows={3}
                   placeholder="Specify violation rationale (e.g. Speed hack in combat timeline, malicious desync, harassment)..."
                   value={banReason}
                   onChange={(e) => setBanReason(e.target.value)}
-                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none resize-none"
+                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none resize-none"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
               <button
                 onClick={() => {
                   setBanTargetPlayer(null);
                   setBanReason('');
                 }}
-                className="px-3 py-1.5 text-xs text-[#c4b49e]"
+                className="btn-glass px-3 py-1.5 text-xs"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmBan}
-                className="px-4 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel bg-[#7f1d1d] hover:bg-[#991b1b] border border-[#ef4444] text-white"
+                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-200 transition-all shadow"
               >
                 Confirm Ban Sanction
               </button>
@@ -679,23 +734,23 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
       {/* Lift Sanction Unban Modal */}
       {unbanTargetPlayer && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#16a34a] w-full max-w-md space-y-4 font-serif text-xs">
-            <h3 className="text-lg font-bold font-cinzel text-[#86efac] flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-[#22c55e]" />
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel p-6 rounded-2xl border border-emerald-500/40 w-full max-w-md space-y-4 text-xs shadow-2xl">
+            <h3 className="text-base font-bold font-cinzel text-emerald-300 flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-emerald-400" />
               LIFT ACCOUNT SANCTION
             </h3>
-            <p className="text-xs text-[#c4b49e]">
+            <p className="text-xs text-slate-400">
               Restore normal game access and matchmaking eligibility for wanderer{' '}
-              <strong className="text-[#ffe082]">{unbanTargetPlayer.username}</strong>?
+              <strong className="text-slate-100">{unbanTargetPlayer.username}</strong>?
             </p>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
-              <button onClick={() => setUnbanTargetPlayer(null)} className="px-3 py-1.5 text-xs text-[#c4b49e]">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
+              <button onClick={() => setUnbanTargetPlayer(null)} className="btn-glass px-3 py-1.5 text-xs">
                 Cancel
               </button>
               <button
                 onClick={handleConfirmUnban}
-                className="px-4 py-1.5 rounded text-xs font-bold font-cinzel bg-[#14532d] hover:bg-[#166534] border border-[#22c55e] text-[#86efac]"
+                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-200 transition-all shadow"
               >
                 Restore Account
               </button>

@@ -8,11 +8,10 @@ import type { MatchHistoryItem } from '../types';
 /**
  * MatchSupervision Component (Screen 33: Match Inspector & Screen 34: Combat Action Logs)
  * 
- * Central supervision console for Moderators and Administrators to:
- * 1. Query ongoing and historical PvP combat matches by Match ID or Player ID.
- * 2. Replay and audit turn-by-turn RPC action packets (timestamps, unit grid coordinates, ability casts).
- * 3. Stream and inspect raw Unity Headless Dedicated Server log files from Linux VPS host.
- * 4. Verify combat fairness, detect desynchronization bugs, and enforce anti-cheat rules.
+ * Re-architected to HoYoverse AAA Gaming Standards:
+ * - Central tactical esports & telemetry console for Moderators and Administrators
+ * - Real-time Netcode for GameObjects (NGO) headless server status
+ * - Live turn-by-turn combat replay, anti-cheat audit trail, and raw Linux VPS log inspector
  */
 export const MatchSupervision: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -57,80 +56,95 @@ export const MatchSupervision: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Page Header Banner */}
-      <div className="mahogany-banner p-6 rounded-lg space-y-4 shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#593d29] pb-3">
+      {/* Page Header Astral Banner */}
+      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+        {/* Subtle ambient light orb */}
+        <div 
+          className="absolute -top-16 -right-16 w-64 h-64 bg-cyan-500/[0.08] rounded-full blur-3xl pointer-events-none" 
+          aria-hidden="true" 
+        />
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
           <div>
-            <span className="text-xs font-mono text-[#c89b3c] uppercase font-bold tracking-wider block">
-              SCREEN 33 & 34 • MATCH SUPERVISION & COMBAT ACTION LOGS
-            </span>
-            <h2 className="text-xl md:text-2xl font-extrabold text-[#ffe082] tracking-wide font-cinzel flex items-center gap-2.5">
-              <Swords className="w-6 h-6 text-[#d4af37]" />
-              MATCH INSPECTOR & SERVER DIAGNOSTICS
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 uppercase font-bold tracking-wider">
+                SCREEN 33 & 34 • TACTICAL TELEMETRY
+              </span>
+              <span className="text-slate-500 text-xs">•</span>
+              <span className="text-xs text-slate-400 font-mono">Netcode NGO 7777–7800</span>
+            </div>
+            <h2 className="text-xl md:text-2xl font-extrabold tracking-wide font-cinzel flex items-center gap-3 text-slate-100">
+              <Swords className="w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+              <span className="gold-gradient-text">MATCH INSPECTOR & SERVER DIAGNOSTICS</span>
             </h2>
-            <p className="text-xs text-[#d5c7b3] font-serif mt-1">
-              Authoritative turn-by-turn combat replay, anti-cheat audit trail, and live Dedicated Server log stream.
+            <p className="text-xs text-slate-400 mt-1 max-w-3xl">
+              Authoritative turn-by-turn combat replay, anti-cheat audit trail, and raw VPS Dedicated Server telemetry streams.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-2.5">
             <button
               onClick={fetchQuickMetrics}
               disabled={loadingMetrics}
-              className="p-2 rounded bg-[#3a2518] hover:bg-[#4a3020] border border-[#c89b3c] text-[#ffe082] text-xs font-cinzel font-bold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
+              className="btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
               title="Refresh telemetry overview"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingMetrics ? 'animate-spin' : ''}`} />
-              REFRESH TELEMETRY
+              <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${loadingMetrics ? 'animate-spin' : ''}`} />
+              <span>SYNC TELEMETRY</span>
             </button>
           </div>
         </div>
 
         {/* 4 Quick Telemetry Status Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3 rounded bg-[#26170d] border border-[#c89b3c]/60 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#10b981]/10 border border-[#10b981]/40 flex items-center justify-center shrink-0">
-              <Activity className="w-4 h-4 text-[#34d399] animate-pulse" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-4">
+          {/* Active Battles */}
+          <div className="glass-card p-3.5 rounded-xl flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
+              <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
             </div>
             <div>
-              <span className="text-[10px] font-mono text-[#d5c7b3] uppercase tracking-wider block">Active Battles</span>
-              <span className="text-base font-extrabold font-mono text-[#34d399]">
-                {loadingMetrics ? '...' : `${activeMatchesCount} Live`}
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Live Battles</span>
+              <span className="text-base font-extrabold font-mono text-emerald-300">
+                {loadingMetrics ? '...' : `${activeMatchesCount} Active`}
               </span>
             </div>
           </div>
 
-          <div className="p-3 rounded bg-[#26170d] border border-[#c89b3c]/60 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#f59e0b]/10 border border-[#f59e0b]/40 flex items-center justify-center shrink-0">
-              <Swords className="w-4 h-4 text-[#fbbf24]" />
+          {/* Recorded Matches */}
+          <div className="glass-card p-3.5 rounded-xl flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+              <Swords className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <span className="text-[10px] font-mono text-[#d5c7b3] uppercase tracking-wider block">Recorded Matches</span>
-              <span className="text-base font-extrabold font-mono text-[#ffe082]">
-                {loadingMetrics ? '...' : `${totalMatchesCount} Total`}
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Total Recorded</span>
+              <span className="text-base font-extrabold font-mono text-amber-300">
+                {loadingMetrics ? '...' : `${totalMatchesCount} Sessions`}
               </span>
             </div>
           </div>
 
-          <div className="p-3 rounded bg-[#26170d] border border-[#c89b3c]/60 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#3b82f6]/10 border border-[#3b82f6]/40 flex items-center justify-center shrink-0">
-              <FileText className="w-4 h-4 text-[#60a5fa]" />
+          {/* VPS Log Files */}
+          <div className="glass-card-cyan p-3.5 rounded-xl flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(6,182,212,0.2)]">
+              <FileText className="w-5 h-5 text-cyan-400" />
             </div>
             <div>
-              <span className="text-[10px] font-mono text-[#d5c7b3] uppercase tracking-wider block">VPS Log Files</span>
-              <span className="text-base font-extrabold font-mono text-[#93c5fd]">
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">VPS Log Files</span>
+              <span className="text-base font-extrabold font-mono text-cyan-300">
                 {loadingMetrics ? '...' : `${logFilesCount} Logs`}
               </span>
             </div>
           </div>
 
-          <div className="p-3 rounded bg-[#26170d] border border-[#c89b3c]/60 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#8b5cf6]/10 border border-[#8b5cf6]/40 flex items-center justify-center shrink-0">
-              <Server className="w-4 h-4 text-[#a78bfa]" />
+          {/* Netcode Engine */}
+          <div className="glass-card p-3.5 rounded-xl flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.2)]">
+              <Server className="w-5 h-5 text-indigo-400" />
             </div>
             <div>
-              <span className="text-[10px] font-mono text-[#d5c7b3] uppercase tracking-wider block">Engine Protocol</span>
-              <span className="text-xs font-extrabold font-mono text-[#c4b5fd]">
-                Netcode / RUDP
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Network Core</span>
+              <span className="text-xs font-bold font-mono text-indigo-300">
+                NGO / RUDP Headless
               </span>
             </div>
           </div>

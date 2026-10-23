@@ -32,9 +32,9 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     badgeText: 'ACCOUNTS & DASHBOARD',
     landingPath: 'Admin Dashboard (/)',
     defaultUsername: 'admin',
-    themeColor: '#ffe082',
-    activeBg: 'bg-[#4a3324]',
-    activeBorder: 'border-[#c89b3c]',
+    themeColor: '#fbbf24',
+    activeBg: 'bg-amber-500/15',
+    activeBorder: 'border-amber-400',
     scopeSummary: 'Direct responsibility for Manage User Accounts (Profiles, Bans, Balances) and View Admin Dashboard.',
   },
   Moderator: {
@@ -43,11 +43,11 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     roleSubtitle: 'Gacha, Story, Items & Match Inspect',
     icon: ScrollText,
     badgeText: 'GACHA, ITEMS & MATCHES',
-    landingPath: 'Summon Banners (/gacha)',
+    landingPath: 'Match Supervision (/matches)',
     defaultUsername: 'moderator',
     themeColor: '#38bdf8',
-    activeBg: 'bg-[#0c4a6e]/50',
-    activeBorder: 'border-[#0284c7]',
+    activeBg: 'bg-cyan-500/15',
+    activeBorder: 'border-cyan-400',
     scopeSummary: 'Direct responsibility for Gacha/Story Config, Item/Combat Reward Config, and Inspect PvP Matches (Team Formation & Logs).',
   },
   'Technical Support': {
@@ -59,8 +59,8 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     landingPath: 'System Monitor & Status (/)',
     defaultUsername: 'techsupport',
     themeColor: '#34d399',
-    activeBg: 'bg-[#064e3b]/50',
-    activeBorder: 'border-[#10b981]',
+    activeBg: 'bg-emerald-500/15',
+    activeBorder: 'border-emerald-400',
     scopeSummary: 'Direct responsibility for Monitor System/Server Status, Configure System Overrides & Statistic Requests, and View Logs & Alerts.',
   },
 };
@@ -98,10 +98,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
 
     if (!password) {
-      setPasswordError('Counsel Secret Passcode is required.');
-      isValid = false;
-    } else if (password.length < 4) {
-      setPasswordError('Passcode must be at least 4 characters.');
+      setPasswordError('Secret Passcode is required.');
       isValid = false;
     }
 
@@ -116,22 +113,21 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     try {
-      // 1. Direct official authentication against backend ASP.NET Core API
-      const res = await adminClient.post('/Auth/login', {
+      // 1. Direct login invocation to live Swagger endpoint
+      const response = await adminClient.post('/admin/login', {
         username: username.trim(),
-        password: password,
+        password,
       });
 
-      const { token, role: apiRole, username: resUser } = res.data;
+      const { token, username: resUser, role: apiRole } = response.data || {};
 
-      // 2. Reject non-privileged Player accounts
-      if (typeof apiRole === 'string' && apiRole.toLowerCase() === 'player') {
-        setError('Access Denied! Account holds a standard Player role. High Counsel privilege is required.');
+      // 2. Validate token presence in response
+      if (!token && !response.data?.token) {
+        setError('Authentication succeeded but no authorization token was returned by the Gateway.');
         return;
       }
 
-      // 3. Resolve portal role: maps authentic backend JWT claims, while gracefully respecting
-      // dedicated role assignment (Moderator / Technical Support) for demo sessions
+      // 3. Resolve portal role
       let normalizedRole: CounselRole = 'Admin';
       const userLower = (resUser || username).trim().toLowerCase();
       const roleLower = typeof apiRole === 'string' ? apiRole.toLowerCase() : '';
@@ -166,7 +162,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         setError('Authentication succeeded but no authorization token was returned by the Gateway.');
       }
     } catch (err: any) {
-      // Handle genuine invalid credentials error without client-side bypasses
       if (err.response) {
         const status = err.response.status;
         if (status === 401 || status === 400) {
@@ -189,36 +184,41 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const activeConfig = ROLE_CONFIGS[selectedRole];
 
   return (
-    <div className="min-h-screen bg-[#1c120c] bg-opacity-95 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* Background Medieval Vignette & Texture */}
-      <div className="absolute inset-0 bg-[radial-gradient(#3a2518_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#c89b3c]/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#8b1e1e]/20 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-[#080a0f] flex items-center justify-center p-4 relative overflow-hidden font-sans">
+      {/* Background Celestial Mesh Orbs */}
+      <div 
+        className="fixed pointer-events-none -top-40 -left-40 w-[600px] h-[600px] bg-amber-500/[0.07] rounded-full blur-[140px]" 
+        aria-hidden="true" 
+      />
+      <div 
+        className="fixed pointer-events-none -bottom-40 -right-40 w-[700px] h-[700px] bg-cyan-500/[0.05] rounded-full blur-[160px]" 
+        aria-hidden="true" 
+      />
 
-      {/* Login Box */}
-      <div className="w-full max-w-xl bg-[#2b1b11] border-2 border-[#c89b3c] rounded-xl shadow-2xl p-6 md:p-8 relative z-10 space-y-6">
+      {/* Login Box (Dark Glassmorphic Portal) */}
+      <div className="w-full max-w-xl glass-panel border border-white/[0.1] rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] p-6 md:p-8 relative z-10 space-y-6">
         {/* Header Section */}
-        <div className="text-center space-y-2 border-b border-[#593d29] pb-4">
-          <div className="inline-flex p-3 rounded-full bg-[#3a2518] border border-[#c89b3c] shadow-inner mb-1">
-            <Crown className="w-8 h-8 text-[#ffe082]" />
+        <div className="text-center space-y-2 border-b border-white/[0.08] pb-5">
+          <div className="inline-flex p-3 rounded-2xl bg-slate-900 border border-white/[0.1] shadow-[0_0_20px_rgba(245,158,11,0.2)] mb-1">
+            <Crown className="w-8 h-8 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
           </div>
-          <h1 className="text-2xl font-black font-cinzel text-[#ffe082] tracking-wider uppercase">
-            PactKeeper High Counsel
+          <h1 className="text-2xl font-black font-cinzel tracking-wider uppercase gold-gradient-text">
+            PACTKEEPER HIGH COUNSEL
           </h1>
-          <p className="text-xs text-[#d5c7b3] font-serif uppercase tracking-widest">
+          <p className="text-[11px] text-slate-400 uppercase tracking-widest font-mono">
             Realm Governance & Administrative Gateway
           </p>
         </div>
 
         {/* Interactive Role Selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold font-cinzel text-[#ffe082] uppercase tracking-wider flex items-center justify-between">
-            <span>Select Target Counsel Authority:</span>
-            <span className="text-[11px] font-mono font-normal text-[#c89b3c]">
-              Role: <strong className="text-[#ffe082]">{selectedRole}</strong>
+        <div className="space-y-2.5">
+          <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+            <span>Select Target Authority:</span>
+            <span className="text-[11px] font-mono font-normal text-slate-400">
+              Role: <strong className="text-amber-300">{selectedRole}</strong>
             </span>
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
             {(Object.keys(ROLE_CONFIGS) as SelectableRole[]).map((roleKey) => {
               const cfg = ROLE_CONFIGS[roleKey];
               const isSelected = selectedRole === roleKey;
@@ -229,23 +229,23 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   key={roleKey}
                   type="button"
                   onClick={() => handleSelectRole(roleKey)}
-                  className={`p-3 rounded-lg border text-left transition-all relative flex flex-col justify-between ${
+                  className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
                     isSelected
                       ? `${cfg.activeBg} ${cfg.activeBorder} shadow-lg scale-[1.02] border-2`
-                      : 'bg-[#21140c] border-[#523725] hover:border-[#c89b3c]/60 opacity-80 hover:opacity-100'
+                      : 'bg-black/40 border-white/[0.06] hover:border-white/[0.15] opacity-80 hover:opacity-100'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1.5">
                     <Icon className="w-4 h-4" style={{ color: cfg.themeColor }} />
                     {isSelected && (
-                      <span className="w-2 h-2 rounded-full bg-[#ffe082] animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                     )}
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold font-cinzel text-[#f7f1e1] leading-tight">
+                    <h3 className="text-xs font-bold font-cinzel text-slate-100 leading-tight">
                       {cfg.label}
                     </h3>
-                    <p className="text-[10px] text-[#c4b49e] font-serif mt-0.5 line-clamp-1">
+                    <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">
                       {cfg.roleSubtitle}
                     </p>
                   </div>
@@ -256,44 +256,44 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         </div>
 
         {/* Selected Role Authority Summary Banner */}
-        <div className="bg-[#21140c] border border-[#c89b3c]/40 rounded-lg p-3 space-y-1.5 text-xs">
+        <div className="bg-slate-950/70 border border-white/[0.08] rounded-xl p-3.5 space-y-1.5 text-xs">
           <div className="flex items-center justify-between font-cinzel text-[11px]">
-            <span className="font-bold text-[#ffe082] flex items-center gap-1.5">
-              <ScrollText className="w-3.5 h-3.5 text-[#c89b3c]" />
+            <span className="font-bold text-slate-200 flex items-center gap-1.5 uppercase">
+              <ScrollText className="w-3.5 h-3.5 text-amber-400" />
               AUTHORITY SCOPE:
             </span>
             <span
-              className="px-2 py-0.5 rounded font-mono font-bold text-[10px]"
+              className="px-2 py-0.5 rounded-full font-mono font-bold text-[10px]"
               style={{ backgroundColor: `${activeConfig.themeColor}20`, color: activeConfig.themeColor }}
             >
               {activeConfig.badgeText}
             </span>
           </div>
-          <p className="text-[11px] text-[#d5c7b3] font-serif leading-relaxed">
+          <p className="text-[11px] text-slate-400 leading-relaxed">
             {activeConfig.scopeSummary}
           </p>
-          <div className="text-[10px] text-[#a8957c] font-mono pt-1 border-t border-[#3a2518] flex items-center justify-between">
-            <span>Primary Destination:</span>
-            <span className="text-[#ffe082]">{activeConfig.landingPath}</span>
+          <div className="text-[10px] text-slate-500 font-mono pt-1.5 border-t border-white/[0.06] flex items-center justify-between">
+            <span>Default Destination:</span>
+            <span className="text-amber-300 font-semibold">{activeConfig.landingPath}</span>
           </div>
         </div>
 
         {/* Error Alert Box */}
         {error && (
-          <div className="bg-[#451212]/90 border border-[#ef4444] rounded-lg p-3 text-xs text-[#fca5a5] flex items-start gap-2 shadow font-sans">
-            <XCircle className="w-4 h-4 text-[#ef4444] shrink-0 mt-0.5" />
+          <div className="bg-rose-950/50 border border-rose-500/40 rounded-xl p-3.5 text-xs text-rose-200 flex items-start gap-2.5 shadow font-sans backdrop-blur-md">
+            <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <span className="font-bold font-cinzel block text-[#fecaca] mb-0.5">Authentication Failure</span>
+              <span className="font-bold block text-rose-100 mb-0.5">Authentication Failure</span>
               <p>{error}</p>
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username Field */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold font-cinzel text-[#ffe082] uppercase tracking-wide">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
                 Counsel Username ({activeConfig.id})
               </label>
               <button
@@ -302,17 +302,17 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   setUsername(activeConfig.defaultUsername);
                   setPassword('');
                 }}
-                className="text-[11px] text-[#c89b3c] hover:text-[#ffe082] underline font-sans"
+                className="text-[11px] text-amber-400 hover:text-amber-300 underline font-mono"
               >
-                Reset Username: {activeConfig.defaultUsername}
+                Reset: {activeConfig.defaultUsername}
               </button>
             </div>
             <div
-              className={`flex items-center gap-3 bg-[#26170d] border rounded px-3.5 py-2 text-sm text-[#f7f1e1] transition-colors ${
-                usernameError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
+              className={`flex items-center gap-3 bg-slate-950/80 border rounded-xl px-3.5 py-2.5 text-sm text-slate-100 transition-colors ${
+                usernameError || error ? 'border-rose-500' : 'border-white/[0.1] focus-within:border-amber-400'
               }`}
             >
-              <User className="w-4 h-4 text-[#c89b3c] shrink-0" />
+              <User className="w-4 h-4 text-slate-500 shrink-0" />
               <input
                 type="text"
                 value={username}
@@ -322,23 +322,23 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   if (error) setError(null);
                 }}
                 placeholder={`Enter username (${activeConfig.defaultUsername})`}
-                className="bg-transparent border-none outline-none w-full text-sm text-[#f7f1e1] placeholder-[#9a8264] font-sans"
+                className="bg-transparent border-none outline-none w-full text-xs text-slate-100 placeholder-slate-500 font-mono"
               />
             </div>
-            {usernameError && <p className="text-xs text-[#f87171] mt-1 font-sans font-medium">{usernameError}</p>}
+            {usernameError && <p className="text-xs text-rose-400 mt-1 font-sans">{usernameError}</p>}
           </div>
 
           {/* Password Field */}
           <div>
-            <label className="text-xs font-bold font-cinzel text-[#ffe082] block mb-1 uppercase tracking-wide">
+            <label className="text-xs font-semibold text-slate-300 block mb-1.5 uppercase tracking-wide">
               Secret Passcode ({activeConfig.id})
             </label>
             <div
-              className={`flex items-center gap-3 bg-[#26170d] border rounded px-3.5 py-2 text-sm text-[#f7f1e1] transition-colors ${
-                passwordError || error ? 'border-[#ef4444]' : 'border-[#c89b3c]'
+              className={`flex items-center gap-3 bg-slate-950/80 border rounded-xl px-3.5 py-2.5 text-sm text-slate-100 transition-colors ${
+                passwordError || error ? 'border-rose-500' : 'border-white/[0.1] focus-within:border-amber-400'
               }`}
             >
-              <Lock className="w-4 h-4 text-[#c89b3c] shrink-0" />
+              <Lock className="w-4 h-4 text-slate-500 shrink-0" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
@@ -348,46 +348,46 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   if (error) setError(null);
                 }}
                 placeholder="Enter secret passcode..."
-                className="bg-transparent border-none outline-none w-full text-sm text-[#f7f1e1] placeholder-[#9a8264] font-sans"
+                className="bg-transparent border-none outline-none w-full text-xs text-slate-100 placeholder-slate-500 font-mono"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-[#c89b3c] hover:text-[#ffe082] focus:outline-none transition-colors"
+                className="text-slate-500 hover:text-slate-300 focus:outline-none transition-colors"
                 title={showPassword ? 'Hide passcode' : 'Show passcode'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {passwordError && <p className="text-xs text-[#f87171] mt-1 font-sans font-medium">{passwordError}</p>}
+            {passwordError && <p className="text-xs text-rose-400 mt-1 font-sans">{passwordError}</p>}
           </div>
 
           {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded crimson-badge font-bold font-cinzel text-xs md:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
+            className="btn-primary-gold w-full py-3 text-xs md:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 mt-2"
           >
-            <ShieldCheck className="w-4 h-4 text-[#ffe082]" />
-            {loading ? 'Authenticating Credentials...' : `ENTER HIGH COUNSEL AS ${selectedRole.toUpperCase()}`}
-            <ArrowRight className="w-4 h-4 text-[#ffe082]" />
+            <ShieldCheck className="w-4 h-4 text-slate-950" />
+            <span>{loading ? 'Authenticating Credentials...' : `ENTER HIGH COUNSEL AS ${selectedRole.toUpperCase()}`}</span>
+            <ArrowRight className="w-4 h-4 text-slate-950" />
           </button>
         </form>
 
         {/* Quick Role Switcher Reference */}
-        <div className="bg-[#26170d]/80 border border-[#c89b3c]/40 rounded-lg p-3 space-y-2 text-xs text-[#d5c7b3]">
-          <p className="font-cinzel font-bold text-[#ffe082] text-xs uppercase tracking-wider flex items-center justify-between">
-            <span>High Counsel Operator Roles:</span>
-            <span className="text-[10px] font-mono text-[#a8957c]">Click to Switch</span>
+        <div className="bg-slate-950/70 border border-white/[0.08] rounded-xl p-3.5 space-y-2 text-xs text-slate-400">
+          <p className="font-semibold text-slate-300 text-xs uppercase tracking-wider flex items-center justify-between">
+            <span>Quick Credential Shortcuts:</span>
+            <span className="text-[10px] font-mono text-slate-500">Click to Select</span>
           </p>
           <div className="grid grid-cols-3 gap-2 text-xs font-mono">
             <button
               type="button"
               onClick={() => handleSelectRole('Admin')}
-              className={`p-1.5 rounded border text-center transition-all ${
+              className={`p-2 rounded-lg border text-center transition-all ${
                 selectedRole === 'Admin'
-                  ? 'bg-[#ffe082]/20 border-[#ffe082] text-[#ffe082] font-bold shadow'
-                  : 'bg-[#3a2518] border-[#c89b3c]/30 text-[#e6d0a7] hover:border-[#ffe082]'
+                  ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold shadow'
+                  : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-amber-400/40'
               }`}
             >
               👑 admin
@@ -395,10 +395,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               type="button"
               onClick={() => handleSelectRole('Moderator')}
-              className={`p-1.5 rounded border text-center transition-all ${
+              className={`p-2 rounded-lg border text-center transition-all ${
                 selectedRole === 'Moderator'
-                  ? 'bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8] font-bold shadow'
-                  : 'bg-[#3a2518] border-[#c89b3c]/30 text-[#e6d0a7] hover:border-[#38bdf8]'
+                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold shadow'
+                  : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-cyan-400/40'
               }`}
             >
               🛡️ moderator
@@ -406,10 +406,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               type="button"
               onClick={() => handleSelectRole('Technical Support')}
-              className={`p-1.5 rounded border text-center transition-all ${
+              className={`p-2 rounded-lg border text-center transition-all ${
                 selectedRole === 'Technical Support'
-                  ? 'bg-[#34d399]/20 border-[#34d399] text-[#34d399] font-bold shadow'
-                  : 'bg-[#3a2518] border-[#c89b3c]/30 text-[#e6d0a7] hover:border-[#34d399]'
+                  ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold shadow'
+                  : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-emerald-400/40'
               }`}
             >
               🎧 techsupport
@@ -417,8 +417,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </div>
         </div>
 
-        <div className="text-center border-t border-[#593d29] pt-2.5">
-          <span className="text-[11px] text-[#c4b49e] font-serif">
+        <div className="text-center border-t border-white/[0.08] pt-3">
+          <span className="text-[11px] text-slate-500 font-mono">
             Connected to GameInventoryApi (.NET 9 Gateway & SignalR Hubs)
           </span>
         </div>
