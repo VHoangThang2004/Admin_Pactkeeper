@@ -10,7 +10,8 @@ import {
   Crown,
   ScrollText,
   Activity,
-  Terminal
+  Swords,
+  MessageSquare
 } from 'lucide-react';
 import type { CounselRole } from '../types';
 
@@ -30,7 +31,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
   const isTechSupport = role === 'Technical Support' || role === 'Support';
 
-  // Navigation matrix with strict role access mapping from diagrams
+  // Navigation matrix with strict role access mapping from SRS Report 3 (Part B: Screen Flow)
   const allNavItems = [
     { 
       path: '/', 
@@ -41,9 +42,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
     },
     { 
       path: '/players', 
-      label: role === 'Moderator' ? 'INSPECT MATCHES & TEAMS' : 'MANAGE USER ACCOUNTS', 
+      label: role === 'Moderator' ? 'USER DIRECTORY' : 'MANAGE USER ACCOUNTS', 
       icon: Shield, 
-      tag: role === 'Moderator' ? 'INSPECT' : 'ACCOUNTS', 
+      tag: role === 'Moderator' ? 'DIRECTORY' : 'ACCOUNTS', 
+      allowedRoles: ['Admin', 'Server', 'Moderator'] 
+    },
+    { 
+      path: '/matches', 
+      label: 'MATCH SUPERVISION', 
+      icon: Swords, 
+      tag: 'SUPERVISION', 
       allowedRoles: ['Admin', 'Server', 'Moderator'] 
     },
     { 
@@ -69,9 +77,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
     },
     { 
       path: '/support', 
-      label: 'LOGS & ALERTS BOARD', 
-      icon: Terminal, 
-      tag: 'ALERTS', 
+      label: 'PLAYER SUPPORT DESK', 
+      icon: MessageSquare, 
+      tag: 'SUPPORT', 
       allowedRoles: ['Technical Support', 'Support', 'Admin', 'Server'] 
     },
   ];
@@ -84,9 +92,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
     switch (role) {
       case 'Technical Support':
       case 'Support':
-        return 'TECHNICAL SUPPORT (STATUS & ALERTS)';
+        return 'TECHNICAL SUPPORT (STATUS & SUPPORT)';
       case 'Moderator':
-        return 'MODERATOR (GACHA, ITEMS, MATCHES)';
+        return 'MODERATOR (MATCHES, GACHA, ITEMS)';
       default:
         return 'HIGH COUNSEL (ACCOUNTS & DASHBOARD)';
     }

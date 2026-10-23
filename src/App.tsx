@@ -8,6 +8,7 @@ import { GachaManagement } from './pages/GachaManagement';
 import { ContentManagement } from './pages/ContentManagement';
 import { PaymentManagement } from './pages/PaymentManagement';
 import { LiveSupport } from './pages/LiveSupport';
+import { MatchSupervision } from './pages/MatchSupervision';
 import type { CounselRole } from './types';
 
 /**
@@ -69,7 +70,7 @@ export const App: React.FC = () => {
       case 'Support':
         return '/';
       case 'Moderator':
-        return '/gacha';
+        return '/matches';
       case 'Server':
       case 'Admin':
       default:
@@ -100,19 +101,25 @@ export const App: React.FC = () => {
           {/* Dashboard / System Status: Admin & Technical Support */}
           <Route
             path="/"
-            element={!isMod ? <DashboardOverview role={role} /> : <Navigate to="/gacha" replace />}
+            element={!isMod ? <DashboardOverview role={role} /> : <Navigate to="/matches" replace />}
           />
 
-          {/* User Accounts & Match Inspect: Admin & Moderator */}
+          {/* User Accounts & Directory: Admin & Moderator */}
           <Route
             path="/players"
             element={!isTechSupport ? <PlayerManagement role={role} /> : <Navigate to="/" replace />}
           />
 
+          {/* Match Supervision & Combat Action Logs: Moderator & Admin (Screen 33 & 34) */}
+          <Route
+            path="/matches"
+            element={!isTechSupport ? <MatchSupervision /> : <Navigate to="/" replace />}
+          />
+
           {/* Logs, Alerts & Support: Technical Support & Admin */}
           <Route
             path="/support"
-            element={!isMod ? <LiveSupport /> : <Navigate to="/gacha" replace />}
+            element={!isMod ? <LiveSupport /> : <Navigate to="/matches" replace />}
           />
 
           {/* Gacha / Story Config: Moderator & Admin */}

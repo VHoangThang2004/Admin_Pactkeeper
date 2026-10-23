@@ -29,6 +29,11 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerProfile | null>(null);
   const [adjustGems, setAdjustGems] = useState<number>(0);
   const [adjustGold, setAdjustGold] = useState<number>(0);
+  const [compensationReason, setCompensationReason] = useState<string>('');
+  const [banTargetPlayer, setBanTargetPlayer] = useState<PlayerProfile | null>(null);
+  const [banReason, setBanReason] = useState<string>('');
+  const [banDuration, setBanDuration] = useState<'TEMPORARY_24H' | 'TEMPORARY_7D' | 'PERMANENT'>('PERMANENT');
+  const [unbanTargetPlayer, setUnbanTargetPlayer] = useState<PlayerProfile | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -207,21 +212,40 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     return true;
   });
 
-  const toggleBanPlayer = (playerId: string) => {
+  const handleConfirmBan = () => {
+    if (!banTargetPlayer) return;
+    const reasonText = banReason.trim() || 'Unspecified rule violation';
     setPlayers((prev) =>
       prev.map((p) => {
-        if (p.playerId === playerId) {
-          const updatedState = !p.isBanned;
-          setNotification(`Hero ${p.username} status set to: ${updatedState ? 'BANNED' : 'ACTIVE'}`);
-          return { ...p, isBanned: updatedState };
+        if (p.playerId === banTargetPlayer.playerId) {
+          return { ...p, isBanned: true };
         }
         return p;
       })
     );
+    setNotification(`[SANCTION ENFORCED] Hero ${banTargetPlayer.username} banned (${banDuration}). Reason: "${reasonText}"`);
+    setBanTargetPlayer(null);
+    setBanReason('');
+    setBanDuration('PERMANENT');
+  };
+
+  const handleConfirmUnban = () => {
+    if (!unbanTargetPlayer) return;
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (p.playerId === unbanTargetPlayer.playerId) {
+          return { ...p, isBanned: false };
+        }
+        return p;
+      })
+    );
+    setNotification(`[SANCTION LIFTED] Hero ${unbanTargetPlayer.username} restored to NORMAL standing.`);
+    setUnbanTargetPlayer(null);
   };
 
   const handleSaveAdjustment = () => {
     if (!selectedPlayer) return;
+    const auditText = compensationReason.trim() || 'Administrative grant';
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.playerId === selectedPlayer.playerId) {
@@ -234,10 +258,11 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         return p;
       })
     );
-    setNotification(`Adjusted currencies for ${selectedPlayer.username} (+${adjustGems} Gems, +${adjustGold} Gold).`);
+    setNotification(`Adjusted currencies for ${selectedPlayer.username} (+${adjustGems} Gems, +${adjustGold} Gold). Audit: "${auditText}".`);
     setSelectedPlayer(null);
     setAdjustGems(0);
     setAdjustGold(0);
+    setCompensationReason('');
   };
 
   return (
@@ -245,12 +270,12 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       {/* Header Banner */}
       <div className="mahogany-banner p-5 text-center rounded-lg relative">
         <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
-          {role === 'Moderator' ? 'INSPECT PVP MATCHES & TEAMS' : 'MANAGE USER ACCOUNTS'}
+          {role === 'Moderator' ? 'USER DIRECTORY & PLAYER ROSTER' : 'MANAGE USER ACCOUNTS'}
         </h1>
         <p className="text-xs text-[#d5c7b3] font-serif mt-1">
           {role === 'Moderator'
-            ? 'Moderator Scope: Inspect player presence in battle, formations, and match activity logs (Diagram: Inspect PvP Match)'
-            : 'Admin Scope: Full player account management, economy balance adjustments, and standing oversight (Diagram: Manage User Accounts)'}
+            ? 'Moderator Scope (Screen 29): Browse and inspect registered player profiles, level, inventory items, and real-time presence.'
+            : 'Admin Scope (Screen 29 & 30): Full player account administration, disciplinary sanctions with mandatory violation reason, and treasury compensations.'}
         </p>
         <button
           onClick={() => fetchPlayers()}
@@ -474,7 +499,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                         </span>
                         {player.presence === 'InBattle' && (
                           <Link
-                            to="/support?tab=logs"
+                            to="/matches"
                             className="px-2 py-0.5 rounded bg-[#b45309]/20 hover:bg-[#b45309]/40 border border-[#d97706] text-[#b45309] text-[10px] font-cinzel font-bold inline-flex items-center gap-1 transition-all shadow-sm"
                             title="Inspect Dedicated Server Log for this Battle"
                           >
@@ -516,7 +541,13 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                           </button>
                         )}
                         <button
-                          onClick={() => toggleBanPlayer(player.playerId)}
+                          onClick={() => {
+                            if (player.isBanned) {
+                              setUnbanTargetPlayer(player);
+                            } else {
+                              setBanTargetPlayer(player);
+                            }
+                          }}
                           className={`px-3 py-1 rounded text-xs font-bold font-cinzel ${
                             player.isBanned ? 'bg-[#166534] text-[#86efac]' : 'crimson-badge'
                           }`}
@@ -533,7 +564,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         )}
       </div>
 
-      {/* Adjust Currency Modal */}
+      {/* Adjust Currency Modal (Screen 30: Currency Grant with Audit Log) */}
       {selectedPlayer && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="mahogany-banner p-6 rounded-lg border-2 border-[#c89b3c] w-full max-w-md space-y-4 font-serif text-xs">
@@ -564,6 +595,16 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
                 />
               </div>
+              <div>
+                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Audit Rationale / Compensation Reason</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Apologems maintenance compensation, rollback audit"
+                  value={compensationReason}
+                  onChange={(e) => setCompensationReason(e.target.value)}
+                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                />
+              </div>
             </div>
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
               <button onClick={() => setSelectedPlayer(null)} className="px-3 py-1.5 text-xs text-[#c4b49e]">
@@ -571,6 +612,92 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
               </button>
               <button onClick={handleSaveAdjustment} className="px-4 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel">
                 Apply Adjustments
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disciplinary Ban Sanction Modal (Screen 30: Enforce Ban with Violation Reason) */}
+      {banTargetPlayer && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#b91c1c] w-full max-w-md space-y-4 font-serif text-xs">
+            <h3 className="text-lg font-bold font-cinzel text-[#f87171] flex items-center gap-2">
+              <UserX className="w-5 h-5 text-[#ef4444]" />
+              ENFORCE DISCIPLINARY SANCTION
+            </h3>
+            <p className="text-xs text-[#c4b49e]">
+              Target Account: <strong className="text-[#ffe082]">{banTargetPlayer.username}</strong>
+              <span className="font-mono text-[#c89b3c] ml-1.5">(ID: {banTargetPlayer.playerId})</span>
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Sanction Duration</label>
+                <select
+                  value={banDuration}
+                  onChange={(e) => setBanDuration(e.target.value as any)}
+                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                >
+                  <option value="TEMPORARY_24H">Temporary Suspension (24 Hours)</option>
+                  <option value="TEMPORARY_7D">Extended Suspension (7 Days)</option>
+                  <option value="PERMANENT">Permanent Account Ban</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">
+                  Violation Rationale <span className="text-[#ef4444]">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Specify violation rationale (e.g. Speed hack in combat timeline, malicious desync, harassment)..."
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
+              <button
+                onClick={() => {
+                  setBanTargetPlayer(null);
+                  setBanReason('');
+                }}
+                className="px-3 py-1.5 text-xs text-[#c4b49e]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmBan}
+                className="px-4 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel bg-[#7f1d1d] hover:bg-[#991b1b] border border-[#ef4444] text-white"
+              >
+                Confirm Ban Sanction
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lift Sanction Unban Modal */}
+      {unbanTargetPlayer && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#16a34a] w-full max-w-md space-y-4 font-serif text-xs">
+            <h3 className="text-lg font-bold font-cinzel text-[#86efac] flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-[#22c55e]" />
+              LIFT ACCOUNT SANCTION
+            </h3>
+            <p className="text-xs text-[#c4b49e]">
+              Restore normal game access and matchmaking eligibility for wanderer{' '}
+              <strong className="text-[#ffe082]">{unbanTargetPlayer.username}</strong>?
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
+              <button onClick={() => setUnbanTargetPlayer(null)} className="px-3 py-1.5 text-xs text-[#c4b49e]">
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmUnban}
+                className="px-4 py-1.5 rounded text-xs font-bold font-cinzel bg-[#14532d] hover:bg-[#166534] border border-[#22c55e] text-[#86efac]"
+              >
+                Restore Account
               </button>
             </div>
           </div>

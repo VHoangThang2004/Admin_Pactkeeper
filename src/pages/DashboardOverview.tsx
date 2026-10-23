@@ -343,10 +343,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         <div className="flex items-center justify-between border-b border-[#593d29] pb-3">
           <div>
             <span className="text-xs font-mono text-[#c89b3c] uppercase font-bold tracking-wider block">
-              HIGH COUNSEL COMMAND
+              {isTechSupport ? 'TECHNICAL SUPPORT & INFRASTRUCTURE' : 'HIGH COUNSEL COMMAND'}
             </span>
             <h2 className="text-xl font-extrabold text-[#ffe082] tracking-wide font-cinzel">
-              KEEPER OF RECORDS
+              {isTechSupport ? 'SYSTEM MONITOR & SERVER NODES' : 'KEEPER OF RECORDS'}
             </h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="px-2 py-0.5 rounded bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40 text-xs font-bold font-mono">
@@ -361,28 +361,52 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           </div>
         </div>
 
-        {/* Current Realm Revenue Box */}
-        <div className="p-4 rounded bg-[#26170d] border border-[#c89b3c] flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
-          <div>
-            <span className="text-xs text-[#d5c7b3] uppercase font-cinzel font-bold block tracking-wider">
-              CURRENT REALM TREASURY REVENUE
-            </span>
-            <div className="flex items-center gap-2.5 mt-1.5">
-              <Coins className="w-6 h-6 text-[#f59e0b]" />
-              <span className="text-2xl md:text-3xl font-extrabold font-mono text-[#ffe082]">
-                {totalRevenue.toLocaleString()} VND
+        {/* Current Realm Revenue Box (Admin) OR Server Nodes Status (Tech Support) */}
+        {!isTechSupport ? (
+          <div className="p-4 rounded bg-[#26170d] border border-[#c89b3c] flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
+            <div>
+              <span className="text-xs text-[#d5c7b3] uppercase font-cinzel font-bold block tracking-wider">
+                CURRENT REALM TREASURY REVENUE
+              </span>
+              <div className="flex items-center gap-2.5 mt-1.5">
+                <Coins className="w-6 h-6 text-[#f59e0b]" />
+                <span className="text-2xl md:text-3xl font-extrabold font-mono text-[#ffe082]">
+                  {totalRevenue.toLocaleString()} VND
+                </span>
+              </div>
+            </div>
+            <div className="text-left md:text-right space-y-0.5">
+              <span className="text-xs text-[#c89b3c] font-cinzel font-bold block">
+                {paidOrdersCount} / {totalOrdersCount} Completed Receipts
+              </span>
+              <span className="text-xs text-[#d5c7b3] block font-serif">
+                {packsCount} Active Store Packs Configured • payOS Gateway Live
               </span>
             </div>
           </div>
-          <div className="text-left md:text-right space-y-0.5">
-            <span className="text-xs text-[#c89b3c] font-cinzel font-bold block">
-              {paidOrdersCount} / {totalOrdersCount} Completed Receipts
-            </span>
-            <span className="text-xs text-[#d5c7b3] block font-serif">
-              {packsCount} Active Store Packs Configured • payOS Gateway Live
-            </span>
+        ) : (
+          <div className="p-4 rounded bg-[#26170d] border border-[#c89b3c] flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
+            <div>
+              <span className="text-xs text-[#d5c7b3] uppercase font-cinzel font-bold block tracking-wider">
+                SERVER NODES & DEDICATED INSTANCES (SCREEN 41 & 42)
+              </span>
+              <div className="flex items-center gap-2.5 mt-1.5">
+                <Server className="w-6 h-6 text-[#34d399]" />
+                <span className="text-2xl md:text-3xl font-extrabold font-mono text-[#86efac]">
+                  {activeMatchesCount} HEADLESS NODES ACTIVE
+                </span>
+              </div>
+            </div>
+            <div className="text-left md:text-right space-y-0.5">
+              <span className="text-xs text-[#c89b3c] font-cinzel font-bold block">
+                UDP Port Pool: 7777 - 7800 • Ubuntu 22.04 LTS
+              </span>
+              <span className="text-xs text-[#d5c7b3] block font-serif">
+                Unity Netcode for GameObjects (NGO) • Dedicated Server Architecture
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Decorative Section Divider: Live Player Operations */}
@@ -441,11 +465,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             <div className="flex items-center gap-2">
               <span className="font-bold text-[#3a2518]">{totalMatchesCount} Total</span>
               <Link
-                to="/support?tab=logs"
+                to="/matches"
                 className="text-[10px] text-[#b45309] hover:text-[#78350f] font-cinzel font-bold underline flex items-center gap-0.5 transition-colors"
-                title="View Dedicated Server Logs"
+                title="Inspect Matches and Dedicated Server Logs"
               >
-                <Terminal className="w-2.5 h-2.5" /> Logs
+                <Terminal className="w-2.5 h-2.5" /> Inspect
               </Link>
             </div>
           </div>
@@ -479,29 +503,54 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           </div>
         </div>
 
-        {/* Card 4: PayOS Transactions Summary */}
-        <div className="parchment-card p-5 rounded-lg relative overflow-hidden shadow-md border border-[#c89b3c]/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">
-                TREASURY ORDERS
-              </p>
-              <h3 className="text-2xl font-extrabold text-[#3a2518] mt-1 font-mono">
-                {paidOrdersCount} Paid
-              </h3>
-              <span className="text-xs text-[#15803d] font-bold flex items-center gap-1 mt-1 font-serif">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Webhooks Verified
-              </span>
+        {/* Card 4: PayOS Transactions Summary (Admin) OR Dedicated Servers Status (Tech Support) */}
+        {!isTechSupport ? (
+          <div className="parchment-card p-5 rounded-lg relative overflow-hidden shadow-md border border-[#c89b3c]/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">
+                  TREASURY ORDERS
+                </p>
+                <h3 className="text-2xl font-extrabold text-[#3a2518] mt-1 font-mono">
+                  {paidOrdersCount} Paid
+                </h3>
+                <span className="text-xs text-[#15803d] font-bold flex items-center gap-1 mt-1 font-serif">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Webhooks Verified
+                </span>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-[#f4ecd8] border-2 border-[#c89b3c] flex items-center justify-center shadow">
+                <Coins className="w-6 h-6 text-[#f59e0b]" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-[#f4ecd8] border-2 border-[#c89b3c] flex items-center justify-center shadow">
-              <Coins className="w-6 h-6 text-[#f59e0b]" />
+            <div className="mt-3 pt-2 border-t border-[#dcd1b5] text-xs text-[#78644e] flex items-center justify-between font-mono">
+              <span>Total Orders:</span>
+              <span className="font-bold text-[#3a2518]">{totalOrdersCount} Receipts</span>
             </div>
           </div>
-          <div className="mt-3 pt-2 border-t border-[#dcd1b5] text-xs text-[#78644e] flex items-center justify-between font-mono">
-            <span>Total Orders:</span>
-            <span className="font-bold text-[#3a2518]">{totalOrdersCount} Receipts</span>
+        ) : (
+          <div className="parchment-card p-5 rounded-lg relative overflow-hidden shadow-md border border-[#c89b3c]/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-cinzel font-bold text-[#8c7456] uppercase tracking-wider">
+                  NETCODE INSTANCES
+                </p>
+                <h3 className="text-2xl font-extrabold text-[#3a2518] mt-1 font-mono">
+                  {activeMatchesCount} Live
+                </h3>
+                <span className="text-xs text-[#15803d] font-bold flex items-center gap-1 mt-1 font-serif">
+                  <Server className="w-3.5 h-3.5 text-[#16a34a]" /> Dedicated Processes
+                </span>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-[#f4ecd8] border-2 border-[#c89b3c] flex items-center justify-center shadow">
+                <Server className="w-6 h-6 text-[#3a2518]" />
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-[#dcd1b5] text-xs text-[#78644e] flex items-center justify-between font-mono">
+              <span>Port Allocation:</span>
+              <span className="font-bold text-[#3a2518]">7777 - 7800 RUDP</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Real-Time Hero Presence Roster */}
@@ -652,7 +701,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                           </span>
                           {player.presence.state === 'InBattle' && (
                             <Link
-                              to="/support?tab=logs"
+                              to="/matches"
                               className="px-2 py-0.5 rounded bg-[#b45309]/20 hover:bg-[#b45309]/40 border border-[#d97706] text-[#b45309] text-[10px] font-cinzel font-bold inline-flex items-center gap-1 transition-all shadow-sm"
                               title="Inspect Dedicated Server Log for this Battle"
                             >

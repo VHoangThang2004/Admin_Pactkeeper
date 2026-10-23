@@ -34,3 +34,6 @@ vercel.json
 *.sw?
 .vercel
 .env*
+
+# Office temporary files
+~$*.docx

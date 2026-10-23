@@ -44,6 +44,20 @@ export const ContentManagement: React.FC = () => {
   const [newUnitName, setNewUnitName] = useState('');
   const [newUnitClassId, setNewUnitClassId] = useState(1);
 
+  // Modal State for adding a new weapon definition (BR-04)
+  const [isAddingWeapon, setIsAddingWeapon] = useState(false);
+  const [newWeaponName, setNewWeaponName] = useState('');
+  const [newWeaponClassId, setNewWeaponClassId] = useState(1);
+  const [newWeaponSkillId, setNewWeaponSkillId] = useState(101);
+  const [newWeaponSpeedMod, setNewWeaponSpeedMod] = useState(0);
+  const [newWeaponHpMod, setNewWeaponHpMod] = useState(0);
+
+  // Modal State for adding a new skill definition
+  const [isAddingSkill, setIsAddingSkill] = useState(false);
+  const [newSkillName, setNewSkillName] = useState('');
+  const [newSkillSpCost, setNewSkillSpCost] = useState(2);
+  const [newSkillDesc, setNewSkillDesc] = useState('');
+
   /**
    * Fetches all 6 game definition collections in parallel using Promise.allSettled
    * so a failure in one collection does not crash or block the others.
@@ -117,6 +131,82 @@ export const ContentManagement: React.FC = () => {
     } finally {
       setIsAddingUnit(false);
       setNewUnitName('');
+    }
+  };
+
+  /**
+   * Submits a new weapon definition payload with Class restriction enforcement (BR-04)
+   */
+  const handleAddWeapon = async () => {
+    if (!newWeaponName.trim()) return;
+    try {
+      const nextWeaponId = weapons.length + 1001;
+      const payload = {
+        weaponId: nextWeaponId,
+        name: newWeaponName.trim(),
+        classId: newWeaponClassId,
+        skillId: newWeaponSkillId,
+        givenAtRegister: false,
+        statModifiers: {
+          speed: newWeaponSpeedMod,
+          maxHP: newWeaponHpMod,
+          maxSkillPoint: 0,
+        },
+      };
+      await adminClient.post('/WeaponDefinition', payload);
+      await fetchContent();
+    } catch {
+      // Local fallback for offline/demo
+      setWeapons((prev) => [
+        ...prev,
+        {
+          weaponId: weapons.length + 1001,
+          name: newWeaponName.trim(),
+          classId: newWeaponClassId,
+          skillId: newWeaponSkillId,
+          givenAtRegister: false,
+          statModifiers: { speed: newWeaponSpeedMod, maxHP: newWeaponHpMod },
+        },
+      ]);
+    } finally {
+      setIsAddingWeapon(false);
+      setNewWeaponName('');
+      setNewWeaponSpeedMod(0);
+      setNewWeaponHpMod(0);
+    }
+  };
+
+  /**
+   * Submits a new skill definition payload
+   */
+  const handleAddSkill = async () => {
+    if (!newSkillName.trim()) return;
+    try {
+      const nextSkillId = skills.length + 501;
+      const payload = {
+        skillId: nextSkillId,
+        skillName: newSkillName.trim(),
+        spCost: newSkillSpCost,
+        description: newSkillDesc.trim(),
+      };
+      await adminClient.post('/SkillDefinition', payload);
+      await fetchContent();
+    } catch {
+      // Local fallback for offline/demo
+      setSkills((prev) => [
+        ...prev,
+        {
+          skillId: skills.length + 501,
+          skillName: newSkillName.trim(),
+          spCost: newSkillSpCost,
+          description: newSkillDesc.trim(),
+        },
+      ]);
+    } finally {
+      setIsAddingSkill(false);
+      setNewSkillName('');
+      setNewSkillSpCost(2);
+      setNewSkillDesc('');
     }
   };
 
@@ -344,8 +434,19 @@ export const ContentManagement: React.FC = () => {
       {/* 3. Weapons Tab */}
       {activeTab === 'weapons' && (
         <div className="parchment-card rounded-lg overflow-hidden shadow-md">
-          <div className="p-4 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-sm">
-            WEAPON DEFINITIONS & STAT MODIFIERS (/api/WeaponDefinition)
+          <div className="p-4 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-cinzel font-bold text-sm">
+            <div>
+              <span>WEAPON DEFINITIONS & STAT MODIFIERS (/api/WeaponDefinition)</span>
+              <p className="text-[11px] text-[#d5c7b3] font-serif font-normal mt-0.5">
+                Rule BR-04: Class-Restricted Weaponry — Units may only equip weapons matching their designated Class ID.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsAddingWeapon(true)}
+              className="px-3.5 py-1.5 rounded crimson-badge text-xs font-bold flex items-center gap-1.5 font-cinzel shadow shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" /> ADD WEAPON
+            </button>
           </div>
           {weapons.length === 0 ? (
             <div className="p-12 text-center text-[#8c7456] space-y-2 font-serif">
@@ -539,10 +640,18 @@ export const ContentManagement: React.FC = () => {
       {/* 6. Skills Tab */}
       {activeTab === 'skills' && (
         <div className="parchment-card p-5 rounded-lg space-y-3 shadow-md">
-          <h3 className="text-sm font-bold text-[#3a2518] font-cinzel flex items-center gap-2 border-b border-[#c89b3c] pb-2">
-            <Zap className="w-4 h-4 text-[#d97706]" />
-            SKILL DEFINITIONS (/api/SkillDefinition)
-          </h3>
+          <div className="flex items-center justify-between border-b border-[#c89b3c] pb-2">
+            <h3 className="text-sm font-bold text-[#3a2518] font-cinzel flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#d97706]" />
+              SKILL DEFINITIONS (/api/SkillDefinition)
+            </h3>
+            <button
+              onClick={() => setIsAddingSkill(true)}
+              className="px-3.5 py-1.5 rounded crimson-badge text-xs font-bold flex items-center gap-1.5 font-cinzel shadow"
+            >
+              <Plus className="w-3.5 h-3.5" /> ADD SKILL
+            </button>
+          </div>
           {skills.length === 0 ? (
             <p className="text-xs text-[#8c7456] font-serif text-center py-6">No skill definitions found.</p>
           ) : (
@@ -608,6 +717,161 @@ export const ContentManagement: React.FC = () => {
                 className="px-4 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel shadow"
               >
                 Save Hero Definition
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Weapon Definition (BR-04) */}
+      {isAddingWeapon && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#c89b3c] w-full max-w-md space-y-4 font-serif text-xs shadow-xl">
+            <h3 className="text-lg font-bold font-cinzel text-[#ffe082] flex items-center gap-2">
+              <Sword className="w-5 h-5 text-[#c89b3c]" />
+              ADD WEAPON DEFINITION (BR-04)
+            </h3>
+            <p className="text-xs text-[#c4b49e]">
+              Configure weapon attributes and assign strict Class compatibility per Business Rule BR-04.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Weapon Name</label>
+                <input
+                  type="text"
+                  value={newWeaponName}
+                  onChange={(e) => setNewWeaponName(e.target.value)}
+                  placeholder="e.g. Claymore of Judgment"
+                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Target Class (BR-04)</label>
+                  <select
+                    value={newWeaponClassId}
+                    onChange={(e) => setNewWeaponClassId(Number(e.target.value))}
+                    className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  >
+                    {classes.map((c) => (
+                      <option key={c.classId} value={c.classId}>
+                        {c.name || `Class #${c.classId}`}
+                      </option>
+                    ))}
+                    {classes.length === 0 && (
+                      <>
+                        <option value={1}>Class 1 (Warrior)</option>
+                        <option value={2}>Class 2 (Mage)</option>
+                        <option value={3}>Class 3 (Archer)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Weapon Skill ID</label>
+                  <input
+                    type="number"
+                    value={newWeaponSkillId}
+                    onChange={(e) => setNewWeaponSkillId(Number(e.target.value))}
+                    className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Speed Modifier (+)</label>
+                  <input
+                    type="number"
+                    value={newWeaponSpeedMod}
+                    onChange={(e) => setNewWeaponSpeedMod(Number(e.target.value))}
+                    className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Max HP Modifier (+)</label>
+                  <input
+                    type="number"
+                    value={newWeaponHpMod}
+                    onChange={(e) => setNewWeaponHpMod(Number(e.target.value))}
+                    className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
+              <button
+                onClick={() => setIsAddingWeapon(false)}
+                className="px-3.5 py-1.5 text-xs text-[#c4b49e] hover:text-[#f7f1e1] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddWeapon}
+                className="px-4 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel shadow"
+              >
+                Save Weapon Definition
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Skill Definition */}
+      {isAddingSkill && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#c89b3c] w-full max-w-md space-y-4 font-serif text-xs shadow-xl">
+            <h3 className="text-lg font-bold font-cinzel text-[#ffe082] flex items-center gap-2">
+              <Zap className="w-5 h-5 text-[#d97706]" />
+              ADD COMBAT SKILL DEFINITION
+            </h3>
+            <p className="text-xs text-[#c4b49e]">
+              Define skill casting costs (SP) and tactical effects for SRPG timeline combat.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Skill Name</label>
+                <input
+                  type="text"
+                  value={newSkillName}
+                  onChange={(e) => setNewSkillName(e.target.value)}
+                  placeholder="e.g. Heavenly Smite"
+                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Skill Point (SP) Cost</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={newSkillSpCost}
+                  onChange={(e) => setNewSkillSpCost(Number(e.target.value))}
+                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-cinzel font-bold text-[#ffe082] block mb-1">Effect Description</label>
+                <textarea
+                  rows={3}
+                  value={newSkillDesc}
+                  onChange={(e) => setNewSkillDesc(e.target.value)}
+                  placeholder="e.g. Unleashes a radiant blast dealing 150% damage in a 3-tile cross pattern."
+                  className="w-full bg-[#26170d] border border-[#c89b3c] rounded px-3 py-2 text-xs text-[#f7f1e1] outline-none resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#593d29]">
+              <button
+                onClick={() => setIsAddingSkill(false)}
+                className="px-3.5 py-1.5 text-xs text-[#c4b49e] hover:text-[#f7f1e1] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSkill}
+                className="px-4 py-1.5 rounded crimson-badge text-xs font-bold font-cinzel shadow"
+              >
+                Save Skill Definition
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { adminClient } from '../api/adminClient';
 import {
@@ -13,28 +13,20 @@ import {
   Inbox,
   Copy,
   Swords,
-  Terminal
 } from 'lucide-react';
 import * as signalR from '@microsoft/signalr';
 import { getPlayerPresence } from '../utils/presence';
-import { MatchLogInspector } from '../components/MatchLogInspector';
 
 /**
- * Logs & Alerts Board (Customer Support & Match Server Log Inspector)
+ * Player Support Desk & Live Chat Room (Screen 45 & 46)
  * 
  * Features:
  * 1. Two-way WebSocket messaging with players via Microsoft SignalR (/hubs/support).
  * 2. Active hero tickets list (/api/Support/admin/players).
  * 3. Historical message retrieval (/api/Support/admin/chat/{playerId}).
  * 4. Dispatch administrative replies directly into the game client.
- * 5. Dedicated Match Server Log Inspector: Real-time telemetry and error investigation
- *    for Unity Headless Dedicated Server match sessions.
  */
 export const LiveSupport: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = (searchParams.get('tab') as 'support' | 'logs') || 'support';
-  const queryMatchId = searchParams.get('matchId') || '';
-
   // Support Chat states
   const [players, setPlayers] = useState<ActiveChatPlayerDto[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
@@ -166,74 +158,33 @@ export const LiveSupport: React.FC = () => {
     }
   };
 
-  const handleTabChange = (tab: 'support' | 'logs') => {
-    const params = new URLSearchParams(searchParams);
-    params.set('tab', tab);
-    setSearchParams(params);
-  };
-
   return (
     <div className="space-y-6 pb-8 font-sans">
       {/* Header Banner */}
       <div className="mahogany-banner p-5 text-center rounded-lg relative shadow-md">
         <h1 className="text-xl md:text-2xl font-bold tracking-widest text-[#ffe082] uppercase font-cinzel">
-          LOGS & ALERTS COMMAND BOARD
+          PLAYER SUPPORT DESK & LIVE CHAT
         </h1>
         <p className="text-xs text-[#d5c7b3] font-serif mt-1">
-          Real-time Player Assistance & Dedicated Match Server Diagnostics
+          Screen 45 & 46 (SRS Part B) • Real-time Bidirectional Player Assistance via SignalR WebSockets
         </p>
 
-        {currentTab === 'support' && (
-          <div className="absolute right-4 top-4 hidden sm:flex items-center gap-3">
-            <button
-              onClick={() => fetchPlayers()}
-              className="px-3 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> REFRESH
-            </button>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#26170d] border border-[#c89b3c] text-xs font-cinzel font-bold text-[#ffe082]">
-              <Circle className={`w-2.5 h-2.5 rounded-full fill-current ${isConnected ? 'text-[#34d399] animate-pulse' : 'text-[#f59e0b]'}`} />
-              <span>{isConnected ? 'SIGNALR ACTIVE' : 'HUB READY'}</span>
-            </div>
+        <div className="absolute right-4 top-4 hidden sm:flex items-center gap-3">
+          <button
+            onClick={() => fetchPlayers()}
+            className="px-3 py-1.5 rounded mahogany-button text-xs font-cinzel font-bold flex items-center gap-1.5 shadow"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-[#c89b3c] ${loading ? 'animate-spin' : ''}`} /> REFRESH
+          </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#26170d] border border-[#c89b3c] text-xs font-cinzel font-bold text-[#ffe082]">
+            <Circle className={`w-2.5 h-2.5 rounded-full fill-current ${isConnected ? 'text-[#34d399] animate-pulse' : 'text-[#f59e0b]'}`} />
+            <span>{isConnected ? 'SIGNALR ACTIVE' : 'HUB READY'}</span>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b-2 border-[#c89b3c] pb-2">
-        <button
-          type="button"
-          onClick={() => handleTabChange('support')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-bold font-cinzel transition-all ${
-            currentTab === 'support'
-              ? 'bg-[#3a2518] text-[#ffe082] border-2 border-[#c89b3c] border-b-0 shadow-md'
-              : 'text-[#78644e] hover:text-[#3a2518]'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4 text-[#c89b3c]" />
-          <span>PLAYER SUPPORT DESK ({players.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('logs')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-bold font-cinzel transition-all ${
-            currentTab === 'logs'
-              ? 'bg-[#3a2518] text-[#ffe082] border-2 border-[#c89b3c] border-b-0 shadow-md'
-              : 'text-[#78644e] hover:text-[#3a2518]'
-          }`}
-        >
-          <Terminal className="w-4 h-4 text-[#c89b3c]" />
-          <span>MATCH SERVER LOG INSPECTOR</span>
-          <span className="text-[10px] px-1.5 py-0.2 bg-[#ef4444]/20 border border-[#ef4444]/40 text-[#fca5a5] rounded font-mono">
-            LIVE-OPS
-          </span>
-        </button>
-      </div>
-
-      {/* Tab 1: Live Support Chat */}
-      {currentTab === 'support' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]">
+      {/* Main Support Chat Station (Screen 45 & 46) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]">
           {/* Player List */}
           <div className="parchment-card rounded-lg flex flex-col overflow-hidden shadow-md">
             <div className="p-3.5 bg-[#3a2518] text-[#ffe082] border-b-2 border-[#c89b3c] font-cinzel font-bold text-xs flex items-center justify-between">
@@ -359,23 +310,14 @@ export const LiveSupport: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     {activeMatchesMap.has(selectedPlayerId) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const mId = activeMatchesMap.get(selectedPlayerId)?.matchId;
-                          if (mId) {
-                            const params = new URLSearchParams();
-                            params.set('tab', 'logs');
-                            params.set('matchId', mId);
-                            setSearchParams(params);
-                          }
-                        }}
+                      <Link
+                        to={`/matches?matchId=${activeMatchesMap.get(selectedPlayerId)?.matchId || ''}`}
                         className="px-2.5 py-1 rounded bg-[#b45309]/30 hover:bg-[#b45309]/50 border border-[#d97706] text-[#fcd34d] text-[11px] font-cinzel font-bold flex items-center gap-1.5 transition-all shadow"
-                        title="Inspect Live Match Log"
+                        title="Inspect Live Battle in Match Supervision"
                       >
-                        <Terminal className="w-3.5 h-3.5" />
-                        <span>INSPECT MATCH LOG</span>
-                      </button>
+                        <Swords className="w-3.5 h-3.5 text-[#fbbf24]" />
+                        <span>INSPECT BATTLE</span>
+                      </Link>
                     )}
                     <span className="text-xs px-2.5 py-1 rounded bg-[#2b1b11] border border-[#c89b3c] text-[#ffe082] font-cinzel font-bold">
                       {getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime).label}
@@ -452,12 +394,6 @@ export const LiveSupport: React.FC = () => {
             )}
           </div>
         </div>
-      )}
-
-      {/* Tab 2: Match Server Log Inspector */}
-      {currentTab === 'logs' && (
-        <MatchLogInspector initialMatchId={queryMatchId} />
-      )}
     </div>
   );
 };

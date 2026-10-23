@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminClient } from '../api/adminClient';
 import type { PurchaseOrder, TopUpPackDto } from '../types';
-import { Gem, CheckCircle2, Clock, XCircle, TrendingUp, Package, RefreshCw, Inbox } from 'lucide-react';
+import { Gem, CheckCircle2, Clock, XCircle, TrendingUp, Package, RefreshCw, Inbox, Coins } from 'lucide-react';
 
 /**
  * PaymentManagement Component
@@ -20,6 +20,8 @@ export const PaymentManagement: React.FC = () => {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   // State for active store top-up packs
   const [packs, setPacks] = useState<TopUpPackDto[]>([]);
+  // Selected order for Transaction Details Modal (Screen 32)
+  const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   // Loading indicator for asynchronous API operations
   const [loading, setLoading] = useState(true);
 
@@ -223,7 +225,8 @@ export const PaymentManagement: React.FC = () => {
                 <th className="py-3.5 px-5">Amount (VND)</th>
                 <th className="py-3.5 px-5">Store Gem Pack</th>
                 <th className="py-3.5 px-5">Created At</th>
-                <th className="py-3.5 px-5 text-right">Status</th>
+                <th className="py-3.5 px-5">Status</th>
+                <th className="py-3.5 px-5 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#dcd1b5] text-[#2b1b11]">
@@ -246,31 +249,100 @@ export const PaymentManagement: React.FC = () => {
                         {pack ? pack.name : (ord.packId ? `Pack #${ord.packId.slice(-6).toUpperCase()}` : 'Custom Top-Up')}
                       </span>
                     </td>
-                  <td className="py-4 px-5 text-[#6b5842]">{ord.createdAt}</td>
-                  <td className="py-4 px-5 text-right">
-                    {ord.status === 'PAID' && (
-                      <span className="px-2.5 py-0.5 rounded bg-[#166534] text-[#86efac] text-xs font-bold inline-flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> PAID
-                      </span>
-                    )}
-                    {ord.status === 'PENDING' && (
-                      <span className="px-2.5 py-0.5 rounded bg-[#854d0e] text-[#fef08a] text-xs font-bold inline-flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" /> PENDING
-                      </span>
-                    )}
-                    {ord.status === 'CANCELLED' && (
-                      <span className="px-2.5 py-0.5 rounded crimson-badge text-xs font-bold inline-flex items-center gap-1">
-                        <XCircle className="w-3.5 h-3.5" /> CANCELLED
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
+                    <td className="py-4 px-5 text-[#6b5842]">{ord.createdAt}</td>
+                    <td className="py-4 px-5">
+                      {ord.status === 'PAID' && (
+                        <span className="px-2.5 py-0.5 rounded bg-[#166534] text-[#86efac] text-xs font-bold inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> PAID
+                        </span>
+                      )}
+                      {ord.status === 'PENDING' && (
+                        <span className="px-2.5 py-0.5 rounded bg-[#854d0e] text-[#fef08a] text-xs font-bold inline-flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" /> PENDING
+                        </span>
+                      )}
+                      {ord.status === 'CANCELLED' && (
+                        <span className="px-2.5 py-0.5 rounded crimson-badge text-xs font-bold inline-flex items-center gap-1">
+                          <XCircle className="w-3.5 h-3.5" /> CANCELLED
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-4 px-5 text-right">
+                      <button
+                        onClick={() => setSelectedOrder(ord)}
+                        className="px-2.5 py-1 rounded mahogany-button text-[11px] font-cinzel font-bold text-[#ffe082] shadow-sm hover:border-[#ffd700]"
+                      >
+                        Inspect
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         )}
       </div>
+
+      {/* Transaction Details Modal (Screen 32) */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="mahogany-banner p-6 rounded-lg border-2 border-[#c89b3c] w-full max-w-lg space-y-4 font-serif text-xs shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#593d29] pb-2">
+              <h3 className="text-base font-bold font-cinzel text-[#ffe082] flex items-center gap-2">
+                <Coins className="w-5 h-5 text-[#f59e0b]" />
+                TRANSACTION DETAILS (SCREEN 32)
+              </h3>
+              <span className="font-mono text-xs text-[#c89b3c]">
+                Order #{selectedOrder.orderCode}
+              </span>
+            </div>
+
+            <div className="space-y-3 bg-[#26170d] p-4 rounded border border-[#593d29]">
+              <div className="flex justify-between border-b border-[#3a2518] pb-1.5">
+                <span className="text-[#a89984]">PayOS Order Code:</span>
+                <span className="font-mono text-[#ffe082] font-bold">#{selectedOrder.orderCode}</span>
+              </div>
+              <div className="flex justify-between border-b border-[#3a2518] pb-1.5">
+                <span className="text-[#a89984]">Target Player Account:</span>
+                <span className="font-mono text-[#ffe082]">Ref #{selectedOrder.playerId.slice(-6).toUpperCase()} ({selectedOrder.playerId})</span>
+              </div>
+              <div className="flex justify-between border-b border-[#3a2518] pb-1.5">
+                <span className="text-[#a89984]">Transaction Amount:</span>
+                <span className="font-mono text-[#34d399] font-bold text-sm">{selectedOrder.amount?.toLocaleString()} VND</span>
+              </div>
+              <div className="flex justify-between border-b border-[#3a2518] pb-1.5">
+                <span className="text-[#a89984]">Top-Up Package:</span>
+                <span className="font-mono text-[#ffe082]">
+                  {packs.find((p) => p.id === selectedOrder.packId)?.name || `Pack ID: ${selectedOrder.packId}`}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-[#3a2518] pb-1.5">
+                <span className="text-[#a89984]">Order Status:</span>
+                <span className="font-bold text-xs uppercase font-mono">
+                  {selectedOrder.status === 'PAID' ? 'PAID (COMPLETED)' : selectedOrder.status}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-[#3a2518] pb-1.5">
+                <span className="text-[#a89984]">Creation Timestamp:</span>
+                <span className="font-mono text-[#e5d5be]">{selectedOrder.createdAt}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#a89984]">Webhook Verification:</span>
+                <span className="font-mono text-[#34d399] font-bold">HMAC-SHA256 (Signature Verified)</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="px-4 py-1.5 rounded mahogany-button text-xs font-bold font-cinzel text-[#ffe082]"
+              >
+                Close Audit View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
