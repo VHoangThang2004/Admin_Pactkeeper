@@ -113,15 +113,21 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     try {
-      // 1. Direct login invocation to live Swagger endpoint
-      const response = await adminClient.post('/admin/login', {
+      // 1. Direct login invocation to live Swagger endpoint (/api/Auth/login)
+      const response = await adminClient.post('/Auth/login', {
         username: username.trim(),
         password,
       });
 
       const { token, username: resUser, role: apiRole } = response.data || {};
 
-      // 2. Validate token presence in response
+      // 2. Reject non-privileged Player accounts
+      if (typeof apiRole === 'string' && apiRole.toLowerCase() === 'player') {
+        setError('Access Denied! Account holds a standard Player role. High Counsel privilege is required.');
+        return;
+      }
+
+      // 3. Validate token presence in response
       if (!token && !response.data?.token) {
         setError('Authentication succeeded but no authorization token was returned by the Gateway.');
         return;
