@@ -225,6 +225,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
       setTrackedPlayers(roster);
       setOnlinePlayersCount(totalOnline);
+
+      try {
+        const stateRes = await adminClient.get('/admin/system-state');
+        if (stateRes.data) {
+          setServerState({
+            loginBlocked: Boolean(stateRes.data.loginBlocked),
+            matchmakingBlocked: Boolean(stateRes.data.matchmakingBlocked),
+          });
+        }
+      } catch {
+        // Fall back to saved local state
+      }
     } catch {
       setActiveUnitsCount(0);
       setBannersCount(0);

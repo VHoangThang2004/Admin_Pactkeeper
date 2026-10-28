@@ -44,10 +44,11 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
   const fetchPlayers = async () => {
     setLoading(true);
     try {
-      const [supportRes, paymentRes, matchRes] = await Promise.allSettled([
+      const [supportRes, paymentRes, matchRes, allPlayersRes] = await Promise.allSettled([
         adminClient.get('/support/admin/players'),
         adminClient.get('/Payment/history'),
         adminClient.get('/Match/history'),
+        adminClient.get('/player/all'),
       ]);
 
       // 1. Identify active matches & combatants
@@ -65,6 +66,25 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       }
 
       const foundMap = new Map<string, PlayerProfile>();
+
+      // 1.1 Read all registered players from database
+      if (allPlayersRes.status === 'fulfilled' && Array.isArray(allPlayersRes.value.data)) {
+        allPlayersRes.value.data.forEach((p: any) => {
+          if (p.playerId) {
+            foundMap.set(p.playerId, {
+              playerId: p.playerId,
+              username: p.username || p.playerId,
+              level: p.level ?? 1,
+              experience: p.experience ?? 0,
+              gold: p.gold ?? 0,
+              gems: p.gems ?? 0,
+              lastLogin: p.lastLogin ? new Date(p.lastLogin).toLocaleString() : new Date().toLocaleString(),
+              lastActiveTime: p.lastLogin,
+              isBanned: Boolean(p.isBanned),
+            });
+          }
+        });
+      }
 
       // 2. Read active player profile from current session / sessionStorage
       const localPlayerId = sessionStorage.getItem('player_id') || sessionStorage.getItem('playerId') || sessionStorage.getItem('adminPlayerId') || localStorage.getItem('player_id') || localStorage.getItem('playerId');
