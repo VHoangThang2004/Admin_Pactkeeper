@@ -300,9 +300,9 @@ Admin_Pactkeeper/
 - [x] **SignalR Live Support:** Bidirectional WebSocket messaging directly connecting support operators to game clients.
 - [x] **Identity Sanitization & Alias Mapping:** Resolution of database identifiers into human-friendly operator names.
 - [x] **Security Hardening:** Total removal of sensitive backend domains and ports from commit history via BFG Repo-Cleaner.
+- [x] **Interactive Definition Editing:** In-browser CRUD capabilities for weapons, trinkets, classes, skills, heroes, and map chapters.
 
 ### 🔮 Upcoming Features
-- [ ] **Interactive Definition Editing:** In-browser CRUD capabilities for weapons, trinkets, skills, and map chapters.
 - [ ] **Global Server Mail & Compensation Engine:** Mass broadcast system for distributing apologems, gold, and gift units.
 - [ ] **Advanced Revenue Analytics:** Customizable date-range filtering and CSV export for PayOS transaction logs.
 - [ ] **Automated Testing Suite:** End-to-end integration tests using Vitest and Playwright.

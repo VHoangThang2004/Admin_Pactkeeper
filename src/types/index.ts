@@ -70,6 +70,9 @@ export interface SceneConfig {
   recommendedLevel?: number;
   type?: string;
   autoNext?: boolean;
+  autoResume?: boolean;
+  autoAdvance?: boolean;
+  mapId?: string;
 }
 
 export interface UnitDefinition {
