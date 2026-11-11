@@ -33,10 +33,13 @@ export interface PlayerProfile {
   stamina?: number;
   lastLogin?: string;
   isBanned?: boolean;
+  banReason?: string | null;
   presence?: PlayerPresenceState;
   presenceDetails?: string;
+  presenceInfo?: any;
   lastActiveTime?: string;
   lastSeen?: string;
+  activeMatch?: { matchId: string; mode?: string; serverIp?: string; serverPort?: number };
 }
 
 export interface GachaBanner {

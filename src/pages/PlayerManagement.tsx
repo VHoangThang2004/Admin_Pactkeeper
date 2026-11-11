@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom';
 import type { PlayerProfile, CounselRole } from '../types';
 import { adminClient } from '../api/adminClient';
 import { Search, UserCheck, UserX, Coins, Gem, Shield, Edit3, CheckCircle2, Inbox, RefreshCw, UserPlus, Info, Copy, Swords, Terminal } from 'lucide-react';
-import { getPlayerPresence } from '../utils/presence';
+import {
+  fetchUnifiedPlayerData,
+  subscribeToUnifiedPresence,
+} from '../services/playerPresenceService';
 
 interface PlayerManagementProps {
   role?: CounselRole;
@@ -38,171 +41,14 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
   const [loading, setLoading] = useState(true);
 
   /**
-   * Fetches and aggregates active player profiles from multiple live backend endpoints
-   * and computes their genuine real-time presence (In Battle, Online, Offline).
+   * Fetches and aggregates active player profiles from unified presence engine
+   * synchronized with Unity_Pactkeeper client architecture.
    */
   const fetchPlayers = async () => {
     setLoading(true);
     try {
-      const [supportRes, paymentRes, matchRes, allPlayersRes] = await Promise.allSettled([
-        adminClient.get('/support/admin/players'),
-        adminClient.get('/Payment/history'),
-        adminClient.get('/Match/history'),
-        adminClient.get('/player/all'),
-      ]);
-
-      // 1. Identify active matches & combatants
-      const activeMatchPlayerMap = new Map<string, { matchId: string; mode?: string }>();
-      if (matchRes.status === 'fulfilled' && Array.isArray(matchRes.value.data)) {
-        matchRes.value.data.forEach((m: any) => {
-          const s = (m.status || '').toLowerCase();
-          const isLive = s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
-          if (isLive) {
-            const mId = m.matchId || m.id || '';
-            if (m.player1Id) activeMatchPlayerMap.set(m.player1Id, { matchId: mId, mode: m.mode });
-            if (m.player2Id) activeMatchPlayerMap.set(m.player2Id, { matchId: mId, mode: m.mode });
-          }
-        });
-      }
-
-      const foundMap = new Map<string, PlayerProfile>();
-
-      // 1.1 Read all registered players from database
-      if (allPlayersRes.status === 'fulfilled' && Array.isArray(allPlayersRes.value.data)) {
-        allPlayersRes.value.data.forEach((p: any) => {
-          if (p.playerId) {
-            foundMap.set(p.playerId, {
-              playerId: p.playerId,
-              username: p.username || p.playerId,
-              level: p.level ?? 1,
-              experience: p.experience ?? 0,
-              gold: p.gold ?? 0,
-              gems: p.gems ?? 0,
-              lastLogin: p.lastLogin ? new Date(p.lastLogin).toLocaleString() : new Date().toLocaleString(),
-              lastActiveTime: p.lastLogin,
-              isBanned: Boolean(p.isBanned),
-            });
-          }
-        });
-      }
-
-      // 2. Read active player profile from current session / sessionStorage
-      const localPlayerId = sessionStorage.getItem('player_id') || sessionStorage.getItem('playerId') || sessionStorage.getItem('adminPlayerId') || localStorage.getItem('player_id') || localStorage.getItem('playerId');
-      const localUsername = sessionStorage.getItem('username') || sessionStorage.getItem('adminUsername') || localStorage.getItem('username');
-      if (localPlayerId) {
-        foundMap.set(localPlayerId, {
-          playerId: localPlayerId,
-          username: localUsername || localPlayerId,
-          level: 1,
-          experience: 0,
-          gold: 0,
-          gems: 0,
-          lastLogin: new Date().toLocaleString(),
-          lastActiveTime: new Date().toISOString(),
-          isBanned: false,
-        });
-      }
-
-      // 3. Read active support chat players from API
-      if (supportRes.status === 'fulfilled' && Array.isArray(supportRes.value.data)) {
-        supportRes.value.data.forEach((p: any) => {
-          if (p.playerId) {
-            const time = p.latestMessageTime || p.lastMessageAt || '';
-            foundMap.set(p.playerId, {
-              playerId: p.playerId,
-              username: (p.playerName || p.username || p.playerId).trim(),
-              level: p.level ?? 1,
-              experience: p.experience ?? 0,
-              gold: p.gold ?? 0,
-              gems: p.gems ?? 0,
-              lastLogin: time ? new Date(time).toLocaleString() : new Date().toLocaleString(),
-              lastActiveTime: time,
-              isBanned: false,
-            });
-          }
-        });
-      }
-
-      // 4. Read player IDs from Payment orders
-      if (paymentRes.status === 'fulfilled' && Array.isArray(paymentRes.value.data)) {
-        paymentRes.value.data.forEach((order: any) => {
-          const pid = order.playerId || order.userId;
-          if (pid && !foundMap.has(pid)) {
-            const time = order.createdAt || order.timestamp || '';
-            foundMap.set(pid, {
-              playerId: pid,
-              username: `Traveler #${pid.slice(-4).toUpperCase()}`,
-              level: 1,
-              experience: 0,
-              gold: 0,
-              gems: 0,
-              lastLogin: time ? new Date(time).toLocaleString() : new Date().toLocaleString(),
-              lastActiveTime: time,
-              isBanned: false,
-            });
-          }
-        });
-      }
-
-      // 5. In-Match active combatants
-      activeMatchPlayerMap.forEach((_, pid) => {
-        if (!foundMap.has(pid)) {
-          foundMap.set(pid, {
-            playerId: pid,
-            username: `Combatant #${pid.slice(-4).toUpperCase()}`,
-            level: 1,
-            experience: 0,
-            gold: 0,
-            gems: 0,
-            lastLogin: new Date().toLocaleString(),
-            lastActiveTime: new Date().toISOString(),
-            isBanned: false,
-          });
-        }
-      });
-
-      // 6. Enrich players with real live balances and presence
-      const enrichedPlayers: PlayerProfile[] = [];
-      const fetchList = Array.from(foundMap.values());
-
-      await Promise.allSettled(
-        fetchList.map(async (p) => {
-          let updatedPlayer = { ...p };
-          try {
-            const profRes = await adminClient.get(`/player/profile/${p.playerId}`);
-            if (profRes.data) {
-              const d = profRes.data;
-              updatedPlayer = {
-                ...updatedPlayer,
-                username: d.username || d.playerName || updatedPlayer.username,
-                level: d.level ?? updatedPlayer.level,
-                experience: d.experience ?? updatedPlayer.experience,
-                gold: d.gold ?? updatedPlayer.gold,
-                gems: d.gems ?? updatedPlayer.gems,
-                isBanned: Boolean(d.isBanned),
-                lastActiveTime: d.lastActiveTime || d.lastLogin || updatedPlayer.lastActiveTime,
-              };
-            }
-          } catch {
-            // Keep base profile
-          }
-
-          const isCurrent = p.playerId === localPlayerId;
-          const presInfo = getPlayerPresence(p.playerId, activeMatchPlayerMap, updatedPlayer.lastActiveTime, isCurrent);
-          updatedPlayer.presence = presInfo.state;
-          enrichedPlayers.push(updatedPlayer);
-        })
-      );
-
-      // Sort by status priority: InBattle > Online > Offline
-      enrichedPlayers.sort((a, b) => {
-        const order = { InBattle: 0, Online: 1, Offline: 2 };
-        const presA = (a.presence as keyof typeof order) || 'Offline';
-        const presB = (b.presence as keyof typeof order) || 'Offline';
-        return (order[presA] ?? 2) - (order[presB] ?? 2);
-      });
-
-      setPlayers(enrichedPlayers);
+      const unified = await fetchUnifiedPlayerData();
+      setPlayers(unified.players);
     } catch {
       // Graceful fallback
     } finally {
@@ -212,6 +58,13 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
   useEffect(() => {
     fetchPlayers();
+
+    // Subscribe to real-time player presence updates (SignalR LobbyHub & auto-polling)
+    const unsubscribe = subscribeToUnifiedPresence((data) => {
+      setPlayers(data.players);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleAddPlayerById = async () => {
@@ -564,32 +417,37 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   </td>
 
                   <td className="py-4 px-5">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1.5 border shadow-sm ${
-                          player.presence === 'InBattle'
-                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-                            : player.presence === 'Online'
-                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                            : 'bg-white/[0.04] border-white/[0.06] text-slate-400'
-                        }`}
-                      >
-                        {player.presence === 'InBattle' && <Swords className="w-3 h-3 text-amber-400 animate-bounce" />}
-                        {player.presence === 'Online' && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        )}
-                        {player.presence === 'Offline' && <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
-                        {player.presence === 'InBattle' ? 'In Battle' : player.presence || 'Offline'}
-                      </span>
-                      {player.presence === 'InBattle' && (
-                        <Link
-                          to="/matches"
-                          className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all shadow-sm"
-                          title="Inspect Combat Logs for this Battle"
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1.5 border shadow-sm ${
+                            player.presence === 'InBattle'
+                              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                              : player.presence === 'Online'
+                              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                              : 'bg-white/[0.04] border-white/[0.06] text-slate-400'
+                          }`}
                         >
-                          <Terminal className="w-3 h-3" /> LOGS
-                        </Link>
-                      )}
+                          {player.presence === 'InBattle' && <Swords className="w-3 h-3 text-amber-400 animate-bounce" />}
+                          {player.presence === 'Online' && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          )}
+                          {player.presence === 'Offline' && <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
+                          {player.presence === 'InBattle' ? 'IN BATTLE' : player.presence === 'Online' ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                        {player.presence === 'InBattle' && (
+                          <Link
+                            to="/matches"
+                            className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all shadow-sm"
+                            title="Inspect Combat Logs for this Battle"
+                          >
+                            <Terminal className="w-3 h-3" /> LOGS
+                          </Link>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 truncate max-w-[200px]" title={player.presenceDetails}>
+                        {player.presenceDetails || (player.presence === 'InBattle' ? 'In Active Match' : player.presence === 'Online' ? 'Lobby & Realm Sanctuary' : 'Inactive')}
+                      </span>
                     </div>
                   </td>
 

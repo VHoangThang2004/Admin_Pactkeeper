@@ -23,16 +23,14 @@ import {
   Clock,
   Radio,
   Copy,
-  Terminal
+  Terminal,
+  Search
 } from 'lucide-react';
-import { getPlayerPresence, type PlayerPresenceInfo } from '../utils/presence';
-
-interface TrackedPlayerPresence {
-  playerId: string;
-  username: string;
-  presence: PlayerPresenceInfo;
-  lastSeen: string;
-}
+import {
+  fetchUnifiedPlayerData,
+  subscribeToUnifiedPresence,
+  type TrackedPlayerPresence,
+} from '../services/playerPresenceService';
 
 interface DashboardOverviewProps {
   role?: CounselRole;
@@ -85,6 +83,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   const [totalMatchesCount, setTotalMatchesCount] = useState<number>(0);
   const [trackedPlayers, setTrackedPlayers] = useState<TrackedPlayerPresence[]>([]);
   const [presenceFilter, setPresenceFilter] = useState<'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE'>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Game Content Archives
   const [activeUnitsCount, setActiveUnitsCount] = useState<number>(0);
@@ -92,19 +91,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   const [chaptersCount, setChaptersCount] = useState<number>(0);
 
   /**
-   * Fetches real telemetry metrics from backend endpoints in parallel.
+   * Fetches real telemetry metrics from backend endpoints in parallel
+   * utilizing the unified player presence engine synchronized with Unity_Pactkeeper.
    */
   const fetchRealTelemetry = async () => {
     setLoading(true);
     try {
-      const [uRes, bRes, pRes, hRes, sRes, mRes, cRes] = await Promise.allSettled([
+      const [uRes, bRes, pRes, hRes, cRes, stateRes, unifiedData] = await Promise.allSettled([
         adminClient.get('/UnitDefinition'),
         adminClient.get('/gachabanner'),
         adminClient.get('/topuppack/all'),
         adminClient.get('/payment/history'),
-        adminClient.get('/support/admin/players'),
-        adminClient.get('/Match/history'),
         adminClient.get('/ChapterConfig'),
+        adminClient.get('/admin/system-state'),
+        fetchUnifiedPlayerData(),
       ]);
 
       // 1. Game Archives
@@ -134,108 +134,22 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         setTotalRevenue(0);
       }
 
-      // 3. Match Telemetry & In-Battle Combatants
-      const activeMatchPlayerMap = new Map<string, { matchId: string; mode?: string }>();
-      let liveMatchesCount = 0;
-      let totalMatches = 0;
-
-      if (mRes.status === 'fulfilled' && Array.isArray(mRes.value.data)) {
-        const matches = mRes.value.data;
-        totalMatches = matches.length;
-
-        matches.forEach((m: any) => {
-          const s = (m.status || '').toLowerCase();
-          const isLive = s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
-          if (isLive) {
-            liveMatchesCount++;
-            const mId = m.matchId || m.id || '';
-            if (m.player1Id) activeMatchPlayerMap.set(m.player1Id, { matchId: mId, mode: m.mode });
-            if (m.player2Id) activeMatchPlayerMap.set(m.player2Id, { matchId: mId, mode: m.mode });
-          }
-        });
+      // 3. Unified Real-Time Player & Match Telemetry (Unity NGO & SignalR LobbyHub)
+      if (unifiedData.status === 'fulfilled') {
+        const d = unifiedData.value;
+        setTrackedPlayers(d.trackedPlayers);
+        setOnlinePlayersCount(d.counts.online);
+        setInMatchPlayersCount(d.counts.inBattle);
+        setActiveMatchesCount(d.activeMatchesCount);
+        setTotalMatchesCount(d.totalMatchesCount);
       }
 
-      setTotalMatchesCount(totalMatches);
-      setActiveMatchesCount(liveMatchesCount);
-      setInMatchPlayersCount(activeMatchPlayerMap.size);
-
-      // 4. Genuine Player Presence Recognition
-      const localPlayerId = sessionStorage.getItem('player_id') || sessionStorage.getItem('playerId') || sessionStorage.getItem('adminPlayerId') || localStorage.getItem('player_id') || localStorage.getItem('playerId');
-      const localUsername = sessionStorage.getItem('username') || sessionStorage.getItem('adminUsername') || localStorage.getItem('username') || 'Admin Counsel';
-
-      const playerMap = new Map<string, { username: string; lastSeen: string; isCurrentSession?: boolean }>();
-
-      // Active session user
-      if (localPlayerId) {
-        playerMap.set(localPlayerId, {
-          username: localUsername,
-          lastSeen: new Date().toISOString(),
-          isCurrentSession: true,
+      // 4. Emergency Server Override State
+      if (stateRes.status === 'fulfilled' && stateRes.value.data) {
+        setServerState({
+          loginBlocked: Boolean(stateRes.value.data.loginBlocked),
+          matchmakingBlocked: Boolean(stateRes.value.data.matchmakingBlocked),
         });
-      }
-
-      // Players from Support Roster
-      if (sRes.status === 'fulfilled' && Array.isArray(sRes.value.data)) {
-        sRes.value.data.forEach((p: any) => {
-          if (p.playerId) {
-            const existing = playerMap.get(p.playerId);
-            const resolvedName = (p.playerName || p.username || '').trim() || existing?.username || `Traveler #${p.playerId.slice(-4).toUpperCase()}`;
-            const time = p.latestMessageTime || p.lastMessageAt || existing?.lastSeen || '';
-            playerMap.set(p.playerId, {
-              username: resolvedName,
-              lastSeen: time,
-              isCurrentSession: existing?.isCurrentSession || false,
-            });
-          }
-        });
-      }
-
-      // Active Match Combatants
-      activeMatchPlayerMap.forEach((_, pid) => {
-        if (!playerMap.has(pid)) {
-          playerMap.set(pid, {
-            username: `Combatant #${pid.slice(-4).toUpperCase()}`,
-            lastSeen: new Date().toISOString(),
-          });
-        }
-      });
-
-      // Build verified roster
-      const roster: TrackedPlayerPresence[] = [];
-      let totalOnline = 0;
-
-      playerMap.forEach((data, pid) => {
-        const presence = getPlayerPresence(pid, activeMatchPlayerMap, data.lastSeen, data.isCurrentSession);
-        if (presence.state === 'Online' || presence.state === 'InBattle') {
-          totalOnline++;
-        }
-        roster.push({
-          playerId: pid,
-          username: data.username,
-          presence,
-          lastSeen: data.lastSeen,
-        });
-      });
-
-      // Sort by status priority: InBattle > Online > Offline
-      roster.sort((a, b) => {
-        const order = { InBattle: 0, Online: 1, Offline: 2 };
-        return order[a.presence.state] - order[b.presence.state];
-      });
-
-      setTrackedPlayers(roster);
-      setOnlinePlayersCount(totalOnline);
-
-      try {
-        const stateRes = await adminClient.get('/admin/system-state');
-        if (stateRes.data) {
-          setServerState({
-            loginBlocked: Boolean(stateRes.data.loginBlocked),
-            matchmakingBlocked: Boolean(stateRes.data.matchmakingBlocked),
-          });
-        }
-      } catch {
-        // Fall back to saved local state
       }
     } catch {
       setActiveUnitsCount(0);
@@ -245,7 +159,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       setTotalRevenue(0);
       setPaidOrdersCount(0);
       setTotalOrdersCount(0);
-      setOnlinePlayersCount(1);
+      setOnlinePlayersCount(0);
       setInMatchPlayersCount(0);
       setActiveMatchesCount(0);
       setTotalMatchesCount(0);
@@ -257,6 +171,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
   useEffect(() => {
     fetchRealTelemetry();
+
+    // Subscribe to live player presence updates (via SignalR LobbyHub & auto-polling)
+    const unsubscribe = subscribeToUnifiedPresence((data) => {
+      setTrackedPlayers(data.trackedPlayers);
+      setOnlinePlayersCount(data.counts.online);
+      setInMatchPlayersCount(data.counts.inBattle);
+      setActiveMatchesCount(data.activeMatchesCount);
+      setTotalMatchesCount(data.totalMatchesCount);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const toggleLoginStatus = async () => {
@@ -618,54 +543,66 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             </div>
           </div>
 
-          {/* Presence Filter Tabs */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setPresenceFilter('ALL')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                presenceFilter === 'ALL'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                  : 'bg-white/[0.04] text-slate-300 hover:text-white border border-white/[0.08]'
-              }`}
-            >
-              ALL ({trackedPlayers.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresenceFilter('ONLINE')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                presenceFilter === 'ONLINE'
-                  ? 'bg-emerald-500 text-slate-950 font-bold shadow'
-                  : 'bg-white/[0.04] text-emerald-300 hover:text-white border border-emerald-500/30'
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              ONLINE ({trackedPlayers.filter((p) => p.presence.state === 'Online').length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresenceFilter('BATTLE')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                presenceFilter === 'BATTLE'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                  : 'bg-white/[0.04] text-amber-300 hover:text-white border border-amber-500/30'
-              }`}
-            >
-              <Swords className="w-3 h-3 text-amber-400" />
-              IN BATTLE ({trackedPlayers.filter((p) => p.presence.state === 'InBattle').length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresenceFilter('OFFLINE')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                presenceFilter === 'OFFLINE'
-                  ? 'bg-slate-700 text-white font-bold shadow'
-                  : 'bg-white/[0.04] text-slate-400 hover:text-white border border-white/[0.08]'
-              }`}
-            >
-              OFFLINE ({trackedPlayers.filter((p) => p.presence.state === 'Offline').length})
-            </button>
+          {/* Presence Filter Tabs & Quick Search */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search Hero or Ref..."
+                className="bg-black/40 border border-white/[0.1] rounded-lg pl-8 pr-3 py-1 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-400/60 w-44 md:w-52"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setPresenceFilter('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  presenceFilter === 'ALL'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                    : 'bg-white/[0.04] text-slate-300 hover:text-white border border-white/[0.08]'
+                }`}
+              >
+                ALL ({trackedPlayers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresenceFilter('ONLINE')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  presenceFilter === 'ONLINE'
+                    ? 'bg-emerald-500 text-slate-950 font-bold shadow'
+                    : 'bg-white/[0.04] text-emerald-300 hover:text-white border border-emerald-500/30'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                ONLINE ({trackedPlayers.filter((p) => p.presence.state === 'Online').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresenceFilter('BATTLE')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  presenceFilter === 'BATTLE'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                    : 'bg-white/[0.04] text-amber-300 hover:text-white border border-amber-500/30'
+                }`}
+              >
+                <Swords className="w-3 h-3 text-amber-400" />
+                IN BATTLE ({trackedPlayers.filter((p) => p.presence.state === 'InBattle').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresenceFilter('OFFLINE')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  presenceFilter === 'OFFLINE'
+                    ? 'bg-slate-700 text-white font-bold shadow'
+                    : 'bg-white/[0.04] text-slate-400 hover:text-white border border-white/[0.08]'
+                }`}
+              >
+                OFFLINE ({trackedPlayers.filter((p) => p.presence.state === 'Offline').length})
+              </button>
+            </div>
           </div>
         </div>
 
@@ -677,103 +614,134 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             <p className="text-xs text-slate-500">Gateway telemetry is listening for hero logins in real-time.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-sans">
-              <thead className="bg-slate-950/70 text-slate-400 font-cinzel font-bold text-[11px] border-b border-white/[0.08] uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-5">Hero & Account</th>
-                  <th className="py-3 px-5">Presence Status</th>
-                  <th className="py-3 px-5">Active Realm Location</th>
-                  <th className="py-3 px-5 text-right">Last Telemetry</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04] text-slate-200">
-                {trackedPlayers
-                  .filter((p) => {
-                    if (presenceFilter === 'ONLINE') return p.presence.state === 'Online';
-                    if (presenceFilter === 'BATTLE') return p.presence.state === 'InBattle';
-                    if (presenceFilter === 'OFFLINE') return p.presence.state === 'Offline';
-                    return true;
-                  })
-                  .map((player) => (
-                    <tr key={player.playerId} className="hover:bg-white/[0.03] transition-colors">
-                      {/* Hero Info */}
-                      <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <div className="w-9 h-9 rounded-xl bg-slate-900 border border-white/[0.1] flex items-center justify-center text-amber-400 font-bold text-xs font-cinzel shrink-0 shadow">
-                              {player.username.slice(0, 2).toUpperCase()}
+          <div>
+            <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+              <table className="w-full text-left text-xs font-sans">
+                <thead className="bg-slate-950/90 sticky top-0 z-10 text-slate-400 font-cinzel font-bold text-[11px] border-b border-white/[0.08] uppercase tracking-wider backdrop-blur-md">
+                  <tr>
+                    <th className="py-3 px-5">Hero & Account</th>
+                    <th className="py-3 px-5">Presence Status</th>
+                    <th className="py-3 px-5">Active Realm Location</th>
+                    <th className="py-3 px-5 text-right">Last Telemetry</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04] text-slate-200">
+                  {trackedPlayers
+                    .filter((p) => {
+                      if (presenceFilter === 'ONLINE' && p.presence.state !== 'Online') return false;
+                      if (presenceFilter === 'BATTLE' && p.presence.state !== 'InBattle') return false;
+                      if (presenceFilter === 'OFFLINE' && p.presence.state !== 'Offline') return false;
+                      if (searchQuery.trim()) {
+                        const q = searchQuery.toLowerCase().trim();
+                        return p.username.toLowerCase().includes(q) || p.playerId.toLowerCase().includes(q);
+                      }
+                      return true;
+                    })
+                    .map((player) => (
+                      <tr key={player.playerId} className="hover:bg-white/[0.03] transition-colors">
+                        {/* Hero Info */}
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <div className="w-9 h-9 rounded-xl bg-slate-900 border border-white/[0.1] flex items-center justify-center text-amber-400 font-bold text-xs font-cinzel shrink-0 shadow">
+                                {player.username.slice(0, 2).toUpperCase()}
+                              </div>
+                              <span
+                                className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080a0f] ${player.presence.dotColor}`}
+                                title={player.presence.label}
+                              />
                             </div>
-                            <span
-                              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080a0f] ${player.presence.dotColor}`}
-                              title={player.presence.label}
-                            />
-                          </div>
-                          <div>
-                            <span className="font-semibold text-slate-100 text-xs block">
-                              {player.username}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[11px] font-mono text-slate-400">
-                                Ref: #{player.playerId.slice(-6).toUpperCase()}
+                            <div>
+                              <span className="font-semibold text-slate-100 text-xs block">
+                                {player.username}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(player.playerId);
-                                  setMessage({
-                                    text: `Copied Player ID for ${player.username} to clipboard.`,
-                                    type: 'success',
-                                  });
-                                }}
-                                className="text-amber-400 hover:text-amber-300 transition-colors p-0.5"
-                                title={`Copy full ID: ${player.playerId}`}
-                              >
-                                <Copy className="w-3 h-3" />
-                              </button>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[11px] font-mono text-slate-400">
+                                  Ref: #{player.playerId.slice(-6).toUpperCase()}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(player.playerId);
+                                    setMessage({
+                                      text: `Copied Player ID for ${player.username} to clipboard.`,
+                                      type: 'success',
+                                    });
+                                  }}
+                                  className="text-amber-400 hover:text-amber-300 transition-colors p-0.5"
+                                  title={`Copy full ID: ${player.playerId}`}
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Presence Badge */}
-                      <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1.5 border shadow-sm ${player.presence.badgeBg} ${player.presence.badgeBorder} ${player.presence.badgeText}`}
-                          >
-                            {player.presence.state === 'InBattle' && <Swords className="w-3 h-3 animate-bounce" />}
-                            {player.presence.state === 'Online' && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            )}
-                            {player.presence.state === 'Offline' && <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
-                            {player.presence.label}
-                          </span>
-                          {player.presence.state === 'InBattle' && (
-                            <Link
-                              to="/matches"
-                              className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all shadow-sm"
-                              title="Inspect Dedicated Server Log for this Battle"
+                        {/* Presence Badge */}
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1.5 border shadow-sm ${player.presence.badgeBg} ${player.presence.badgeBorder} ${player.presence.badgeText}`}
                             >
-                              <Terminal className="w-3 h-3" /> LOGS
-                            </Link>
-                          )}
-                        </div>
-                      </td>
+                              {player.presence.state === 'InBattle' && <Swords className="w-3 h-3 animate-bounce" />}
+                              {player.presence.state === 'Online' && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              )}
+                              {player.presence.state === 'Offline' && <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
+                              {player.presence.label}
+                            </span>
+                            {player.presence.state === 'InBattle' && (
+                              <Link
+                                to="/matches"
+                                className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all shadow-sm"
+                                title="Inspect Dedicated Server Log for this Battle"
+                              >
+                                <Terminal className="w-3 h-3" /> LOGS
+                              </Link>
+                            )}
+                          </div>
+                        </td>
 
-                      {/* Active Location */}
-                      <td className="py-3.5 px-5 font-mono text-xs text-slate-300">
-                        {player.presence.activityDescription}
-                      </td>
+                        {/* Active Location */}
+                        <td className="py-3.5 px-5 font-mono text-xs text-slate-300">
+                          {player.presence.activityDescription}
+                        </td>
 
-                      {/* Last Telemetry */}
-                      <td className="py-3.5 px-5 text-right font-mono text-xs text-slate-400">
-                        {player.presence.relativeTime}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+                        {/* Last Telemetry */}
+                        <td className="py-3.5 px-5 text-right font-mono text-xs text-slate-400">
+                          {player.presence.relativeTime}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Roster Footer with link to full accounts manager */}
+            <div className="p-3 bg-slate-950/80 border-t border-white/[0.08] flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>
+                Showing {
+                  trackedPlayers.filter((p) => {
+                    if (presenceFilter === 'ONLINE' && p.presence.state !== 'Online') return false;
+                    if (presenceFilter === 'BATTLE' && p.presence.state !== 'InBattle') return false;
+                    if (presenceFilter === 'OFFLINE' && p.presence.state !== 'Offline') return false;
+                    if (searchQuery.trim()) {
+                      const q = searchQuery.toLowerCase().trim();
+                      return p.username.toLowerCase().includes(q) || p.playerId.toLowerCase().includes(q);
+                    }
+                    return true;
+                  }).length
+                } of {trackedPlayers.length} Heroes across Realm
+              </span>
+              <Link
+                to="/players"
+                className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition-colors font-cinzel"
+              >
+                <span>MANAGE IN ACCOUNTS</span>
+                <span>&rarr;</span>
+              </Link>
+            </div>
           </div>
         )}
       </div>

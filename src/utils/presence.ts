@@ -1,10 +1,23 @@
 /**
  * Utility functions for genuine Player Presence detection across Pactkeeper Realm.
  * 
- * Rules for accurate presence recognition (100% Swagger grounded):
- * 1. IN BATTLE (⚔️): Player is registered as player1Id or player2Id in an ongoing match session (/api/Match/history status: InProgress / Active / Playing).
- * 2. ONLINE (🟢): Player has recent missive or activity timestamp within 30 minutes, or is the currently authenticated session user.
- * 3. OFFLINE (⚪): Player has no ongoing battle and last activity was > 30 minutes ago.
+ * Synchronized with Unity_Pactkeeper client architecture:
+ * 1. IN BATTLE (⚔️):
+ *    - Player is player1Id or player2Id in an ongoing match session (/api/Match/history).
+ *    - Status: 'pending', 'active', 'inprogress', 'playing', 'running' (matching NGO dedicated server).
+ *    - Real-time status: 'in_match'.
+ *    - Location reflects PvP Match ID and mode (e.g. PvP Duel, Ranked Arena, Friendly Match).
+ * 
+ * 2. ONLINE (🟢):
+ *    - Player is connected to LobbyHub SignalR (/hubs/lobby), or
+ *    - Active in 3_MainMenu (Lobby & Realm Sanctuary) with recent telemetry, or
+ *    - Currently authenticated session user in High Counsel Admin Portal.
+ *    - Real-time status: 'idle' or explicit online flag.
+ * 
+ * 3. OFFLINE (⚪):
+ *    - Player is not in match and has no active connection/session.
+ *    - Location: 'Inactive'.
+ *    - Relative time reflects time elapsed since last verified telemetry.
  */
 
 export type PlayerPresenceState = 'Online' | 'InBattle' | 'Offline';
@@ -18,6 +31,31 @@ export interface PlayerPresenceInfo {
   badgeText: string;
   relativeTime: string;
   activityDescription: string;
+  activeMatch?: ActiveMatchInfo;
+}
+
+export interface ActiveMatchInfo {
+  matchId: string;
+  mode?: string;
+  serverIp?: string;
+  serverPort?: number;
+  status?: string;
+}
+
+export interface PresenceEvaluationOptions {
+  isCurrentSessionUser?: boolean;
+  isOnlineExplicit?: boolean;
+  realtimeStatus?: 'idle' | 'in_match' | 'offline' | string | null;
+}
+
+/**
+ * Checks whether a match status string or integer indicates an active battle in Unity/NGO.
+ */
+export function isActiveMatchStatus(status?: string | number | null): boolean {
+  if (status === null || status === undefined) return false;
+  if (typeof status === 'number') return status === 1;
+  const s = String(status).trim().toLowerCase();
+  return ['pending', 'active', 'inprogress', 'playing', 'running'].includes(s);
 }
 
 /**
@@ -68,21 +106,35 @@ export function isWithinMinutes(timestamp?: string | Date | null, minutes: numbe
 
 /**
  * Evaluates the genuine presence of a player based on active matches,
- * recent support messages, and authentication states.
+ * Unity LobbyHub connections, recent telemetry, and authentication states.
  */
 export function getPlayerPresence(
   playerId: string,
-  activeMatchPlayerMap: Map<string, { matchId: string; mode?: string }>,
+  activeMatchPlayerMap: Map<string, ActiveMatchInfo>,
   lastActivityTimestamp?: string | Date | null,
-  isCurrentSessionUser: boolean = false
+  optionsOrSessionUser?: boolean | PresenceEvaluationOptions
 ): PlayerPresenceInfo {
+  const options: PresenceEvaluationOptions =
+    typeof optionsOrSessionUser === 'boolean'
+      ? { isCurrentSessionUser: optionsOrSessionUser }
+      : optionsOrSessionUser || {};
+
+  const isCurrentSessionUser = Boolean(options.isCurrentSessionUser);
+  const isOnlineExplicit = Boolean(options.isOnlineExplicit);
+  const realtimeStatus = options.realtimeStatus?.toLowerCase();
+
   const relativeTime = formatRelativeTime(lastActivityTimestamp);
 
-  // 1. Check if currently engaged in a live match
-  if (activeMatchPlayerMap.has(playerId)) {
-    const match = activeMatchPlayerMap.get(playerId)!;
-    const matchRef = match.matchId ? `#${match.matchId.slice(-4).toUpperCase()}` : '';
-    const modeLabel = match.mode ? ` (${match.mode})` : '';
+  // 1. Check if currently engaged in a live match (In Battle)
+  if (activeMatchPlayerMap.has(playerId) || realtimeStatus === 'in_match') {
+    const match = activeMatchPlayerMap.get(playerId) || { matchId: 'LIVE', mode: 'pvp' };
+    const matchRef = match.matchId && match.matchId !== 'LIVE' ? `#${match.matchId.slice(-4).toUpperCase()}` : '#LIVE';
+    const rawMode = (match.mode || 'pvp').toLowerCase();
+
+    let modeDescription = 'PvP Match';
+    if (rawMode === 'ranked') modeDescription = 'Ranked Arena';
+    else if (rawMode === 'friendly') modeDescription = 'Friendly Duel';
+    else if (rawMode === 'story') modeDescription = 'Story Campaign';
 
     return {
       state: 'InBattle',
@@ -92,13 +144,28 @@ export function getPlayerPresence(
       badgeBorder: 'border-[#f59e0b]/60',
       badgeText: 'text-[#fcd34d]',
       relativeTime: 'Active now',
-      activityDescription: `PvP Match ${matchRef}${modeLabel}`,
+      activityDescription: `${modeDescription} ${matchRef}`,
+      activeMatch: match,
     };
   }
 
-  // 2. Check if genuinely online (interaction within 30 mins or currently logged in)
+  // 2. Check if genuinely online (in Unity 3_MainMenu Sanctuary, LobbyHub WebSocket, or active Admin session)
   const isRecentlyActive = isWithinMinutes(lastActivityTimestamp, 30);
-  if (isRecentlyActive || isCurrentSessionUser) {
+  const isOnlineInLobby =
+    isOnlineExplicit ||
+    realtimeStatus === 'idle' ||
+    realtimeStatus === 'online' ||
+    isCurrentSessionUser ||
+    isRecentlyActive;
+
+  if (isOnlineInLobby) {
+    let locationDescription = 'Lobby & Realm Sanctuary';
+    if (isCurrentSessionUser) {
+      locationDescription = 'High Counsel Admin Portal';
+    } else if (isRecentlyActive && lastActivityTimestamp) {
+      locationDescription = 'Lobby & Realm Explorer';
+    }
+
     return {
       state: 'Online',
       label: 'ONLINE',
@@ -107,7 +174,7 @@ export function getPlayerPresence(
       badgeBorder: 'border-[#10b981]/60',
       badgeText: 'text-[#86efac]',
       relativeTime: isCurrentSessionUser ? 'Active now' : relativeTime,
-      activityDescription: isCurrentSessionUser ? 'Admin Portal Session' : 'Lobby & Realm Explorer',
+      activityDescription: locationDescription,
     };
   }
 
