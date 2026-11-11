@@ -429,27 +429,35 @@ export const ContentManagement: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-8 font-sans">
+    <div className="space-y-6 pb-8 font-sans select-none">
       {/* Astral Header Banner */}
-      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      <div className="hy-glass p-6 md:p-8 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
+        {/* Ornate Corner Marks */}
+        <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
+        <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+
         <div 
-          className="absolute -top-16 -right-16 w-64 h-64 bg-amber-500/[0.06] rounded-full blur-3xl pointer-events-none" 
+          className="absolute -top-16 -right-16 w-80 h-80 bg-amber-500/[0.08] rounded-full blur-3xl pointer-events-none" 
+          aria-hidden="true" 
+        />
+        <div 
+          className="absolute -bottom-16 -left-16 w-72 h-72 bg-cyan-500/[0.05] rounded-full blur-3xl pointer-events-none" 
           aria-hidden="true" 
         />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase font-bold tracking-wider">
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 uppercase font-bold tracking-wider shadow-[0_0_12px_rgba(242,191,78,0.15)]">
                 GAME DESIGN ARCHIVES • MONGODB
               </span>
               <span className="text-slate-500 text-xs">•</span>
               <span className="text-xs text-slate-400 font-mono">6 Core SRPG Domains with Full CRUD</span>
             </div>
-            <h1 className="text-xl md:text-2xl font-extrabold tracking-wide font-cinzel uppercase gold-gradient-text">
+            <h1 className="text-xl md:text-3xl font-extrabold tracking-wide font-cinzel uppercase hy-gold-text">
               SRPG ARCHIVES & ARMORY DEFINITIONS
             </h1>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-300 mt-1 max-w-2xl font-sans">
               Live Game Content CMS: In-browser Create, Edit & Delete for Weapons, Heroes, Trinkets, Classes, Chapters & Skills.
             </p>
           </div>
@@ -457,9 +465,9 @@ export const ContentManagement: React.FC = () => {
           <button
             onClick={fetchContent}
             disabled={loading}
-            className="btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 self-start md:self-auto shadow transition-all disabled:opacity-50"
+            className="hy-btn-gold px-4 py-2 text-xs font-bold flex items-center gap-2 self-start md:self-auto shadow-lg disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-950 ${loading ? 'animate-spin' : ''}`} />
             <span>SYNC ARCHIVES</span>
           </button>
         </div>
@@ -471,7 +479,7 @@ export const ContentManagement: React.FC = () => {
           onClick={() => setActiveTab('units')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'units'
-              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow'
+              ? 'hy-tab-active'
               : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
           }`}
         >
@@ -481,7 +489,7 @@ export const ContentManagement: React.FC = () => {
           onClick={() => setActiveTab('chapters')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'chapters'
-              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow'
+              ? 'hy-tab-active'
               : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
           }`}
         >
@@ -491,7 +499,7 @@ export const ContentManagement: React.FC = () => {
           onClick={() => setActiveTab('weapons')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'weapons'
-              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow'
+              ? 'hy-tab-active'
               : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
           }`}
         >
@@ -501,7 +509,7 @@ export const ContentManagement: React.FC = () => {
           onClick={() => setActiveTab('trinkets')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'trinkets'
-              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow'
+              ? 'hy-tab-active'
               : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
           }`}
         >
@@ -511,7 +519,7 @@ export const ContentManagement: React.FC = () => {
           onClick={() => setActiveTab('classes')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'classes'
-              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow'
+              ? 'hy-tab-active'
               : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
           }`}
         >
@@ -521,7 +529,7 @@ export const ContentManagement: React.FC = () => {
           onClick={() => setActiveTab('skills')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'skills'
-              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow'
+              ? 'hy-tab-active'
               : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
           }`}
         >
@@ -531,7 +539,7 @@ export const ContentManagement: React.FC = () => {
 
       {/* 1. Units Tab */}
       {activeTab === 'units' && (
-        <div className="glass-panel rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div className="hy-glass rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
           <div className="p-4 bg-white/[0.02] border-b border-white/[0.08] flex items-center justify-between text-xs font-semibold">
             <span className="text-slate-200 uppercase font-cinzel font-bold">SRPG HERO DEFINITIONS (/api/UnitDefinition)</span>
             <button

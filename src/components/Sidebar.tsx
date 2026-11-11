@@ -11,7 +11,8 @@ import {
   Activity,
   Swords,
   MessageSquare,
-  Radio
+  Radio,
+  ExternalLink
 } from 'lucide-react';
 import type { CounselRole } from '../types';
 
@@ -23,10 +24,11 @@ interface SidebarProps {
 /**
  * Sidebar Navigation Component for PactKeeper High Counsel
  * 
- * Re-architected in accordance with HoYoverse Game Launcher & SRS Report 3 RBAC Matrix:
- * - Admin: View Admin Dashboard, Manage User Accounts, PayOS Revenue Ledger
- * - Moderator: Gacha/Story Config, Item/Combat Reward Config, Inspect PvP Match & Teams
- * - Technical Support: Monitor System Status, Configure System Overrides & Live Support
+ * Remade to HoYoverse Game Launcher & Portal Standards:
+ * - Luxury cosmic obsidian navigation with fine 1px golden borders
+ * - Active route items with celestial gold indicator, ambient glow, and tags
+ * - Real-time Server Cluster telemetry beacon
+ * - Direct shortcut link to Player Web Top-Up portal
  */
 export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
   const isTechSupport = role === 'Technical Support' || role === 'Support';
@@ -101,28 +103,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
   };
 
   return (
-    <aside className="w-68 bg-[#0b0e17]/90 backdrop-blur-2xl border-r border-white/[0.08] flex flex-col h-screen sticky top-0 z-30 shadow-[4px_0_30px_rgba(0,0,0,0.7)] text-[#f8fafc] select-none">
+    <aside className="w-68 bg-[#070a14]/95 backdrop-blur-2xl border-r border-white/[0.08] flex flex-col h-screen sticky top-0 z-30 shadow-[4px_0_35px_rgba(0,0,0,0.75)] text-[#f8fafc] select-none">
       {/* Brand Launcher Header */}
-      <div className="p-5 border-b border-white/[0.08] flex items-center gap-3.5 bg-gradient-to-b from-white/[0.03] to-transparent">
+      <div className="p-5 border-b border-white/[0.08] flex items-center gap-3.5 bg-gradient-to-b from-white/[0.04] to-transparent">
         <div className="relative group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-700 p-0.5 shadow-[0_0_20px_rgba(245,158,11,0.25)] shrink-0 transition-transform duration-300 group-hover:scale-105">
-            <div className="w-full h-full bg-[#0b0e17] rounded-[10px] flex items-center justify-center">
-              <Crown className="w-5 h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 p-0.5 shadow-[0_0_20px_rgba(242,191,78,0.3)] shrink-0 transition-transform duration-300 group-hover:scale-105">
+            <div className="w-full h-full bg-[#0c1022] rounded-[10px] flex items-center justify-center">
+              <Crown className="w-5 h-5 text-amber-300 drop-shadow-[0_0_8px_rgba(242,191,78,0.6)]" />
             </div>
           </div>
           {/* Subtle Online Pulse Ring */}
           <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-[#0b0e17]" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-[#070a14]" />
           </span>
         </div>
 
         <div className="min-w-0">
-          <h1 className="font-extrabold tracking-wider text-base uppercase font-cinzel leading-none gold-gradient-text">
+          <h1 className="font-extrabold tracking-wider text-base uppercase font-cinzel leading-none hy-gold-text">
             PACTKEEPER
           </h1>
           <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="text-[10px] font-mono tracking-wider px-1.5 py-0.5 rounded bg-white/[0.06] text-slate-300 border border-white/[0.08]">
+            <span className="text-[10px] font-mono tracking-wider px-1.5 py-0.5 rounded bg-white/[0.06] text-amber-200 border border-white/[0.08]">
               v2.4.0
             </span>
             <span className="text-[11px] text-slate-400 uppercase tracking-wide font-sans truncate">
@@ -136,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
       <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
         <div className="px-3 mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 font-cinzel">
           <span>{getSectionTitle()}</span>
-          <span className="text-amber-500/70 text-xs">❖</span>
+          <span className="text-amber-400/80 text-xs">❖</span>
         </div>
 
         {visibleNavItems.map((item) => {
@@ -146,15 +148,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `group relative flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 tracking-wide ${
+                `group relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 tracking-wide ${
                   isActive
-                    ? 'bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent text-amber-300 font-semibold border-l-2 border-amber-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                    ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent text-amber-300 font-semibold border-l-2 border-amber-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
                     : 'text-slate-300 hover:text-white hover:bg-white/[0.04] border-l-2 border-transparent'
                 }`
               }
             >
               <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4 text-slate-400 group-hover:text-amber-400 transition-colors group-hover:scale-110 duration-200" />
+                <Icon className="w-4 h-4 text-slate-400 group-hover:text-amber-300 transition-colors group-hover:scale-110 duration-200" />
                 <span className="truncate">{item.label}</span>
               </div>
               <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-black/40 text-slate-400 border border-white/[0.06] group-hover:border-amber-400/30 group-hover:text-amber-300 transition-colors">
@@ -163,16 +165,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
             </NavLink>
           );
         })}
+
+        {/* External Web Top-Up Shortcut */}
+        <div className="pt-2 mt-2 border-t border-white/[0.06]">
+          <a
+            href="http://localhost:5174/profile/topup"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium text-amber-200/80 hover:text-amber-200 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all tracking-wide"
+          >
+            <div className="flex items-center gap-3">
+              <Gem className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span>Web Top-Up Center</span>
+            </div>
+            <ExternalLink className="w-3.5 h-3.5 text-amber-400/80" />
+          </a>
+        </div>
       </nav>
 
       {/* Dedicated Server Cluster Status Card */}
-      <div className="p-3.5 mx-3 mb-3 rounded-xl bg-[#0e1320]/80 border border-white/[0.08] shadow-inner text-xs space-y-2">
+      <div className="p-3.5 mx-3 mb-3 rounded-xl bg-[#12182e]/80 border border-white/[0.08] shadow-inner text-xs space-y-2">
         <div className="flex items-center justify-between font-semibold">
           <span className="text-[11px] uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
             <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
             <span>REALM CLUSTER</span>
           </span>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 font-bold">
             ONLINE
           </span>
         </div>
@@ -180,20 +198,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
         <div className="text-[11px] text-slate-400 space-y-1 font-mono pt-1 border-t border-white/[0.06]">
           <div className="flex justify-between items-center">
             <span className="text-slate-400 font-sans">NGO Instance:</span>
-            <span className="text-slate-200">Ports 7777–7800</span>
+            <span className="text-slate-200">Port 7777</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-slate-400 font-sans">Active Role:</span>
-            <span className="text-amber-400 uppercase font-bold">{role}</span>
+            <span className="text-amber-300 uppercase font-bold">{role}</span>
           </div>
         </div>
       </div>
 
       {/* Logout Action */}
-      <div className="p-3.5 border-t border-white/[0.08] bg-black/30">
+      <div className="p-3.5 border-t border-white/[0.08] bg-black/40">
         <button
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] hover:bg-rose-950/40 text-slate-300 hover:text-rose-200 border border-white/[0.08] hover:border-rose-500/40 text-xs font-semibold tracking-wider transition-all duration-200 shadow active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-rose-950/40 text-slate-300 hover:text-rose-200 border border-white/[0.08] hover:border-rose-500/40 text-xs font-semibold tracking-wider transition-all duration-200 shadow active:scale-[0.98]"
         >
           <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-300" />
           <span>EXIT COUNSEL</span>

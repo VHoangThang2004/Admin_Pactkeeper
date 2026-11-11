@@ -310,28 +310,36 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   };
 
   return (
-    <div className="space-y-6 pb-8 font-sans">
+    <div className="space-y-6 pb-8 font-sans select-none">
       {/* Top Astral Command Header Banner */}
-      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      <div className="hy-glass p-6 md:p-8 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
+        {/* Ornate HoYoverse Corner Marks */}
+        <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
+        <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+
         {/* Subtle ambient light orb */}
         <div 
-          className="absolute -top-16 -right-16 w-64 h-64 bg-amber-500/[0.06] rounded-full blur-3xl pointer-events-none" 
+          className="absolute -top-16 -right-16 w-80 h-80 bg-amber-500/[0.08] rounded-full blur-3xl pointer-events-none" 
+          aria-hidden="true" 
+        />
+        <div 
+          className="absolute -bottom-16 -left-16 w-72 h-72 bg-cyan-500/[0.05] rounded-full blur-3xl pointer-events-none" 
           aria-hidden="true" 
         />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase font-bold tracking-wider">
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 uppercase font-bold tracking-wider shadow-[0_0_12px_rgba(242,191,78,0.15)]">
                 TACTICAL COMMAND HQ
               </span>
               <span className="text-slate-500 text-xs">•</span>
               <span className="text-xs text-slate-400 font-mono">Live Telemetry & Controls</span>
             </div>
-            <h1 className="text-xl md:text-2xl font-extrabold tracking-wide font-cinzel uppercase gold-gradient-text">
+            <h1 className="text-xl md:text-3xl font-extrabold tracking-wide font-cinzel uppercase hy-gold-text">
               {isTechSupport ? 'SYSTEM STATUS & TELEMETRY MONITOR' : 'TREASURY & REALM COMMAND'}
             </h1>
-            <p className="text-xs md:text-sm text-slate-400 mt-1">
+            <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-2xl">
               {isTechSupport
                 ? 'Technical Support Station: Monitor System/Server Status and Configure System Overrides'
                 : 'Admin Dashboard: Live Telemetry, Player Concurrency, Revenue and High Counsel Controls'}
@@ -340,9 +348,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
           <button
             onClick={fetchRealTelemetry}
-            className="btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 self-start md:self-auto shadow transition-all"
+            className="hy-btn-gold px-4 py-2 text-xs font-bold flex items-center gap-2 self-start md:self-auto shadow-lg"
           >
-            <RotateCcw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
+            <RotateCcw className={`w-3.5 h-3.5 text-slate-950 ${loading ? 'animate-spin' : ''}`} />
             <span>SYNC DATA</span>
           </button>
         </div>
@@ -372,26 +380,26 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       )}
 
       {/* Keeper Profile & Primary Metric Box */}
-      <div className="glass-panel p-6 rounded-2xl space-y-4 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div className="hy-glass p-6 md:p-7 rounded-2xl space-y-4 border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
           <div>
-            <span className="text-[11px] font-mono text-amber-400 uppercase font-bold tracking-wider block">
+            <span className="text-[11px] font-mono text-amber-300 uppercase font-bold tracking-wider block">
               {isTechSupport ? 'TECHNICAL SUPPORT & INFRASTRUCTURE' : 'HIGH COUNSEL RECORD OFFICE'}
             </span>
-            <h2 className="text-xl font-extrabold text-slate-100 tracking-wide font-cinzel mt-0.5">
+            <h2 className="text-xl md:text-2xl font-extrabold text-slate-100 tracking-wide font-cinzel mt-0.5">
               {isTechSupport ? 'SYSTEM MONITOR & SERVER NODES' : 'KEEPER OF RECORDS'}
             </h2>
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono flex items-center gap-1.5">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 text-[10px] font-bold font-mono flex items-center gap-1.5 shadow-[0_0_10px_rgba(16,185,129,0.15)]">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 GATEWAY LIVE
               </span>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-700 p-0.5 shadow-[0_0_16px_rgba(245,158,11,0.25)] flex items-center justify-center">
-              <div className="w-full h-full bg-[#090b11] rounded-[10px] flex items-center justify-center">
-                <Crown className="w-6 h-6 text-amber-400" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-300 to-amber-700 p-0.5 shadow-[0_0_18px_rgba(242,191,78,0.3)] flex items-center justify-center">
+              <div className="w-full h-full bg-[#0c1022] rounded-[10px] flex items-center justify-center">
+                <Crown className="w-6 h-6 text-amber-300" />
               </div>
             </div>
           </div>
@@ -399,22 +407,22 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
         {/* Current Realm Revenue Box (Admin) OR Server Nodes Status (Tech Support) */}
         {!isTechSupport ? (
-          <div className="p-4 rounded-xl bg-black/40 border border-amber-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
+          <div className="p-4 md:p-5 rounded-xl bg-[#090d1a] border border-amber-400/25 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
             <div>
               <span className="text-xs text-slate-400 uppercase font-cinzel font-bold block tracking-wider">
                 CURRENT REALM TREASURY REVENUE (PAYOS LEDGER)
               </span>
               <div className="flex items-center gap-3 mt-1.5">
-                <div className="w-10 h-10 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-300 shadow-[0_0_12px_rgba(242,191,78,0.2)]">
                   <Coins className="w-5 h-5" />
                 </div>
-                <span className="text-2xl md:text-3xl font-extrabold font-mono text-amber-300">
+                <span className="text-2xl md:text-3xl font-extrabold font-mono text-amber-300 tracking-tight">
                   {totalRevenue.toLocaleString()} VND
                 </span>
               </div>
             </div>
             <div className="text-left md:text-right space-y-0.5 font-mono">
-              <span className="text-xs text-amber-400 font-bold block">
+              <span className="text-xs text-amber-300 font-bold block">
                 {paidOrdersCount} / {totalOrdersCount} Completed Receipts
               </span>
               <span className="text-xs text-slate-400 block font-sans">
@@ -423,13 +431,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             </div>
           </div>
         ) : (
-          <div className="p-4 rounded-xl bg-black/40 border border-emerald-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
+          <div className="p-4 md:p-5 rounded-xl bg-[#090d1a] border border-emerald-500/25 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-inner">
             <div>
               <span className="text-xs text-slate-400 uppercase font-cinzel font-bold block tracking-wider">
                 SERVER NODES & DEDICATED INSTANCES (SCREEN 41 & 42)
               </span>
               <div className="flex items-center gap-3 mt-1.5">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-400">
                   <Server className="w-5 h-5" />
                 </div>
                 <span className="text-2xl md:text-3xl font-extrabold font-mono text-emerald-300">
@@ -438,7 +446,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               </div>
             </div>
             <div className="text-left md:text-right space-y-0.5 font-mono">
-              <span className="text-xs text-emerald-400 font-bold block">
+              <span className="text-xs text-emerald-300 font-bold block">
                 UDP Port Pool: 7777 - 7800 • Ubuntu 22.04 LTS
               </span>
               <span className="text-xs text-slate-400 block font-sans">
@@ -459,20 +467,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       {/* 4 Cards: Live Population & Match Telemetry */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Online Players (CCU) */}
-        <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+        <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-emerald-500/20 hover:border-emerald-500/50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">
                 ONLINE PLAYERS (CCU)
               </p>
-              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono">
+              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono tracking-tight">
                 {onlinePlayersCount} Online
               </h3>
               <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-1">
                 <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> Live Hub Active
               </span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.2)]">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.2)]">
               <Users className="w-6 h-6" />
             </div>
           </div>
@@ -483,20 +491,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         </div>
 
         {/* Card 2: Players In Matches */}
-        <div className="glass-card-cyan p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+        <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-cyan-500/20 hover:border-cyan-500/50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">
                 IN-MATCH PLAYERS
               </p>
-              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono">
+              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono tracking-tight">
                 {inMatchPlayersCount} Combatants
               </h3>
               <span className="text-xs text-cyan-400 font-medium flex items-center gap-1.5 mt-1">
                 <Flame className="w-3.5 h-3.5 text-cyan-400" /> {activeMatchesCount} Active Battles
               </span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.2)]">
+            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/35 flex items-center justify-center text-cyan-400 shadow-[0_0_16px_rgba(6,182,212,0.2)]">
               <Swords className="w-6 h-6" />
             </div>
           </div>
@@ -516,7 +524,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         </div>
 
         {/* Card 3: Matchmaking Queue Status */}
-        <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+        <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-amber-400/20 hover:border-amber-400/50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">
@@ -533,7 +541,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                 {serverState.matchmakingBlocked ? 'Emergency Lock Engaged' : 'Auto Match Allocation'}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.2)]">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-300 shadow-[0_0_16px_rgba(242,191,78,0.2)]">
               <Clock className="w-6 h-6" />
             </div>
           </div>
@@ -545,20 +553,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
         {/* Card 4: PayOS Transactions Summary (Admin) OR Dedicated Servers Status (Tech Support) */}
         {!isTechSupport ? (
-          <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+          <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-amber-400/20 hover:border-amber-400/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">
                   TREASURY RECEIPTS
                 </p>
-                <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono">
+                <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono tracking-tight">
                   {paidOrdersCount} Paid
                 </h3>
                 <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Webhooks Verified
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.2)]">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-300 shadow-[0_0_16px_rgba(242,191,78,0.2)]">
                 <Coins className="w-6 h-6" />
               </div>
             </div>
@@ -568,20 +576,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             </div>
           </div>
         ) : (
-          <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+          <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-indigo-500/20 hover:border-indigo-500/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">
                   NETCODE INSTANCES
                 </p>
-                <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono">
+                <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono tracking-tight">
                   {activeMatchesCount} Live
                 </h3>
                 <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-1">
                   <Server className="w-3.5 h-3.5" /> Dedicated Processes
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-[0_0_14px_rgba(99,102,241,0.2)]">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/15 border border-indigo-500/35 flex items-center justify-center text-indigo-400 shadow-[0_0_16px_rgba(99,102,241,0.2)]">
                 <Server className="w-6 h-6" />
               </div>
             </div>
@@ -594,7 +602,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       </div>
 
       {/* Real-Time Hero Presence Roster */}
-      <div className="glass-panel rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)] my-6">
+      <div className="hy-glass rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)] my-6">
         <div className="p-4 bg-white/[0.02] border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -780,16 +788,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       {/* 4 Cards: Game Content & Server State */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Heroes Count */}
-        <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+        <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-indigo-500/20 hover:border-indigo-500/50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">HERO ARCHIVES</p>
-              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono">{activeUnitsCount} Heroes</h3>
+              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono tracking-tight">{activeUnitsCount} Heroes</h3>
               <span className="text-xs text-indigo-400 font-medium flex items-center gap-1 mt-1 font-mono">
                 <Swords className="w-3.5 h-3.5" /> MongoDB Collection
               </span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-[0_0_14px_rgba(99,102,241,0.2)]">
+            <div className="w-12 h-12 rounded-xl bg-indigo-500/15 border border-indigo-500/35 flex items-center justify-center text-indigo-400 shadow-[0_0_16px_rgba(99,102,241,0.2)]">
               <Swords className="w-6 h-6" />
             </div>
           </div>
@@ -800,16 +808,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         </div>
 
         {/* Card 2: Summon Banners */}
-        <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+        <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-amber-400/20 hover:border-amber-400/50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">SUMMON BANNERS</p>
-              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono">{bannersCount} Banners</h3>
+              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono tracking-tight">{bannersCount} Banners</h3>
               <span className="text-xs text-amber-400 font-medium flex items-center gap-1 mt-1">
                 <Gem className="w-3.5 h-3.5 text-amber-400" /> Active Gacha Pools
               </span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.2)]">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-300 shadow-[0_0_16px_rgba(242,191,78,0.2)]">
               <Gem className="w-6 h-6" />
             </div>
           </div>
@@ -820,16 +828,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         </div>
 
         {/* Card 3: Story Chapters */}
-        <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+        <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-emerald-500/20 hover:border-emerald-500/50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">STORY CHAPTERS</p>
-              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono">{chaptersCount} Chapters</h3>
+              <h3 className="text-2xl font-extrabold text-slate-100 mt-1 font-mono tracking-tight">{chaptersCount} Chapters</h3>
               <span className="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
                 <TrendingUp className="w-3.5 h-3.5" /> Story Maps Configured
               </span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.2)]">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.2)]">
               <BookOpen className="w-6 h-6" />
             </div>
           </div>
@@ -840,14 +848,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         </div>
 
         {/* Card 4: Server Gateway */}
-        <div className="glass-card p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+        <div className="hy-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-cyan-500/20 hover:border-cyan-500/50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-cinzel font-bold text-slate-400 uppercase tracking-wider">REALM GATEWAY</p>
               <h3 className="text-lg font-extrabold text-slate-100 mt-1 font-mono">ONLINE (.NET 9)</h3>
               <span className="text-xs text-slate-400 font-mono mt-1 block">Active / MongoDB Atlas</span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.2)]">
+            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/35 flex items-center justify-center text-cyan-400 shadow-[0_0_16px_rgba(6,182,212,0.2)]">
               <Server className="w-6 h-6" />
             </div>
           </div>
@@ -859,10 +867,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       </div>
 
       {/* Emergency Counsel Override Actions */}
-      <div className="glass-panel p-6 rounded-2xl space-y-4 border border-rose-500/20 shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      <div className="hy-glass p-6 md:p-7 rounded-2xl space-y-4 border border-rose-500/30 shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center text-rose-400 shadow-[0_0_14px_rgba(244,63,94,0.2)]">
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
@@ -878,7 +886,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         </div>
 
         {!canOverride && (
-          <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
             <ShieldX className="w-4 h-4 text-rose-400 shrink-0" />
             <span>
               <strong>Restricted Operations:</strong> Emergency server overrides are restricted to Technical Support & Administrators (Use Case: Configure System).
@@ -888,7 +896,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Toggle Login */}
-          <div className="p-4 rounded-xl bg-black/40 border border-white/[0.08] flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-[#090d1a] border border-white/[0.08] flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-200 font-cinzel">PLAYER AUTHENTICATION</p>
               <p className="text-xs text-slate-400 mt-1 font-mono">
@@ -899,7 +907,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               onClick={toggleLoginStatus}
               disabled={!canOverride || loadingAction === 'login'}
               title={!canOverride ? 'Privilege required' : 'Toggle login status'}
-              className="btn-glass px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {serverState.loginBlocked ? <Unlock className="w-3.5 h-3.5 text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
               {serverState.loginBlocked ? 'UNBLOCK' : 'BLOCK'}
@@ -907,7 +915,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           </div>
 
           {/* Toggle Matchmaking */}
-          <div className="p-4 rounded-xl bg-black/40 border border-white/[0.08] flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-[#090d1a] border border-white/[0.08] flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-200 font-cinzel">PVP MATCH QUEUE</p>
               <p className="text-xs text-slate-400 mt-1 font-mono">
@@ -918,7 +926,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               onClick={toggleQueueStatus}
               disabled={!canOverride || loadingAction === 'queue'}
               title={!canOverride ? 'Privilege required' : 'Toggle queue status'}
-              className="btn-glass px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {serverState.matchmakingBlocked ? <Unlock className="w-3.5 h-3.5 text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-amber-400" />}
               {serverState.matchmakingBlocked ? 'RESUME' : 'PAUSE'}
@@ -926,7 +934,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           </div>
 
           {/* Force Stop All */}
-          <div className="p-4 rounded-xl bg-black/40 border border-rose-500/30 flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-[#090d1a] border border-rose-500/35 flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-rose-300 font-cinzel">RESET MATCHES</p>
               <p className="text-xs text-slate-400 mt-1">Terminates active sessions</p>
@@ -935,7 +943,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               onClick={handleForceStopAll}
               disabled={!canOverride || loadingAction === 'forceStop'}
               title={!canOverride ? 'Privilege required' : 'Force stop all active sessions'}
-              className="px-3 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/50 text-rose-200 text-xs font-bold flex items-center gap-1.5 shadow transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3.5 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-500/50 text-rose-200 text-xs font-bold flex items-center gap-1.5 shadow-[0_0_14px_rgba(244,63,94,0.25)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Power className="w-3.5 h-3.5" />
               FORCE STOP

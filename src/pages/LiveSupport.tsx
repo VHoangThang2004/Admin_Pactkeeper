@@ -158,27 +158,35 @@ export const LiveSupport: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-8 font-sans">
+    <div className="space-y-6 pb-8 font-sans select-none">
       {/* Astral Header Banner */}
-      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      <div className="hy-glass p-6 md:p-8 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
+        {/* Ornate Corner Marks */}
+        <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
+        <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+
         <div 
-          className="absolute -top-16 -right-16 w-64 h-64 bg-amber-500/[0.06] rounded-full blur-3xl pointer-events-none" 
+          className="absolute -top-16 -right-16 w-80 h-80 bg-amber-500/[0.08] rounded-full blur-3xl pointer-events-none" 
+          aria-hidden="true" 
+        />
+        <div 
+          className="absolute -bottom-16 -left-16 w-72 h-72 bg-cyan-500/[0.05] rounded-full blur-3xl pointer-events-none" 
           aria-hidden="true" 
         />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase font-bold tracking-wider">
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 uppercase font-bold tracking-wider shadow-[0_0_12px_rgba(242,191,78,0.15)]">
                 SCREEN 45 & 46 • LIVE SUPPORT DESK
               </span>
               <span className="text-slate-500 text-xs">•</span>
               <span className="text-xs text-slate-400 font-mono">SignalR Real-Time WebSocket</span>
             </div>
-            <h1 className="text-xl md:text-2xl font-extrabold tracking-wide font-cinzel uppercase gold-gradient-text">
+            <h1 className="text-xl md:text-3xl font-extrabold tracking-wide font-cinzel uppercase hy-gold-text">
               PLAYER SUPPORT DESK & LIVE DISPATCH
             </h1>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-300 mt-1 max-w-2xl font-sans">
               Authoritative player care, bug triage, and real-time bidirectional support messaging.
             </p>
           </div>
@@ -187,17 +195,17 @@ export const LiveSupport: React.FC = () => {
             <button
               onClick={() => fetchPlayers()}
               disabled={loading}
-              className="btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 shadow transition-all disabled:opacity-50"
+              className="hy-btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 shadow transition-all disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
               <span>SYNC QUEUE</span>
             </button>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-white/[0.1] text-xs font-mono">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0c1022] border border-white/[0.1] text-xs font-mono shadow-inner">
               <span className="flex h-2 w-2 relative">
                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-amber-400'} opacity-75`} />
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
               </span>
-              <span className="text-slate-300 text-[11px] font-semibold">{isConnected ? 'SIGNALR LIVE' : 'HUB READY'}</span>
+              <span className="text-slate-200 text-[11px] font-semibold">{isConnected ? 'SIGNALR LIVE' : 'HUB READY'}</span>
             </div>
           </div>
         </div>
@@ -206,10 +214,10 @@ export const LiveSupport: React.FC = () => {
       {/* Main Support Chat Station (Screen 45 & 46) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[640px]">
         {/* Player Inquiry List (Left Column) */}
-        <div className="glass-panel rounded-2xl flex flex-col overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div className="hy-glass rounded-2xl flex flex-col overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
           <div className="p-4 bg-white/[0.02] border-b border-white/[0.08] text-xs font-semibold flex items-center justify-between">
             <div className="flex items-center gap-2 text-slate-200 uppercase font-cinzel font-bold">
-              <MessageSquare className="w-4 h-4 text-amber-400" />
+              <MessageSquare className="w-4 h-4 text-amber-300" />
               <span>ACTIVE INQUIRIES ({players.length})</span>
             </div>
             <button
@@ -292,18 +300,18 @@ export const LiveSupport: React.FC = () => {
         </div>
 
         {/* Live Chat Window (Right 2 Columns) */}
-        <div className="md:col-span-2 glass-panel rounded-2xl flex flex-col overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div className="md:col-span-2 hy-glass rounded-2xl flex flex-col overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
           {selectedPlayerId ? (
             <>
               {/* Chat Header */}
               <div className="p-4 bg-white/[0.02] border-b border-white/[0.08] flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/[0.1] flex items-center justify-center text-amber-400 font-cinzel font-bold text-sm shadow">
+                    <div className="w-10 h-10 rounded-xl bg-[#090d1a] border border-white/[0.1] flex items-center justify-center text-amber-300 font-cinzel font-bold text-sm shadow">
                       {activePlayerRealName.slice(0, 2).toUpperCase()}
                     </div>
                     <span
-                      className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080a0f] ${
+                      className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#070a14] ${
                         getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime).dotColor
                       }`}
                     />
@@ -341,19 +349,19 @@ export const LiveSupport: React.FC = () => {
                       <span>INSPECT BATTLE</span>
                     </Link>
                   )}
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-900 border border-white/[0.1] text-amber-300 font-mono font-semibold">
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#0c1022] border border-white/[0.1] text-amber-300 font-mono font-semibold">
                     {getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime).label}
                   </span>
                 </div>
               </div>
 
               {/* Messages Body */}
-              <div className="flex-1 p-5 overflow-y-auto space-y-3.5 bg-[#05070c]">
+              <div className="flex-1 p-5 overflow-y-auto space-y-3.5 bg-[#070a14]/90">
                 {messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-2">
                     <MessageSquare className="w-8 h-8 text-amber-400/60" />
                     <p className="text-sm font-semibold text-slate-300">No previous messages exchanged.</p>
-                    <p className="text-xs text-slate-500">Begin the player consultation by typing a message below.</p>
+                    <p className="text-xs text-slate-400">Begin the player consultation by typing a message below.</p>
                   </div>
                 ) : (
                   messages.map((m, index) => {
@@ -364,13 +372,13 @@ export const LiveSupport: React.FC = () => {
                         <div
                           className={`max-w-[75%] rounded-2xl p-4 shadow-lg ${
                             isAdmin
-                              ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 text-amber-100'
-                              : 'bg-slate-900/90 border border-white/[0.08] text-slate-200'
+                              ? 'bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-amber-600/15 border border-amber-400/35 text-amber-100 shadow-[0_4px_16px_rgba(242,191,78,0.15)]'
+                              : 'bg-[#12182e] border border-white/[0.08] text-slate-200 shadow-md'
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-4 mb-1.5 text-[10px] opacity-75 border-b border-white/[0.08] pb-1 font-mono">
+                          <div className="flex items-center justify-between gap-4 mb-1.5 text-[10px] opacity-80 border-b border-white/[0.08] pb-1 font-mono">
                             <span className="font-bold flex items-center gap-1">
-                              {isAdmin ? <ShieldCheck className="w-3 h-3 text-amber-400" /> : <User className="w-3 h-3 text-slate-400" />}
+                              {isAdmin ? <ShieldCheck className="w-3 h-3 text-amber-300" /> : <User className="w-3 h-3 text-slate-400" />}
                               {isAdmin ? 'HIGH COUNSEL SUPPORT' : (m.senderName || activePlayerRealName)}
                             </span>
                             <span>
@@ -388,30 +396,30 @@ export const LiveSupport: React.FC = () => {
               </div>
 
               {/* Reply Input Bar */}
-              <div className="p-3.5 bg-slate-950/80 border-t border-white/[0.08] flex items-center gap-2.5">
+              <div className="p-3.5 bg-[#090d1a] border-t border-white/[0.08] flex items-center gap-2.5">
                 <input
                   type="text"
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder={`Compose support dispatch to ${activePlayerRealName}...`}
-                  className="flex-1 bg-slate-900/90 border border-white/[0.1] focus:border-amber-400 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
+                  className="flex-1 bg-[#0c1022] border border-white/[0.1] focus:border-amber-400 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!replyText.trim()}
-                  className="btn-primary-gold px-4 py-2.5 text-xs font-bold flex items-center gap-1.5 shadow disabled:opacity-40"
+                  className="hy-btn-gold px-4 py-2.5 text-xs font-bold flex items-center gap-1.5 shadow disabled:opacity-40"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5 text-slate-950" />
                   <span>SEND</span>
                 </button>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-2">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-2">
               <MessageSquare className="w-12 h-12 text-amber-400/60" />
               <p className="text-base font-bold font-cinzel text-slate-200">No Traveler Selected</p>
-              <p className="text-xs text-slate-500">Select an inquiry from the roster on the left to read and respond.</p>
+              <p className="text-xs text-slate-400">Select an inquiry from the roster on the left to read and respond.</p>
             </div>
           )}
         </div>

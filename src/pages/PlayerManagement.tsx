@@ -326,37 +326,45 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none font-sans">
       {/* Top Banner Astral Panel */}
-      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      <div className="hy-glass p-6 md:p-8 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
+        {/* Ornate Corner Marks */}
+        <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
+        <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+
         <div 
-          className="absolute -top-16 -right-16 w-64 h-64 bg-amber-500/[0.06] rounded-full blur-3xl pointer-events-none" 
+          className="absolute -top-16 -right-16 w-80 h-80 bg-amber-500/[0.08] rounded-full blur-3xl pointer-events-none" 
+          aria-hidden="true" 
+        />
+        <div 
+          className="absolute -bottom-16 -left-16 w-72 h-72 bg-cyan-500/[0.05] rounded-full blur-3xl pointer-events-none" 
           aria-hidden="true" 
         />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase font-bold tracking-wider">
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 uppercase font-bold tracking-wider shadow-[0_0_12px_rgba(242,191,78,0.15)]">
                 SCREEN 29 & 30 • PLAYER CARE & DISCIPLINE
               </span>
               <span className="text-slate-500 text-xs">•</span>
               <span className="text-xs text-slate-400 font-mono">{role === 'Moderator' ? 'User Directory' : 'Accounts Management'}</span>
             </div>
-            <h2 className="text-xl md:text-2xl font-extrabold tracking-wide font-cinzel uppercase gold-gradient-text">
+            <h2 className="text-xl md:text-3xl font-extrabold tracking-wide font-cinzel uppercase hy-gold-text">
               {role === 'Moderator' ? 'USER DIRECTORY & DISCIPLINARY LOGS' : 'MANAGE USER ACCOUNTS & TREASURY'}
             </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Multi-source aggregation across Google OAuth sessions, Live Support Tickets, and In-Match Combatants.
+            <p className="text-xs text-slate-300 mt-1 max-w-2xl font-sans">
+              Authoritative aggregation across Google OAuth sessions, Live Support Tickets, and In-Match Combatants.
             </p>
           </div>
 
           <button
             onClick={fetchPlayers}
             disabled={loading}
-            className="btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 self-start md:self-auto shadow transition-all disabled:opacity-50"
+            className="hy-btn-gold px-4 py-2 text-xs font-bold flex items-center gap-2 self-start md:self-auto shadow-lg disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-950 ${loading ? 'animate-spin' : ''}`} />
             <span>SYNC PLAYERS</span>
           </button>
         </div>
@@ -364,7 +372,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
       {/* Role Notice */}
       {role === 'Moderator' && (
-        <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-200 text-xs flex items-center gap-2.5 backdrop-blur-md">
+        <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/35 text-cyan-200 text-xs flex items-center gap-2.5 backdrop-blur-md shadow-sm">
           <Info className="w-4 h-4 text-cyan-400 shrink-0" />
           <span>
             <strong>Realm Moderator Inspection Mode:</strong> Live presence tracking and match inspection enabled. Account balance adjustments are reserved for High Counsel Administrators.
@@ -373,7 +381,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       )}
 
       {notification && (
-        <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-lg backdrop-blur-md">
+        <div className="p-4 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-lg backdrop-blur-md animate-in fade-in duration-200">
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span>{notification}</span>
@@ -385,9 +393,9 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       )}
 
       {/* Search & Add Player Controls */}
-      <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border border-white/[0.08]">
-        <div className="flex items-center gap-3 w-full md:w-96 bg-slate-950/80 border border-white/[0.1] focus-within:border-amber-400 rounded-xl px-3.5 py-2 text-sm text-slate-100 transition-colors">
-          <Search className="w-4 h-4 text-slate-500 shrink-0" />
+      <div className="hy-glass p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border border-white/[0.08]">
+        <div className="flex items-center gap-3 w-full md:w-96 bg-[#090d1a] border border-white/[0.1] focus-within:border-amber-400 rounded-xl px-3.5 py-2 text-sm text-slate-100 transition-colors">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input
             type="text"
             placeholder="Search by Player ID or Username..."
@@ -403,13 +411,13 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
             placeholder="Enter Player ID from DB (e.g. Google ID)..."
             value={newPlayerIdInput}
             onChange={(e) => setNewPlayerIdInput(e.target.value)}
-            className="bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono flex-1 md:w-80 transition-colors"
+            className="bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono flex-1 md:w-80 transition-colors"
           />
           <button
             onClick={handleAddPlayerById}
-            className="btn-primary-gold px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 shrink-0"
+            className="hy-btn-gold px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 shrink-0"
           >
-            <UserPlus className="w-3.5 h-3.5" /> LOAD ID
+            <UserPlus className="w-3.5 h-3.5 text-slate-950" /> LOAD ID
           </button>
         </div>
       </div>
@@ -470,7 +478,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       </div>
 
       {/* Roster Table */}
-      <div className="glass-panel rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div className="hy-glass rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
         {filteredPlayers.length === 0 ? (
           <div className="p-12 text-center text-slate-400 space-y-2">
             <Inbox className="w-8 h-8 mx-auto text-amber-400/60" />
@@ -641,15 +649,18 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
       {/* Adjust Currency Modal (Screen 30: Currency Grant with Audit Log) */}
       {selectedPlayer && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel p-6 rounded-2xl border border-white/[0.1] w-full max-w-md space-y-4 text-xs shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="hy-glass p-6 md:p-7 rounded-2xl border border-amber-400/35 w-full max-w-md space-y-4 text-xs shadow-[0_20px_60px_rgba(0,0,0,0.9)] relative animate-in fade-in zoom-in-95 duration-200">
+            <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
+            <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+
             <h3 className="text-base font-bold font-cinzel text-slate-100 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-amber-400" />
+              <Shield className="w-5 h-5 text-amber-300" />
               ADJUST TREASURY — {selectedPlayer.username}
             </h3>
             <p className="text-xs text-slate-400">
               Target Account: <strong className="text-amber-300">{selectedPlayer.username}</strong>
-              <span className="font-mono text-slate-500 ml-1.5">(Ref #{selectedPlayer.playerId.slice(-6).toUpperCase()})</span>
+              <span className="font-mono text-slate-400 ml-1.5">(Ref #{selectedPlayer.playerId.slice(-6).toUpperCase()})</span>
             </p>
             <div className="space-y-3.5">
               <div>
@@ -658,7 +669,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   type="number"
                   value={adjustGems}
                   onChange={(e) => setAdjustGems(Number(e.target.value))}
-                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
+                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
                 />
               </div>
               <div>
@@ -667,7 +678,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   type="number"
                   value={adjustGold}
                   onChange={(e) => setAdjustGold(Number(e.target.value))}
-                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
+                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
                 />
               </div>
               <div>
@@ -677,15 +688,15 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   placeholder="e.g. Server rollback compensation, test credit"
                   value={compensationReason}
                   onChange={(e) => setCompensationReason(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none"
+                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none"
                 />
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
-              <button onClick={() => setSelectedPlayer(null)} className="btn-glass px-3 py-1.5 text-xs">
+              <button onClick={() => setSelectedPlayer(null)} className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold">
                 Cancel
               </button>
-              <button onClick={handleSaveAdjustment} className="btn-primary-gold px-4 py-1.5 text-xs font-bold">
+              <button onClick={handleSaveAdjustment} className="hy-btn-gold px-4 py-1.5 text-xs font-bold shadow">
                 Apply Adjustments
               </button>
             </div>
@@ -696,14 +707,17 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       {/* Disciplinary Ban Sanction Modal (Screen 30: Enforce Ban with Violation Reason) */}
       {banTargetPlayer && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel p-6 rounded-2xl border border-rose-500/40 w-full max-w-md space-y-4 text-xs shadow-2xl">
+          <div className="hy-glass p-6 md:p-7 rounded-2xl border border-rose-500/40 w-full max-w-md space-y-4 text-xs shadow-[0_20px_60px_rgba(0,0,0,0.9)] relative animate-in fade-in zoom-in-95 duration-200">
+            <span className="absolute top-3 left-3 text-rose-400/40 text-xs">❖</span>
+            <span className="absolute top-3 right-3 text-rose-400/40 text-xs">❖</span>
+
             <h3 className="text-base font-bold font-cinzel text-rose-300 flex items-center gap-2">
               <UserX className="w-5 h-5 text-rose-400" />
               ENFORCE DISCIPLINARY SANCTION
             </h3>
             <p className="text-xs text-slate-400">
               Target Account: <strong className="text-slate-100">{banTargetPlayer.username}</strong>
-              <span className="font-mono text-slate-500 ml-1.5">(ID: {banTargetPlayer.playerId})</span>
+              <span className="font-mono text-slate-400 ml-1.5">(ID: {banTargetPlayer.playerId})</span>
             </p>
             <div className="space-y-3.5">
               <div>
@@ -711,11 +725,11 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                 <select
                   value={banDuration}
                   onChange={(e) => setBanDuration(e.target.value as any)}
-                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-sans"
+                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-sans"
                 >
-                  <option value="TEMPORARY_24H" className="bg-slate-900 text-slate-100">Temporary Suspension (24 Hours)</option>
-                  <option value="TEMPORARY_7D" className="bg-slate-900 text-slate-100">Extended Suspension (7 Days)</option>
-                  <option value="PERMANENT" className="bg-slate-900 text-slate-100">Permanent Account Ban</option>
+                  <option value="TEMPORARY_24H" className="bg-[#090d1a] text-slate-100">Temporary Suspension (24 Hours)</option>
+                  <option value="TEMPORARY_7D" className="bg-[#090d1a] text-slate-100">Extended Suspension (7 Days)</option>
+                  <option value="PERMANENT" className="bg-[#090d1a] text-slate-100">Permanent Account Ban</option>
                 </select>
               </div>
               <div>
@@ -727,7 +741,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   placeholder="Specify violation rationale (e.g. Speed hack in combat timeline, malicious desync, harassment)..."
                   value={banReason}
                   onChange={(e) => setBanReason(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none resize-none"
+                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none resize-none"
                 />
               </div>
             </div>
@@ -737,13 +751,13 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                   setBanTargetPlayer(null);
                   setBanReason('');
                 }}
-                className="btn-glass px-3 py-1.5 text-xs"
+                className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmBan}
-                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-200 transition-all shadow"
+                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-200 transition-all shadow-[0_0_14px_rgba(244,63,94,0.3)]"
               >
                 Confirm Ban Sanction
               </button>
@@ -755,7 +769,10 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       {/* Lift Sanction Unban Modal */}
       {unbanTargetPlayer && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel p-6 rounded-2xl border border-emerald-500/40 w-full max-w-md space-y-4 text-xs shadow-2xl">
+          <div className="hy-glass p-6 md:p-7 rounded-2xl border border-emerald-500/40 w-full max-w-md space-y-4 text-xs shadow-[0_20px_60px_rgba(0,0,0,0.9)] relative animate-in fade-in zoom-in-95 duration-200">
+            <span className="absolute top-3 left-3 text-emerald-400/40 text-xs">❖</span>
+            <span className="absolute top-3 right-3 text-emerald-400/40 text-xs">❖</span>
+
             <h3 className="text-base font-bold font-cinzel text-emerald-300 flex items-center gap-2">
               <UserCheck className="w-5 h-5 text-emerald-400" />
               LIFT ACCOUNT SANCTION
@@ -765,12 +782,12 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
               <strong className="text-slate-100">{unbanTargetPlayer.username}</strong>?
             </p>
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
-              <button onClick={() => setUnbanTargetPlayer(null)} className="btn-glass px-3 py-1.5 text-xs">
+              <button onClick={() => setUnbanTargetPlayer(null)} className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold">
                 Cancel
               </button>
               <button
                 onClick={handleConfirmUnban}
-                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-200 transition-all shadow"
+                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-200 transition-all shadow-[0_0_14px_rgba(16,185,129,0.3)]"
               >
                 Restore Account
               </button>

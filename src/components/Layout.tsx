@@ -13,22 +13,26 @@ interface LayoutProps {
 /**
  * Layout Component for High Counsel Admin Portal
  * 
- * Re-architected to HoYoverse AAA Game Portal standards:
- * - Ambient Dark Astral Obsidian canvas with subtle celestial light meshes
+ * Remade to HoYoverse AAA Game Portal standards:
+ * - Ambient Dark Cosmic Obsidian canvas with ethereal celestial stardust meshes
  * - Role-aware Sidebar navigation (Admin / Moderator / Tech Support)
  * - Sleek floating glass header with breadcrumbs and live server cluster health
  * - Fluid, scrollable content canvas with dark glassmorphic cards
  */
 export const Layout: React.FC<LayoutProps> = ({ adminName, role, onLogout }) => {
   return (
-    <div className="flex min-h-screen bg-[#080a0f] text-[#f8fafc] font-sans antialiased relative selection:bg-amber-500/30 selection:text-amber-200">
-      {/* Ambient Lighting Spheres (Fixed Background Glows) */}
+    <div className="flex min-h-screen bg-[#070a14] text-[#f8fafc] font-sans antialiased relative selection:bg-amber-500/30 selection:text-amber-200">
+      {/* Ambient Lighting Spheres (Fixed Background Cosmic Glows) */}
       <div 
-        className="fixed pointer-events-none top-[-150px] left-[15%] w-[600px] h-[600px] bg-amber-500/[0.06] rounded-full blur-[140px] z-0" 
+        className="fixed pointer-events-none top-[-150px] left-[15%] w-[650px] h-[650px] bg-amber-500/[0.07] rounded-full blur-[150px] z-0" 
         aria-hidden="true" 
       />
       <div 
-        className="fixed pointer-events-none bottom-[-200px] right-[5%] w-[700px] h-[700px] bg-cyan-500/[0.04] rounded-full blur-[160px] z-0" 
+        className="fixed pointer-events-none bottom-[-200px] right-[5%] w-[750px] h-[750px] bg-cyan-500/[0.05] rounded-full blur-[170px] z-0" 
+        aria-hidden="true" 
+      />
+      <div 
+        className="fixed pointer-events-none top-[40%] right-[30%] w-[500px] h-[500px] bg-purple-500/[0.03] rounded-full blur-[140px] z-0" 
         aria-hidden="true" 
       />
 

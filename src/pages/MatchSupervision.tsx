@@ -8,7 +8,7 @@ import type { MatchHistoryItem } from '../types';
 /**
  * MatchSupervision Component (Screen 33: Match Inspector & Screen 34: Combat Action Logs)
  * 
- * Re-architected to HoYoverse AAA Gaming Standards:
+ * Remade to HoYoverse AAA Gaming Standards:
  * - Central tactical esports & telemetry console for Moderators and Administrators
  * - Real-time Netcode for GameObjects (NGO) headless server status
  * - Live turn-by-turn combat replay, anti-cheat audit trail, and raw Linux VPS log inspector
@@ -55,29 +55,37 @@ export const MatchSupervision: React.FC = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none font-sans">
       {/* Page Header Astral Banner */}
-      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      <div className="hy-glass p-6 md:p-8 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
+        {/* Ornate Corner Marks */}
+        <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
+        <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+
         {/* Subtle ambient light orb */}
         <div 
-          className="absolute -top-16 -right-16 w-64 h-64 bg-cyan-500/[0.08] rounded-full blur-3xl pointer-events-none" 
+          className="absolute -top-16 -right-16 w-80 h-80 bg-cyan-500/[0.08] rounded-full blur-3xl pointer-events-none" 
+          aria-hidden="true" 
+        />
+        <div 
+          className="absolute -bottom-16 -left-16 w-72 h-72 bg-amber-500/[0.05] rounded-full blur-3xl pointer-events-none" 
           aria-hidden="true" 
         />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/[0.08] pb-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 uppercase font-bold tracking-wider">
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/35 uppercase font-bold tracking-wider shadow-[0_0_12px_rgba(56,189,248,0.15)]">
                 SCREEN 33 & 34 • TACTICAL TELEMETRY
               </span>
               <span className="text-slate-500 text-xs">•</span>
               <span className="text-xs text-slate-400 font-mono">Netcode NGO 7777–7800</span>
             </div>
-            <h2 className="text-xl md:text-2xl font-extrabold tracking-wide font-cinzel flex items-center gap-3 text-slate-100">
-              <Swords className="w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
-              <span className="gold-gradient-text">MATCH INSPECTOR & SERVER DIAGNOSTICS</span>
+            <h2 className="text-xl md:text-3xl font-extrabold tracking-wide font-cinzel flex items-center gap-3 text-slate-100">
+              <Swords className="w-6 h-6 text-amber-300 drop-shadow-[0_0_8px_rgba(242,191,78,0.5)]" />
+              <span className="hy-gold-text">MATCH INSPECTOR & SERVER DIAGNOSTICS</span>
             </h2>
-            <p className="text-xs text-slate-400 mt-1 max-w-3xl">
+            <p className="text-xs text-slate-300 mt-1 max-w-3xl font-sans">
               Authoritative turn-by-turn combat replay, anti-cheat audit trail, and raw VPS Dedicated Server telemetry streams.
             </p>
           </div>
@@ -86,7 +94,7 @@ export const MatchSupervision: React.FC = () => {
             <button
               onClick={fetchQuickMetrics}
               disabled={loadingMetrics}
-              className="btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+              className="hy-btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 shadow transition-all disabled:opacity-50"
               title="Refresh telemetry overview"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${loadingMetrics ? 'animate-spin' : ''}`} />
@@ -96,10 +104,10 @@ export const MatchSupervision: React.FC = () => {
         </div>
 
         {/* 4 Quick Telemetry Status Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-4 relative z-10">
           {/* Active Battles */}
-          <div className="glass-card p-3.5 rounded-xl flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
+          <div className="hy-card p-3.5 rounded-xl flex items-center gap-3 border border-emerald-500/20 hover:border-emerald-500/50">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
               <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
             </div>
             <div>
@@ -111,25 +119,25 @@ export const MatchSupervision: React.FC = () => {
           </div>
 
           {/* Recorded Matches */}
-          <div className="glass-card p-3.5 rounded-xl flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-              <Swords className="w-5 h-5 text-amber-400" />
+          <div className="hy-card p-3.5 rounded-xl flex items-center gap-3 border border-amber-400/20 hover:border-amber-400/50">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(242,191,78,0.2)]">
+              <Swords className="w-5 h-5 text-amber-300" />
             </div>
             <div>
               <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Total Recorded</span>
               <span className="text-base font-extrabold font-mono text-amber-300">
-                {loadingMetrics ? '...' : `${totalMatchesCount} Sessions`}
+                {loadingMetrics ? '...' : `${totalMatchesCount} Matches`}
               </span>
             </div>
           </div>
 
-          {/* VPS Log Files */}
-          <div className="glass-card-cyan p-3.5 rounded-xl flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(6,182,212,0.2)]">
+          {/* Log Archives */}
+          <div className="hy-card p-3.5 rounded-xl flex items-center gap-3 border border-cyan-500/20 hover:border-cyan-500/50">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/35 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(6,182,212,0.2)]">
               <FileText className="w-5 h-5 text-cyan-400" />
             </div>
             <div>
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">VPS Log Files</span>
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Log Archives</span>
               <span className="text-base font-extrabold font-mono text-cyan-300">
                 {loadingMetrics ? '...' : `${logFilesCount} Logs`}
               </span>
@@ -137,14 +145,14 @@ export const MatchSupervision: React.FC = () => {
           </div>
 
           {/* Netcode Engine */}
-          <div className="glass-card p-3.5 rounded-xl flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.2)]">
+          <div className="hy-card p-3.5 rounded-xl flex items-center gap-3 border border-indigo-500/20 hover:border-indigo-500/50">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/35 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.2)]">
               <Server className="w-5 h-5 text-indigo-400" />
             </div>
             <div>
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Network Core</span>
-              <span className="text-xs font-bold font-mono text-indigo-300">
-                NGO / RUDP Headless
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Dedicated VPS</span>
+              <span className="text-base font-extrabold font-mono text-indigo-300">
+                Ubuntu 22.04
               </span>
             </div>
           </div>
