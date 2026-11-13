@@ -14,6 +14,7 @@ import {
   Radio,
   ExternalLink
 } from 'lucide-react';
+import { WEB_TOPUP_URL } from '../constants/links';
 import type { CounselRole } from '../types';
 
 interface SidebarProps {
@@ -169,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
         {/* External Web Top-Up Shortcut */}
         <div className="pt-2 mt-2 border-t border-white/[0.06]">
           <a
-            href="http://localhost:5174/profile/topup"
+            href={WEB_TOPUP_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium text-amber-200/80 hover:text-amber-200 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all tracking-wide"

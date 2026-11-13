@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Crown, Activity, ScrollText, ExternalLink, Clock } from 'lucide-react';
+import { WEB_TOPUP_URL } from '../constants/links';
 import type { CounselRole } from '../types';
 
 interface HeaderProps {
@@ -122,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({ adminName, role }) => {
 
         {/* Shortcut to Web Top-Up SDK */}
         <a
-          href="http://localhost:5174/profile/topup"
+          href={WEB_TOPUP_URL}
           target="_blank"
           rel="noopener noreferrer"
           title="Open Web Top-Up Center (SDK)"

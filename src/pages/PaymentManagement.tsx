@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminClient } from '../api/adminClient';
+import { WEB_TOPUP_URL } from '../constants/links';
 import type { PurchaseOrder, TopUpPackDto } from '../types';
 import { GemArt } from '../components/GemArt';
 import {
@@ -198,7 +199,7 @@ export const PaymentManagement: React.FC = () => {
           <div className="flex items-center gap-2.5 self-start md:self-auto">
             {/* Link to live Web Top-Up SDK */}
             <a
-              href="http://localhost:5174/profile/topup"
+              href={WEB_TOPUP_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="hy-btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 hover:border-amber-400/50"
