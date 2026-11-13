@@ -219,6 +219,8 @@ export interface MatchHistoryItem {
   player2Name?: string;
   createdAt?: string;
   winnerPlayerId?: string;
+  serverIp?: string;
+  serverPort?: number;
 }
 
 export interface LogFileInfo {

@@ -130,21 +130,44 @@ export const fetchRecentMatchesForLogs = async (): Promise<MatchHistoryItem[]> =
  * Genuine API call: Fetches available log files on server sorted by last modified descending.
  * Endpoint: GET /api/Match/log-files
  */
-export const fetchAvailableLogFiles = async (): Promise<LogFileInfo[]> => {
+export const fetchAvailableLogFiles = async (limit: number = 200): Promise<LogFileInfo[]> => {
   try {
-    const res = await adminClient.get('/Match/log-files');
-    if (Array.isArray(res.data)) {
-      return res.data.map((f: any) => ({
-        matchId: f.matchId,
-        fileName: f.fileName,
-        fileSizeBytes: f.fileSizeBytes || 0,
-        lastModifiedUtc: f.lastModifiedUtc,
-        createdAtUtc: f.createdAtUtc,
+    const url = limit ? `/Match/log-files?limit=${limit}` : '/Match/log-files';
+    const res = await adminClient.get(url);
+    const rawList = Array.isArray(res.data)
+      ? res.data
+      : (Array.isArray(res.data?.$values) ? res.data.$values : (Array.isArray(res.data?.files) ? res.data.files : []));
+
+    if (rawList.length > 0) {
+      return rawList.map((f: any) => ({
+        matchId: f.matchId || f.MatchId || '',
+        fileName: f.fileName || f.FileName || '',
+        fileSizeBytes: f.fileSizeBytes || f.FileSizeBytes || 0,
+        lastModifiedUtc: f.lastModifiedUtc || f.LastModifiedUtc || '',
+        createdAtUtc: f.createdAtUtc || f.CreatedAtUtc || '',
       }));
     }
   } catch (error) {
     console.error('Failed to fetch available log files from server:', error);
   }
+
+  // Graceful fallback to endpoint without query param if query param failed or returned empty
+  try {
+    const fallbackRes = await adminClient.get('/Match/log-files');
+    const rawFallback = Array.isArray(fallbackRes.data)
+      ? fallbackRes.data
+      : (Array.isArray(fallbackRes.data?.$values) ? fallbackRes.data.$values : []);
+    return rawFallback.map((f: any) => ({
+      matchId: f.matchId || f.MatchId || '',
+      fileName: f.fileName || f.FileName || '',
+      fileSizeBytes: f.fileSizeBytes || f.FileSizeBytes || 0,
+      lastModifiedUtc: f.lastModifiedUtc || f.LastModifiedUtc || '',
+      createdAtUtc: f.createdAtUtc || f.CreatedAtUtc || '',
+    }));
+  } catch (fallbackErr) {
+    console.error('Fallback fetchAvailableLogFiles also failed:', fallbackErr);
+  }
+
   return [];
 };
 

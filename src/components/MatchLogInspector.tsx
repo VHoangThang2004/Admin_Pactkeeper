@@ -15,13 +15,12 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  Swords,
   Filter,
   Calendar,
   SlidersHorizontal
 } from 'lucide-react';
-import { fetchMatchLogs, fetchRecentMatchesForLogs, fetchAvailableLogFiles } from '../api/matchLogApi';
-import type { MatchLogResponse, MatchLogLevel, MatchHistoryItem, LogFileInfo } from '../types';
+import { fetchMatchLogs, fetchAvailableLogFiles } from '../api/matchLogApi';
+import type { MatchLogResponse, MatchLogLevel, LogFileInfo } from '../types';
 
 interface MatchLogInspectorProps {
   initialMatchId?: string;
@@ -35,8 +34,6 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   const [inputMatchId, setInputMatchId] = useState<string>(initialMatchId);
   const [logData, setLogData] = useState<MatchLogResponse | null>(null);
   const [availableLogFiles, setAvailableLogFiles] = useState<LogFileInfo[]>([]);
-  const [recentMatches, setRecentMatches] = useState<MatchHistoryItem[]>([]);
-  const [sourceMode, setSourceMode] = useState<'files' | 'matches'>('files');
   const [browseExpanded, setBrowseExpanded] = useState<boolean>(true);
   const [browseSearch, setBrowseSearch] = useState<string>('');
   const [displayLimit, setDisplayLimit] = useState<number | 'ALL'>(50);
@@ -46,9 +43,17 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
-  const [autoScroll, setAutoScroll] = useState<boolean>(true);
+  const [autoScroll, setAutoScroll] = useState<boolean>(false);
 
-  const terminalEndRef = useRef<HTMLDivElement | null>(null);
+  const terminalBodyRef = useRef<HTMLDivElement | null>(null);
+
+  // Synchronize initialMatchId when changed from parent
+  useEffect(() => {
+    if (initialMatchId && initialMatchId !== selectedMatchId) {
+      setSelectedMatchId(initialMatchId);
+      setInputMatchId(initialMatchId);
+    }
+  }, [initialMatchId, selectedMatchId]);
 
   // Helper to format full date (DD/MM/YYYY) and time (HH:mm:ss)
   const formatDateTime = useCallback((dateStr?: string) => {
@@ -81,16 +86,8 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     });
   }, [availableLogFiles]);
 
-  const sortedMatches = useMemo(() => {
-    return [...recentMatches].sort((a, b) => {
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return timeB - timeA;
-    });
-  }, [recentMatches]);
-
   // Current active total count
-  const currentTotal = sourceMode === 'files' ? sortedLogFiles.length : sortedMatches.length;
+  const currentTotal = sortedLogFiles.length;
 
   // Dynamic limit options based on total logs available: 50, 100, 150, 200,...
   const limitOptions = useMemo(() => {
@@ -109,43 +106,19 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     return sortedLogFiles.slice(0, displayLimit);
   }, [sortedLogFiles, displayLimit]);
 
-  const selectMatches = useMemo(() => {
-    if (displayLimit === 'ALL') return sortedMatches;
-    return sortedMatches.slice(0, displayLimit);
-  }, [sortedMatches, displayLimit]);
-
   // Fetch lists on mount
   const refreshFiles = useCallback(async () => {
     try {
-      const [files, matches] = await Promise.allSettled([
-        fetchAvailableLogFiles(),
-        fetchRecentMatchesForLogs()
-      ]);
-
-      if (files.status === 'fulfilled') {
-        setAvailableLogFiles(files.value);
-        if (!selectedMatchId && files.value.length > 0) {
-          const newest = [...files.value].sort((a, b) => {
-            const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
-            const timeB = b.lastModifiedUtc ? new Date(b.lastModifiedUtc).getTime() : 0;
-            return timeB - timeA;
-          })[0];
-          setSelectedMatchId(newest.matchId);
-          setInputMatchId(newest.matchId);
-        }
-      }
-
-      if (matches.status === 'fulfilled') {
-        setRecentMatches(matches.value);
-        if (!selectedMatchId && files.status !== 'fulfilled' && matches.value.length > 0) {
-          const newestM = [...matches.value].sort((a, b) => {
-            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            return timeB - timeA;
-          })[0];
-          setSelectedMatchId(newestM.matchId);
-          setInputMatchId(newestM.matchId);
-        }
+      const files = await fetchAvailableLogFiles(200);
+      setAvailableLogFiles(files);
+      if (!selectedMatchId && files.length > 0) {
+        const newest = [...files].sort((a, b) => {
+          const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
+          const timeB = b.lastModifiedUtc ? new Date(b.lastModifiedUtc).getTime() : 0;
+          return timeB - timeA;
+        })[0];
+        setSelectedMatchId(newest.matchId);
+        setInputMatchId(newest.matchId);
       }
     } catch {
       // Graceful fallback
@@ -196,10 +169,10 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     };
   }, [autoRefresh, selectedMatchId, loadLogs]);
 
-  // Auto scroll to bottom
+  // Auto scroll to bottom ONLY within terminal container when enabled (never scrolling whole window)
   useEffect(() => {
-    if (autoScroll && terminalEndRef.current) {
-      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (autoScroll && terminalBodyRef.current) {
+      terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
     }
   }, [logData, autoScroll]);
 
@@ -331,33 +304,13 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
 
       {/* Compact Log Selector & Search Bar */}
       <div className="glass-panel p-3.5 rounded-2xl border border-white/[0.08] space-y-3">
-        {/* Source Mode Tabs & Quick Stats */}
+        {/* Log Source Indicator & Quick Target */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] pb-2.5">
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSourceMode('files')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                sourceMode === 'files'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                  : 'bg-white/[0.04] text-slate-300 hover:text-white border border-white/[0.08]'
-              }`}
-            >
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span>Server Log Files ({availableLogFiles.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSourceMode('matches')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                sourceMode === 'matches'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                  : 'bg-white/[0.04] text-slate-300 hover:text-white border border-white/[0.08]'
-              }`}
-            >
-              <Swords className="w-3.5 h-3.5" />
-              <span>Match Sessions ({recentMatches.length})</span>
-            </button>
+            <span className="text-xs font-semibold font-mono text-cyan-300 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30">
+              <FolderOpen className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Dedicated VPS Log Files ({availableLogFiles.length})</span>
+            </span>
           </div>
 
           {/* Quick Stats / Active Match indicator */}
@@ -373,51 +326,27 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
         <div className="flex flex-col lg:flex-row items-center gap-2">
           {/* Main Dropdown */}
           <div className="flex-1 w-full relative">
-            {sourceMode === 'files' ? (
-              <select
-                value={selectedMatchId}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setInputMatchId(e.target.value);
-                    setSelectedMatchId(e.target.value);
-                  }
-                }}
-                className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 outline-none transition-all cursor-pointer shadow-inner"
-              >
-                <option value="" disabled>-- Select Server Log File ({selectLogFiles.length} of {sortedLogFiles.length} files - Newest First) --</option>
-                {selectLogFiles.map((file, idx) => {
-                  const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
-                  const kb = (file.fileSizeBytes / 1024).toFixed(1);
-                  return (
-                    <option key={file.fileName} value={file.matchId} className="bg-slate-900 text-slate-100">
-                      {idx === 0 ? '★ [LATEST] ' : `[#${idx + 1}] `}[{dt.date} {dt.time}] - {file.fileName} ({kb} KB)
-                    </option>
-                  );
-                })}
-              </select>
-            ) : (
-              <select
-                value={selectedMatchId}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setInputMatchId(e.target.value);
-                    setSelectedMatchId(e.target.value);
-                  }
-                }}
-                className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 outline-none transition-all cursor-pointer shadow-inner"
-              >
-                <option value="" disabled>-- Select Match Session ({selectMatches.length} of {sortedMatches.length} matches - Newest First) --</option>
-                {selectMatches.map((m, idx) => {
-                  const dt = formatDateTime(m.createdAt);
-                  const isLive = (m.status || '').toString().toLowerCase().includes('active');
-                  return (
-                    <option key={m.matchId} value={m.matchId} className="bg-slate-900 text-slate-100">
-                      {isLive ? '🔴 [LIVE] ' : idx === 0 ? '★ [LATEST] ' : `[#${idx + 1}] `}[{dt.date} {dt.time}] - #{m.matchId.slice(0, 8)} - {m.mode || 'PVP'} ({m.status || 'Done'})
-                    </option>
-                  );
-                })}
-              </select>
-            )}
+            <select
+              value={selectedMatchId}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setInputMatchId(e.target.value);
+                  setSelectedMatchId(e.target.value);
+                }
+              }}
+              className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 outline-none transition-all cursor-pointer shadow-inner"
+            >
+              <option value="" disabled>-- Select Server Log File ({selectLogFiles.length} of {sortedLogFiles.length} files - Newest First) --</option>
+              {selectLogFiles.map((file, idx) => {
+                const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
+                const kb = (file.fileSizeBytes / 1024).toFixed(1);
+                return (
+                  <option key={file.fileName} value={file.matchId} className="bg-slate-900 text-slate-100">
+                    {idx === 0 ? '★ [LATEST] ' : `[#${idx + 1}] `}[{dt.date} {dt.time}] - {file.fileName} ({kb} KB)
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           {/* Manual Input + Action */}
@@ -441,7 +370,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
             <button
               type="button"
               onClick={refreshFiles}
-              title="Rescan server files & match sessions"
+              title="Rescan server files on VPS"
               className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-amber-400 transition-all shrink-0"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -480,7 +409,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
               title="Toggle log list sorted by date descending"
             >
               <Calendar className="w-3.5 h-3.5 text-amber-400" />
-              <span>Directory ({sourceMode === 'files' ? sortedLogFiles.length : sortedMatches.length})</span>
+              <span>Directory ({sortedLogFiles.length})</span>
               {browseExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </form>
@@ -512,7 +441,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                   CHRONOLOGICAL DIRECTORY
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold">
-                  {sourceMode === 'files' ? `${sortedLogFiles.length} files` : `${sortedMatches.length} matches`}
+                  {sortedLogFiles.length} files
                 </span>
               </div>
 
@@ -552,221 +481,106 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
 
             {/* Strictly Vertical List Container (Top to Bottom) */}
             <div className="max-h-80 overflow-y-auto rounded-xl bg-slate-950/80 border border-white/[0.08] divide-y divide-white/[0.04] shadow-inner">
-              {sourceMode === 'files' ? (
-                (() => {
-                  const filtered = sortedLogFiles.filter((f) => {
-                    if (!browseSearch) return true;
-                    const q = browseSearch.toLowerCase();
-                    const dt = formatDateTime(f.lastModifiedUtc || f.createdAtUtc);
-                    return (
-                      f.matchId.toLowerCase().includes(q) ||
-                      f.fileName.toLowerCase().includes(q) ||
-                      dt.full.toLowerCase().includes(q)
-                    );
-                  });
-
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="p-6 text-center text-xs text-slate-500 font-mono">
-                        No server log files found matching filter &quot;{browseSearch}&quot;
-                      </div>
-                    );
-                  }
-
-                  const displayed = displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
-
+              {(() => {
+                const filtered = sortedLogFiles.filter((f) => {
+                  if (!browseSearch) return true;
+                  const q = browseSearch.toLowerCase();
+                  const dt = formatDateTime(f.lastModifiedUtc || f.createdAtUtc);
                   return (
-                    <>
-                      {displayed.map((file, idx) => {
-                        const isSelected = selectedMatchId === file.matchId;
-                        const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
-                        const kb = (file.fileSizeBytes / 1024).toFixed(1);
+                    f.matchId.toLowerCase().includes(q) ||
+                    f.fileName.toLowerCase().includes(q) ||
+                    dt.full.toLowerCase().includes(q)
+                  );
+                });
 
-                        return (
-                          <div
-                            key={file.fileName}
-                            onClick={() => {
-                              setInputMatchId(file.matchId);
-                              setSelectedMatchId(file.matchId);
-                            }}
-                            className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
-                              isSelected
-                                ? 'bg-amber-500/15 border-l-4 border-l-amber-400 shadow'
-                                : 'hover:bg-white/[0.04] border-l-4 border-l-transparent'
-                            }`}
-                          >
-                            {/* 1. Date & Time */}
-                            <div className="flex items-center gap-2.5 shrink-0">
-                              <span
-                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                                  idx === 0
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-white/[0.04] text-slate-400 border border-white/[0.06]'
-                                }`}
-                              >
-                                {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-6 text-center text-xs text-slate-500 font-mono">
+                      No server log files found matching filter &quot;{browseSearch}&quot;
+                    </div>
+                  );
+                }
+
+                const displayed = displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
+
+                return (
+                  <>
+                    {displayed.map((file, idx) => {
+                      const isSelected = selectedMatchId === file.matchId;
+                      const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
+                      const kb = (file.fileSizeBytes / 1024).toFixed(1);
+
+                      return (
+                        <div
+                          key={file.fileName}
+                          onClick={() => {
+                            setInputMatchId(file.matchId);
+                            setSelectedMatchId(file.matchId);
+                          }}
+                          className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
+                            isSelected
+                              ? 'bg-amber-500/15 border-l-4 border-l-amber-400 shadow'
+                              : 'hover:bg-white/[0.04] border-l-4 border-l-transparent'
+                          }`}
+                        >
+                          {/* 1. Date & Time */}
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <span
+                              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                idx === 0
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-white/[0.04] text-slate-400 border border-white/[0.06]'
+                              }`}
+                            >
+                              {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
+                            </span>
+                            <div className="flex items-center gap-1.5 text-xs font-mono">
+                              <span className="flex items-center gap-1 text-slate-200 font-semibold bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.06]">
+                                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                                {dt.date}
                               </span>
-                              <div className="flex items-center gap-1.5 text-xs font-mono">
-                                <span className="flex items-center gap-1 text-slate-200 font-semibold bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.06]">
-                                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                                  {dt.date}
-                                </span>
-                                <span className="flex items-center gap-1 text-slate-400 bg-white/[0.02] px-2 py-0.5 rounded border border-white/[0.04]">
-                                  <Clock className="w-3 h-3 text-slate-500" />
-                                  {dt.time}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* 2. File Name & Match GUID */}
-                            <div className="flex-1 min-w-0 font-mono">
-                              <div className="flex items-center gap-2">
-                                <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                                <span className="text-xs font-bold text-slate-200 truncate">
-                                  {file.fileName}
-                                </span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-slate-300">
-                                  {kb} KB
-                                </span>
-                              </div>
-                              <span className="text-[11px] text-slate-500 block truncate">
-                                GUID: {file.matchId}
+                              <span className="flex items-center gap-1 text-slate-400 bg-white/[0.02] px-2 py-0.5 rounded border border-white/[0.04]">
+                                <Clock className="w-3 h-3 text-slate-500" />
+                                {dt.time}
                               </span>
-                            </div>
-
-                            {/* 3. Status Action */}
-                            <div className="flex items-center justify-end shrink-0">
-                              {isSelected ? (
-                                <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  STREAMING
-                                </span>
-                              ) : (
-                                <span className="text-xs font-medium text-slate-400 group-hover:text-amber-300 px-2.5 py-1 rounded bg-white/[0.04] border border-white/[0.06]">
-                                  SELECT →
-                                </span>
-                              )}
                             </div>
                           </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()
-              ) : (
-                (() => {
-                  const filtered = sortedMatches.filter((m) => {
-                    if (!browseSearch) return true;
-                    const q = browseSearch.toLowerCase();
-                    const dt = formatDateTime(m.createdAt);
-                    return (
-                      m.matchId.toLowerCase().includes(q) ||
-                      (m.mode != null && String(m.mode).toLowerCase().includes(q)) ||
-                      (m.status != null && String(m.status).toLowerCase().includes(q)) ||
-                      dt.full.toLowerCase().includes(q)
-                    );
-                  });
 
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="p-6 text-center text-xs text-slate-500 font-mono">
-                        No match sessions found matching filter &quot;{browseSearch}&quot;
-                      </div>
-                    );
-                  }
-
-                  const displayed = displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
-
-                  return (
-                    <>
-                      {displayed.map((m, idx) => {
-                        const isSelected = selectedMatchId === m.matchId;
-                        const dt = formatDateTime(m.createdAt);
-                        const isLive =
-                          (m.status || '').toString().toLowerCase().includes('progress') ||
-                          (m.status || '').toString().toLowerCase().includes('active');
-
-                        return (
-                          <div
-                            key={m.matchId}
-                            onClick={() => {
-                              setInputMatchId(m.matchId);
-                              setSelectedMatchId(m.matchId);
-                            }}
-                            className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
-                              isSelected
-                                ? 'bg-amber-500/15 border-l-4 border-l-amber-400 shadow'
-                                : 'hover:bg-white/[0.04] border-l-4 border-l-transparent'
-                            }`}
-                          >
-                            {/* 1. Date & Time */}
-                            <div className="flex items-center gap-2.5 shrink-0">
-                              <span
-                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                                  idx === 0
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-white/[0.04] text-slate-400 border border-white/[0.06]'
-                                }`}
-                              >
-                                {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
+                          {/* 2. File Name & Match GUID */}
+                          <div className="flex-1 min-w-0 font-mono">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                              <span className="text-xs font-bold text-slate-200 truncate">
+                                {file.fileName}
                               </span>
-                              <div className="flex items-center gap-1.5 text-xs font-mono">
-                                <span className="flex items-center gap-1 text-slate-200 font-semibold bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.06]">
-                                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                                  {dt.date}
-                                </span>
-                                <span className="flex items-center gap-1 text-slate-400 bg-white/[0.02] px-2 py-0.5 rounded border border-white/[0.04]">
-                                  <Clock className="w-3 h-3 text-slate-500" />
-                                  {dt.time}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* 2. Match ID & Mode */}
-                            <div className="flex-1 min-w-0 font-mono">
-                              <div className="flex items-center gap-2">
-                                <Swords className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                <span className="text-xs font-bold text-slate-200 truncate">
-                                  Match #{m.matchId.slice(0, 8)}
-                                </span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-amber-300 uppercase font-bold">
-                                  {m.mode || 'PVP'}
-                                </span>
-                              </div>
-                              <span className="text-[11px] text-slate-500 block truncate">
-                                GUID: {m.matchId}
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-slate-300">
+                                {kb} KB
                               </span>
                             </div>
-
-                            {/* 3. Status & Action */}
-                            <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
-                                  isLive
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-white/[0.04] text-slate-400 border border-white/[0.06]'
-                                }`}
-                              >
-                                {m.status || 'Finished'}
-                              </span>
-                              {isSelected ? (
-                                <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  VIEWING
-                                </span>
-                              ) : (
-                                <span className="text-xs font-medium text-slate-400 hover:text-white px-2.5 py-1 rounded bg-white/[0.04] border border-white/[0.06] transition-all">
-                                  VIEW LOG →
-                                </span>
-                              )}
-                            </div>
+                            <span className="text-[11px] text-slate-500 block truncate">
+                              GUID: {file.matchId}
+                            </span>
                           </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()
-              )}
+
+                          {/* 3. Status Action */}
+                          <div className="flex items-center justify-end shrink-0">
+                            {isSelected ? (
+                              <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                STREAMING
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium text-slate-400 group-hover:text-amber-300 px-2.5 py-1 rounded bg-white/[0.04] border border-white/[0.06]">
+                                SELECT →
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -859,7 +673,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
         </div>
 
         {/* Terminal Content Body */}
-        <div className="p-4 max-h-[580px] min-h-[380px] overflow-y-auto font-mono text-xs leading-relaxed space-y-1 select-text scrollbar-thin bg-[#04060a]">
+        <div ref={terminalBodyRef} className="p-4 max-h-[580px] min-h-[380px] overflow-y-auto font-mono text-xs leading-relaxed space-y-1 select-text scrollbar-thin bg-[#04060a]">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-500 space-y-2">
               <RefreshCw className="w-6 h-6 animate-spin text-amber-400" />
@@ -916,7 +730,6 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
               );
             })
           )}
-          <div ref={terminalEndRef} />
         </div>
 
         {/* Terminal Footer Bar */}
