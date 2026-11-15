@@ -31,13 +31,15 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   initialMatchId = '',
 }) => {
   const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatchId);
+  const [prevInitialMatchId, setPrevInitialMatchId] = useState<string>(initialMatchId);
   const [inputMatchId, setInputMatchId] = useState<string>(initialMatchId);
   const [logData, setLogData] = useState<MatchLogResponse | null>(null);
   const [availableLogFiles, setAvailableLogFiles] = useState<LogFileInfo[]>([]);
   const [browseExpanded, setBrowseExpanded] = useState<boolean>(true);
   const [browseSearch, setBrowseSearch] = useState<string>('');
   const [displayLimit, setDisplayLimit] = useState<number | 'ALL'>(50);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [manualLoading, setManualLoading] = useState<boolean>(false);
+  const [resolvedMatchId, setResolvedMatchId] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filterLevel, setFilterLevel] = useState<MatchLogLevel | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -46,14 +48,22 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   const [autoScroll, setAutoScroll] = useState<boolean>(false);
 
   const terminalBodyRef = useRef<HTMLDivElement | null>(null);
+  const selectedMatchIdRef = useRef<string>(selectedMatchId);
+
+  useEffect(() => {
+    selectedMatchIdRef.current = selectedMatchId;
+  }, [selectedMatchId]);
 
   // Synchronize initialMatchId when changed from parent
-  useEffect(() => {
+  if (initialMatchId !== prevInitialMatchId) {
+    setPrevInitialMatchId(initialMatchId);
     if (initialMatchId && initialMatchId !== selectedMatchId) {
       setSelectedMatchId(initialMatchId);
       setInputMatchId(initialMatchId);
     }
-  }, [initialMatchId, selectedMatchId]);
+  }
+
+  const loading = manualLoading || (Boolean(selectedMatchId) && resolvedMatchId !== selectedMatchId);
 
   // Helper to format full date (DD/MM/YYYY) and time (HH:mm:ss)
   const formatDateTime = useCallback((dateStr?: string) => {
@@ -107,32 +117,46 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   }, [sortedLogFiles, displayLimit]);
 
   // Fetch lists on mount
+  const applyAvailableFiles = useCallback((files: LogFileInfo[]) => {
+    setAvailableLogFiles(files);
+    if (!selectedMatchIdRef.current && files.length > 0) {
+      const newest = [...files].sort((a, b) => {
+        const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
+        const timeB = b.lastModifiedUtc ? new Date(b.lastModifiedUtc).getTime() : 0;
+        return timeB - timeA;
+      })[0];
+      setSelectedMatchId(newest.matchId);
+      setInputMatchId(newest.matchId);
+    }
+  }, []);
+
   const refreshFiles = useCallback(async () => {
     try {
       const files = await fetchAvailableLogFiles(200);
-      setAvailableLogFiles(files);
-      if (!selectedMatchId && files.length > 0) {
-        const newest = [...files].sort((a, b) => {
-          const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
-          const timeB = b.lastModifiedUtc ? new Date(b.lastModifiedUtc).getTime() : 0;
-          return timeB - timeA;
-        })[0];
-        setSelectedMatchId(newest.matchId);
-        setInputMatchId(newest.matchId);
-      }
+      applyAvailableFiles(files);
     } catch {
       // Graceful fallback
     }
-  }, [selectedMatchId]);
+  }, [applyAvailableFiles]);
 
   useEffect(() => {
-    refreshFiles();
-  }, [refreshFiles]);
+    let active = true;
+    fetchAvailableLogFiles(200)
+      .then((files) => {
+        if (active) applyAvailableFiles(files);
+      })
+      .catch(() => {
+        // Graceful fallback
+      });
+    return () => {
+      active = false;
+    };
+  }, [applyAvailableFiles]);
 
-  // Load log data
+  // Manual log loader (Sync button & Tail -f)
   const loadLogs = useCallback(async (matchIdToLoad: string) => {
     if (!matchIdToLoad) return;
-    setLoading(true);
+    setManualLoading(true);
     setErrorMessage(null);
 
     try {
@@ -146,15 +170,36 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
         setErrorMessage(err.message || 'Network error: Unable to reach backend gateway API.');
       }
     } finally {
-      setLoading(false);
+      setResolvedMatchId(matchIdToLoad);
+      setManualLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (selectedMatchId) {
-      loadLogs(selectedMatchId);
-    }
-  }, [selectedMatchId, loadLogs]);
+    if (!selectedMatchId) return;
+    let active = true;
+    fetchMatchLogs(selectedMatchId)
+      .then((data) => {
+        if (!active) return;
+        setLogData(data);
+        setErrorMessage(null);
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        setLogData(null);
+        if (err.response?.status === 404) {
+          setErrorMessage(`No server log found for Match ID "${selectedMatchId}".`);
+        } else {
+          setErrorMessage(err.message || 'Network error: Unable to reach backend gateway API.');
+        }
+      })
+      .finally(() => {
+        if (active) setResolvedMatchId(selectedMatchId);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedMatchId]);
 
   // Live Auto-Refresh polling (tail -f)
   useEffect(() => {

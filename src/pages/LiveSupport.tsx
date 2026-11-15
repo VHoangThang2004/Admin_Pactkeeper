@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { adminClient } from '../api/adminClient';
@@ -35,86 +35,109 @@ export const LiveSupport: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeMatchesMap, setActiveMatchesMap] = useState<Map<string, { matchId: string; mode?: string }>>(new Map());
 
+  const selectedPlayerIdRef = useRef(selectedPlayerId);
+  useEffect(() => {
+    selectedPlayerIdRef.current = selectedPlayerId;
+  }, [selectedPlayerId]);
+
   const activePlayer = players.find((p) => p.playerId === selectedPlayerId);
   const activePlayerRealName =
     (activePlayer?.playerName || activePlayer?.username || '').trim() ||
     messages.find((m) => m.sender !== 'admin' && m.sender !== 'Admin' && m.senderName && m.senderName.trim())?.senderName?.trim() ||
     (selectedPlayerId ? `Traveler #${selectedPlayerId.slice(-4).toUpperCase()}` : 'Traveler');
 
+  const loadSupportQueueData = useCallback(async () => {
+    const [supportRes, matchRes] = await Promise.allSettled([
+      adminClient.get('/support/admin/players'),
+      adminClient.get('/Match/history'),
+    ]);
+
+    const matchMap = new Map<string, { matchId: string; mode?: string }>();
+    if (matchRes.status === 'fulfilled' && Array.isArray(matchRes.value.data)) {
+      matchRes.value.data.forEach((m: any) => {
+        const s = (m.status || '').toLowerCase();
+        const isLive = s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
+        if (isLive) {
+          const mId = m.matchId || m.id || '';
+          if (m.player1Id) matchMap.set(m.player1Id, { matchId: mId, mode: m.mode });
+          if (m.player2Id) matchMap.set(m.player2Id, { matchId: mId, mode: m.mode });
+        }
+      });
+    }
+
+    let mappedPlayers: ActiveChatPlayerDto[] = [];
+    if (supportRes.status === 'fulfilled' && Array.isArray(supportRes.value.data)) {
+      mappedPlayers = supportRes.value.data.map((p: any) => {
+        const resolvedName = (p.playerName || p.username || '').trim();
+        const messageSnippet = p.latestMessageText || p.lastMessage || '';
+        const timeSnippet = p.latestMessageTime
+          ? new Date(p.latestMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : (p.lastMessageAt || '');
+        return {
+          playerId: p.playerId,
+          playerName: resolvedName,
+          username: resolvedName,
+          latestMessageText: messageSnippet,
+          lastMessage: messageSnippet,
+          latestMessageTime: p.latestMessageTime || '',
+          lastMessageAt: timeSnippet,
+        };
+      });
+    }
+
+    return { matchMap, mappedPlayers };
+  }, []);
+
+  const applySupportQueue = useCallback((result: { matchMap: Map<string, { matchId: string; mode?: string }>; mappedPlayers: ActiveChatPlayerDto[] }) => {
+    setActiveMatchesMap(result.matchMap);
+    setPlayers(result.mappedPlayers);
+    if (result.mappedPlayers.length > 0 && !selectedPlayerIdRef.current) {
+      setSelectedPlayerId(result.mappedPlayers[0].playerId);
+    }
+  }, []);
+
   const fetchPlayers = useCallback(async () => {
     setLoading(true);
     try {
-      const [supportRes, matchRes] = await Promise.allSettled([
-        adminClient.get('/support/admin/players'),
-        adminClient.get('/Match/history'),
-      ]);
-
-      const matchMap = new Map<string, { matchId: string; mode?: string }>();
-      if (matchRes.status === 'fulfilled' && Array.isArray(matchRes.value.data)) {
-        matchRes.value.data.forEach((m: any) => {
-          const s = (m.status || '').toLowerCase();
-          const isLive = s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
-          if (isLive) {
-            const mId = m.matchId || m.id || '';
-            if (m.player1Id) matchMap.set(m.player1Id, { matchId: mId, mode: m.mode });
-            if (m.player2Id) matchMap.set(m.player2Id, { matchId: mId, mode: m.mode });
-          }
-        });
-      }
-      setActiveMatchesMap(matchMap);
-
-      if (supportRes.status === 'fulfilled' && Array.isArray(supportRes.value.data)) {
-        const mapped: ActiveChatPlayerDto[] = supportRes.value.data.map((p: any) => {
-          const resolvedName = (p.playerName || p.username || '').trim();
-          const messageSnippet = p.latestMessageText || p.lastMessage || '';
-          const timeSnippet = p.latestMessageTime
-            ? new Date(p.latestMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : (p.lastMessageAt || '');
-          return {
-            playerId: p.playerId,
-            playerName: resolvedName,
-            username: resolvedName,
-            latestMessageText: messageSnippet,
-            lastMessage: messageSnippet,
-            latestMessageTime: p.latestMessageTime || '',
-            lastMessageAt: timeSnippet,
-          };
-        });
-        setPlayers(mapped);
-        if (mapped.length > 0 && !selectedPlayerId) {
-          setSelectedPlayerId(mapped[0].playerId);
-        }
-      }
+      const result = await loadSupportQueueData();
+      applySupportQueue(result);
     } catch {
       // Graceful fallback
     } finally {
       setLoading(false);
     }
+  }, [loadSupportQueueData, applySupportQueue]);
+
+  useEffect(() => {
+    let active = true;
+    loadSupportQueueData()
+      .then((result) => {
+        if (active) applySupportQueue(result);
+      })
+      .catch(() => {
+        // Graceful fallback
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadSupportQueueData, applySupportQueue]);
+
+  useEffect(() => {
+    if (!selectedPlayerId) return;
+    let active = true;
+    adminClient
+      .get(`/support/admin/chat/${selectedPlayerId}`)
+      .then((res) => {
+        if (!active) return;
+        setMessages(Array.isArray(res.data) ? res.data : []);
+      })
+      .catch(() => {
+        if (active) setMessages([]);
+      });
+    return () => {
+      active = false;
+    };
   }, [selectedPlayerId]);
-
-  const fetchMessagesForPlayer = useCallback(async (playerId: string) => {
-    if (!playerId) return;
-    try {
-      const res = await adminClient.get(`/support/admin/chat/${playerId}`);
-      if (Array.isArray(res.data)) {
-        setMessages(res.data);
-      } else {
-        setMessages([]);
-      }
-    } catch {
-      setMessages([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchPlayers();
-  }, [fetchPlayers]);
-
-  useEffect(() => {
-    if (selectedPlayerId) {
-      fetchMessagesForPlayer(selectedPlayerId);
-    }
-  }, [selectedPlayerId, fetchMessagesForPlayer]);
 
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
@@ -130,16 +153,18 @@ export const LiveSupport: React.FC = () => {
       .catch(() => setIsConnected(false));
 
     connection.on('ReceiveMessage', (senderPlayerId: string, messageData: SupportMessageDto) => {
-      if (senderPlayerId === selectedPlayerId) {
+      if (senderPlayerId === selectedPlayerIdRef.current) {
         setMessages((prev) => [...prev, messageData]);
       }
-      fetchPlayers();
+      loadSupportQueueData()
+        .then(applySupportQueue)
+        .catch(() => {});
     });
 
     return () => {
       connection.stop();
     };
-  }, [selectedPlayerId, fetchPlayers]);
+  }, [loadSupportQueueData, applySupportQueue]);
 
   const handleSendMessage = async () => {
     if (!replyText.trim() || !selectedPlayerId) return;

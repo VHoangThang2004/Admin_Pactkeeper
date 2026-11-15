@@ -94,86 +94,101 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
    * Fetches real telemetry metrics from backend endpoints in parallel
    * utilizing the unified player presence engine synchronized with Unity_Pactkeeper.
    */
+  const loadTelemetrySnapshot = async () => {
+    const [uRes, bRes, pRes, hRes, cRes, stateRes, unifiedData] = await Promise.allSettled([
+      adminClient.get('/UnitDefinition'),
+      adminClient.get('/gachabanner'),
+      adminClient.get('/topuppack/all'),
+      adminClient.get('/payment/history'),
+      adminClient.get('/ChapterConfig'),
+      adminClient.get('/admin/system-state'),
+      fetchUnifiedPlayerData(),
+    ]);
+
+    const orders = hRes.status === 'fulfilled' && Array.isArray(hRes.value.data) ? hRes.value.data : [];
+    const paidOrders = orders.filter((o: any) => o.status === 'PAID');
+
+    return {
+      activeUnitsCount: uRes.status === 'fulfilled' && Array.isArray(uRes.value.data) ? uRes.value.data.length : 0,
+      bannersCount: bRes.status === 'fulfilled' && Array.isArray(bRes.value.data) ? bRes.value.data.length : 0,
+      packsCount: pRes.status === 'fulfilled' && Array.isArray(pRes.value.data) ? pRes.value.data.length : 0,
+      chaptersCount: cRes.status === 'fulfilled' && Array.isArray(cRes.value.data) ? cRes.value.data.length : 0,
+      totalOrdersCount: orders.length,
+      paidOrdersCount: paidOrders.length,
+      totalRevenue: paidOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0),
+      unified: unifiedData.status === 'fulfilled' ? unifiedData.value : null,
+      systemState: stateRes.status === 'fulfilled' ? stateRes.value.data : null,
+    };
+  };
+
+  const applyTelemetrySnapshot = (snapshot: Awaited<ReturnType<typeof loadTelemetrySnapshot>>) => {
+    setActiveUnitsCount(snapshot.activeUnitsCount);
+    setBannersCount(snapshot.bannersCount);
+    setPacksCount(snapshot.packsCount);
+    setChaptersCount(snapshot.chaptersCount);
+    setTotalOrdersCount(snapshot.totalOrdersCount);
+    setPaidOrdersCount(snapshot.paidOrdersCount);
+    setTotalRevenue(snapshot.totalRevenue);
+
+    if (snapshot.unified) {
+      setTrackedPlayers(snapshot.unified.trackedPlayers);
+      setOnlinePlayersCount(snapshot.unified.counts.online);
+      setInMatchPlayersCount(snapshot.unified.counts.inBattle);
+      setActiveMatchesCount(snapshot.unified.activeMatchesCount);
+      setTotalMatchesCount(snapshot.unified.totalMatchesCount);
+    }
+
+    if (snapshot.systemState) {
+      setServerState({
+        loginBlocked: Boolean(snapshot.systemState.loginBlocked),
+        matchmakingBlocked: Boolean(snapshot.systemState.matchmakingBlocked),
+      });
+    }
+  };
+
+  const resetTelemetryMetrics = () => {
+    setActiveUnitsCount(0);
+    setBannersCount(0);
+    setPacksCount(0);
+    setChaptersCount(0);
+    setTotalRevenue(0);
+    setPaidOrdersCount(0);
+    setTotalOrdersCount(0);
+    setOnlinePlayersCount(0);
+    setInMatchPlayersCount(0);
+    setActiveMatchesCount(0);
+    setTotalMatchesCount(0);
+    setTrackedPlayers([]);
+  };
+
   const fetchRealTelemetry = async () => {
     setLoading(true);
     try {
-      const [uRes, bRes, pRes, hRes, cRes, stateRes, unifiedData] = await Promise.allSettled([
-        adminClient.get('/UnitDefinition'),
-        adminClient.get('/gachabanner'),
-        adminClient.get('/topuppack/all'),
-        adminClient.get('/payment/history'),
-        adminClient.get('/ChapterConfig'),
-        adminClient.get('/admin/system-state'),
-        fetchUnifiedPlayerData(),
-      ]);
-
-      // 1. Game Archives
-      if (uRes.status === 'fulfilled' && Array.isArray(uRes.value.data)) setActiveUnitsCount(uRes.value.data.length);
-      else setActiveUnitsCount(0);
-
-      if (bRes.status === 'fulfilled' && Array.isArray(bRes.value.data)) setBannersCount(bRes.value.data.length);
-      else setBannersCount(0);
-
-      if (pRes.status === 'fulfilled' && Array.isArray(pRes.value.data)) setPacksCount(pRes.value.data.length);
-      else setPacksCount(0);
-
-      if (cRes.status === 'fulfilled' && Array.isArray(cRes.value.data)) setChaptersCount(cRes.value.data.length);
-      else setChaptersCount(0);
-
-      // 2. Financial Metrics (PayOS Ledger)
-      if (hRes.status === 'fulfilled' && Array.isArray(hRes.value.data)) {
-        const orders = hRes.value.data;
-        setTotalOrdersCount(orders.length);
-        const paidOrders = orders.filter((o: any) => o.status === 'PAID');
-        setPaidOrdersCount(paidOrders.length);
-        const rev = paidOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
-        setTotalRevenue(rev);
-      } else {
-        setTotalOrdersCount(0);
-        setPaidOrdersCount(0);
-        setTotalRevenue(0);
-      }
-
-      // 3. Unified Real-Time Player & Match Telemetry (Unity NGO & SignalR LobbyHub)
-      if (unifiedData.status === 'fulfilled') {
-        const d = unifiedData.value;
-        setTrackedPlayers(d.trackedPlayers);
-        setOnlinePlayersCount(d.counts.online);
-        setInMatchPlayersCount(d.counts.inBattle);
-        setActiveMatchesCount(d.activeMatchesCount);
-        setTotalMatchesCount(d.totalMatchesCount);
-      }
-
-      // 4. Emergency Server Override State
-      if (stateRes.status === 'fulfilled' && stateRes.value.data) {
-        setServerState({
-          loginBlocked: Boolean(stateRes.value.data.loginBlocked),
-          matchmakingBlocked: Boolean(stateRes.value.data.matchmakingBlocked),
-        });
-      }
+      const snapshot = await loadTelemetrySnapshot();
+      applyTelemetrySnapshot(snapshot);
     } catch {
-      setActiveUnitsCount(0);
-      setBannersCount(0);
-      setPacksCount(0);
-      setChaptersCount(0);
-      setTotalRevenue(0);
-      setPaidOrdersCount(0);
-      setTotalOrdersCount(0);
-      setOnlinePlayersCount(0);
-      setInMatchPlayersCount(0);
-      setActiveMatchesCount(0);
-      setTotalMatchesCount(0);
-      setTrackedPlayers([]);
+      resetTelemetryMetrics();
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRealTelemetry();
+    let active = true;
+    loadTelemetrySnapshot()
+      .then((snapshot) => {
+        if (active) applyTelemetrySnapshot(snapshot);
+      })
+      .catch(() => {
+        if (active) resetTelemetryMetrics();
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     // Subscribe to live player presence updates (via SignalR LobbyHub & auto-polling)
     const unsubscribe = subscribeToUnifiedPresence((data) => {
+      if (!active) return;
       setTrackedPlayers(data.trackedPlayers);
       setOnlinePlayersCount(data.counts.online);
       setInMatchPlayersCount(data.counts.inBattle);
@@ -181,7 +196,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       setTotalMatchesCount(data.totalMatchesCount);
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const toggleLoginStatus = async () => {

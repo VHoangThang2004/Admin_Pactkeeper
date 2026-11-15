@@ -110,10 +110,10 @@ export const App: React.FC = () => {
             element={!isTechSupport ? <PlayerManagement role={role} /> : <Navigate to="/" replace />}
           />
 
-          {/* Match Supervision & Combat Action Logs: Moderator & Admin (Screen 33 & 34) */}
+          {/* Match Supervision & Combat Action Logs: Admin, Moderator & Technical Support (Screen 33 & 34) */}
           <Route
             path="/matches"
-            element={!isTechSupport ? <MatchSupervision /> : <Navigate to="/" replace />}
+            element={<MatchSupervision />}
           />
 
           {/* Logs, Alerts & Support: Technical Support & Admin */}

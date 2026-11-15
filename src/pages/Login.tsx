@@ -56,16 +56,16 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
   'Technical Support': {
     id: 'Technical Support',
     label: 'Technical Support',
-    roleSubtitle: 'System Status, Overrides & Live Chat',
+    roleSubtitle: 'System Status, Match Logs & Live Chat',
     icon: Activity,
-    badgeText: 'STATUS & LIVE CHAT',
+    badgeText: 'STATUS, LOGS & CHAT',
     landingPath: 'System Monitor & Status (/)',
     defaultUsername: 'techsupport',
     defaultPasswordHint: 'tech123',
     themeColor: '#34d399',
     activeBg: 'bg-emerald-500/15',
     activeBorder: 'border-emerald-400',
-    scopeSummary: 'Direct responsibility for Monitor System/Server Status, Configure System Overrides & Statistic Requests, and Player Live Chat Desk.',
+    scopeSummary: 'Direct responsibility for Monitor System/Server Status, Configure System Overrides, Match Log Diagnostics, and Player Live Chat Desk.',
   },
 };
 

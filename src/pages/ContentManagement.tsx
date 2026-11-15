@@ -107,35 +107,36 @@ export const ContentManagement: React.FC = () => {
   /**
    * Fetches all 6 game definition collections in parallel using Promise.allSettled.
    */
+  const loadContentCollections = async () => {
+    const [uRes, cRes, wRes, tRes, clRes, sRes] = await Promise.allSettled([
+      adminClient.get('/UnitDefinition'),
+      adminClient.get('/ChapterConfig'),
+      adminClient.get('/WeaponDefinition'),
+      adminClient.get('/TrinketDefinition'),
+      adminClient.get('/ClassDefinition'),
+      adminClient.get('/SkillDefinition'),
+    ]);
+
+    return {
+      units: uRes.status === 'fulfilled' && Array.isArray(uRes.value.data) ? uRes.value.data : [],
+      chapters: cRes.status === 'fulfilled' && Array.isArray(cRes.value.data) ? cRes.value.data : [],
+      weapons: wRes.status === 'fulfilled' && Array.isArray(wRes.value.data) ? wRes.value.data : [],
+      trinkets: tRes.status === 'fulfilled' && Array.isArray(tRes.value.data) ? tRes.value.data : [],
+      classes: clRes.status === 'fulfilled' && Array.isArray(clRes.value.data) ? clRes.value.data : [],
+      skills: sRes.status === 'fulfilled' && Array.isArray(sRes.value.data) ? sRes.value.data : [],
+    };
+  };
+
   const fetchContent = async () => {
     setLoading(true);
     try {
-      const [uRes, cRes, wRes, tRes, clRes, sRes] = await Promise.allSettled([
-        adminClient.get('/UnitDefinition'),
-        adminClient.get('/ChapterConfig'),
-        adminClient.get('/WeaponDefinition'),
-        adminClient.get('/TrinketDefinition'),
-        adminClient.get('/ClassDefinition'),
-        adminClient.get('/SkillDefinition'),
-      ]);
-
-      if (uRes.status === 'fulfilled' && Array.isArray(uRes.value.data)) setUnits(uRes.value.data);
-      else setUnits([]);
-
-      if (cRes.status === 'fulfilled' && Array.isArray(cRes.value.data)) setChapters(cRes.value.data);
-      else setChapters([]);
-
-      if (wRes.status === 'fulfilled' && Array.isArray(wRes.value.data)) setWeapons(wRes.value.data);
-      else setWeapons([]);
-
-      if (tRes.status === 'fulfilled' && Array.isArray(tRes.value.data)) setTrinkets(tRes.value.data);
-      else setTrinkets([]);
-
-      if (clRes.status === 'fulfilled' && Array.isArray(clRes.value.data)) setClasses(clRes.value.data);
-      else setClasses([]);
-
-      if (sRes.status === 'fulfilled' && Array.isArray(sRes.value.data)) setSkills(sRes.value.data);
-      else setSkills([]);
+      const data = await loadContentCollections();
+      setUnits(data.units);
+      setChapters(data.chapters);
+      setWeapons(data.weapons);
+      setTrinkets(data.trinkets);
+      setClasses(data.classes);
+      setSkills(data.skills);
     } catch {
       setUnits([]);
       setChapters([]);
@@ -149,7 +150,33 @@ export const ContentManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchContent();
+    let active = true;
+    loadContentCollections()
+      .then((data) => {
+        if (!active) return;
+        setUnits(data.units);
+        setChapters(data.chapters);
+        setWeapons(data.weapons);
+        setTrinkets(data.trinkets);
+        setClasses(data.classes);
+        setSkills(data.skills);
+      })
+      .catch(() => {
+        if (!active) return;
+        setUnits([]);
+        setChapters([]);
+        setWeapons([]);
+        setTrinkets([]);
+        setClasses([]);
+        setSkills([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   // ==========================================

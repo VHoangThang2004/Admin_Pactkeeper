@@ -57,14 +57,27 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
   };
 
   useEffect(() => {
-    fetchPlayers();
+    let active = true;
+    fetchUnifiedPlayerData()
+      .then((unified) => {
+        if (active) setPlayers(unified.players);
+      })
+      .catch(() => {
+        // Graceful fallback
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     // Subscribe to real-time player presence updates (SignalR LobbyHub & auto-polling)
     const unsubscribe = subscribeToUnifiedPresence((data) => {
-      setPlayers(data.players);
+      if (active) setPlayers(data.players);
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const handleAddPlayerById = async () => {

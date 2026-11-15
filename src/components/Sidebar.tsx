@@ -54,8 +54,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
       path: '/matches', 
       label: 'Match Supervision', 
       icon: Swords, 
-      tag: 'SPECTATOR', 
-      allowedRoles: ['Admin', 'Server', 'Moderator'] 
+      tag: isTechSupport ? 'DIAGNOSTICS' : 'SPECTATOR', 
+      allowedRoles: ['Admin', 'Server', 'Moderator', 'Technical Support', 'Support'] 
     },
     { 
       path: '/gacha', 

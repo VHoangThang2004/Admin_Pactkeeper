@@ -36,12 +36,22 @@ import type { MatchHistoryItem, LogFileInfo, MatchLogResponse, MatchLogLevel } f
 export const MatchSupervision: React.FC = () => {
   const [searchParams] = useSearchParams();
   const queryMatchId = searchParams.get('matchId') || '';
+  const [prevQueryMatchId, setPrevQueryMatchId] = useState<string>(queryMatchId);
 
   // Page-Level Tab: Default to Dedicated Server Diagnostics
   const [activeTab, setActiveTab] = useState<'diagnostics' | 'sessions'>('diagnostics');
 
   // Target Match ID for dedicated log inspector tab
   const [targetMatchId, setTargetMatchId] = useState<string>(queryMatchId);
+
+  // Sync queryMatchId when URL param changes
+  if (queryMatchId !== prevQueryMatchId) {
+    setPrevQueryMatchId(queryMatchId);
+    if (queryMatchId) {
+      setTargetMatchId(queryMatchId);
+      setActiveTab('diagnostics');
+    }
+  }
 
   // Match telemetry data
   const [matches, setMatches] = useState<MatchHistoryItem[]>([]);
@@ -98,33 +108,43 @@ export const MatchSupervision: React.FC = () => {
   /**
    * Fetches telemetry, match sessions, server log files, and player directory
    */
+  const loadMatchTelemetry = async () => {
+    const [matchRes, logFilesData, playerRes] = await Promise.allSettled([
+      adminClient.get('/Match/history'),
+      fetchAvailableLogFiles(200),
+      adminClient.get('/player/all'),
+    ]);
+
+    const matchesList =
+      matchRes.status === 'fulfilled' && Array.isArray(matchRes.value.data) ? matchRes.value.data : null;
+    const filesList =
+      logFilesData.status === 'fulfilled' && Array.isArray(logFilesData.value) ? logFilesData.value : null;
+
+    let pMap: Map<string, string> | null = null;
+    if (playerRes.status === 'fulfilled' && Array.isArray(playerRes.value.data)) {
+      pMap = new Map<string, string>();
+      playerRes.value.data.forEach((p: any) => {
+        if (p.playerId) {
+          const name = (p.username || '').trim() || `Traveler #${p.playerId.slice(-4).toUpperCase()}`;
+          pMap!.set(p.playerId, name);
+        }
+      });
+    }
+
+    return { matchesList, filesList, pMap };
+  };
+
+  const applyMatchTelemetry = (snapshot: Awaited<ReturnType<typeof loadMatchTelemetry>>) => {
+    if (snapshot.matchesList) setMatches(snapshot.matchesList);
+    if (snapshot.filesList) setLogFiles(snapshot.filesList);
+    if (snapshot.pMap) setPlayerNamesMap(snapshot.pMap);
+  };
+
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [matchRes, logFilesData, playerRes] = await Promise.allSettled([
-        adminClient.get('/Match/history'),
-        fetchAvailableLogFiles(200),
-        adminClient.get('/player/all'),
-      ]);
-
-      if (matchRes.status === 'fulfilled' && Array.isArray(matchRes.value.data)) {
-        setMatches(matchRes.value.data);
-      }
-
-      if (logFilesData.status === 'fulfilled' && Array.isArray(logFilesData.value)) {
-        setLogFiles(logFilesData.value);
-      }
-
-      if (playerRes.status === 'fulfilled' && Array.isArray(playerRes.value.data)) {
-        const pMap = new Map<string, string>();
-        playerRes.value.data.forEach((p: any) => {
-          if (p.playerId) {
-            const name = (p.username || '').trim() || `Traveler #${p.playerId.slice(-4).toUpperCase()}`;
-            pMap.set(p.playerId, name);
-          }
-        });
-        setPlayerNamesMap(pMap);
-      }
+      const snapshot = await loadMatchTelemetry();
+      applyMatchTelemetry(snapshot);
     } catch {
       // Graceful error fallback
     } finally {
@@ -133,16 +153,21 @@ export const MatchSupervision: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAllData();
+    let active = true;
+    loadMatchTelemetry()
+      .then((snapshot) => {
+        if (active) applyMatchTelemetry(snapshot);
+      })
+      .catch(() => {
+        // Graceful error fallback
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
-
-  // Update target match when queryParam changes
-  useEffect(() => {
-    if (queryMatchId) {
-      setTargetMatchId(queryMatchId);
-      setActiveTab('diagnostics');
-    }
-  }, [queryMatchId]);
 
   // Set of Match IDs that currently have a physical .log file on VPS disk
   const logFileSet = useMemo(() => {
@@ -216,34 +241,35 @@ export const MatchSupervision: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Fetch log for in-modal inspection when inspectingLogMatch is chosen
-  useEffect(() => {
-    if (!inspectingLogMatch) {
+  // Open in-modal log inspector and fetch server log
+  const openInspectLogModal = async (match: MatchHistoryItem) => {
+    setInspectingLogMatch(match);
+    setModalLogData(null);
+    setModalError(null);
+    setModalFilterLevel('ALL');
+    setModalSearch('');
+    setModalLoading(true);
+    try {
+      const data = await fetchMatchLogs(match.matchId);
+      setModalLogData(data);
+    } catch (err: any) {
       setModalLogData(null);
-      setModalError(null);
-      return;
-    }
-
-    const loadModalLogs = async () => {
-      setModalLoading(true);
-      setModalError(null);
-      try {
-        const data = await fetchMatchLogs(inspectingLogMatch.matchId);
-        setModalLogData(data);
-      } catch (err: any) {
-        setModalLogData(null);
-        if (err.response?.status === 404) {
-          setModalError('No physical .log file found on VPS disk.');
-        } else {
-          setModalError(err.message || 'Error reaching backend server.');
-        }
-      } finally {
-        setModalLoading(false);
+      if (err.response?.status === 404) {
+        setModalError('No physical .log file found on VPS disk.');
+      } else {
+        setModalError(err.message || 'Error reaching backend server.');
       }
-    };
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
-    loadModalLogs();
-  }, [inspectingLogMatch]);
+  const closeInspectLogModal = () => {
+    setInspectingLogMatch(null);
+    setModalLogData(null);
+    setModalError(null);
+    setModalLoading(false);
+  };
 
   // Filtered lines inside the Inspect Log Modal
   const filteredModalLines = useMemo(() => {
@@ -665,7 +691,7 @@ export const MatchSupervision: React.FC = () => {
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 type="button"
-                                onClick={() => setInspectingLogMatch(m)}
+                                onClick={() => openInspectLogModal(m)}
                                 className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow ${
                                   hasLog
                                     ? 'bg-amber-500 text-slate-950 hover:bg-amber-400'
@@ -797,7 +823,7 @@ export const MatchSupervision: React.FC = () => {
                 onClick={() => {
                   const m = inspectingMatch;
                   setInspectingMatch(null);
-                  setInspectingLogMatch(m);
+                  openInspectLogModal(m);
                 }}
                 className="btn-primary-gold px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow"
               >
@@ -813,7 +839,7 @@ export const MatchSupervision: React.FC = () => {
       {inspectingLogMatch && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
-          onClick={() => setInspectingLogMatch(null)}
+          onClick={closeInspectLogModal}
         >
           <div
             className="hy-card p-6 rounded-2xl border border-white/[0.15] shadow-2xl max-w-4xl w-full space-y-4 relative flex flex-col max-h-[90vh]"
@@ -851,7 +877,7 @@ export const MatchSupervision: React.FC = () => {
                 </p>
               </div>
               <button
-                onClick={() => setInspectingLogMatch(null)}
+                onClick={closeInspectLogModal}
                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all"
               >
                 <X className="w-5 h-5" />
@@ -990,7 +1016,7 @@ export const MatchSupervision: React.FC = () => {
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08] shrink-0">
               <button
                 type="button"
-                onClick={() => setInspectingLogMatch(null)}
+                onClick={closeInspectLogModal}
                 className="hy-btn-glass px-4 py-2 text-xs font-semibold"
               >
                 Close

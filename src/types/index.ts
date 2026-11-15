@@ -42,6 +42,23 @@ export interface PlayerProfile {
   activeMatch?: { matchId: string; mode?: string; serverIp?: string; serverPort?: number };
 }
 
+export interface GachaPullOption {
+  pullType: number;
+  price: number;
+}
+
+export interface GachaBannerItem {
+  reward?: {
+    definitionId?: string;
+    rewardType?: string | number;
+    name?: string;
+  };
+  isFeatured?: boolean;
+  dropRate?: number;
+  weight?: number;
+  rarity?: string;
+}
+
 export interface GachaBanner {
   id: string;
   title: string;
@@ -50,9 +67,12 @@ export interface GachaBanner {
   startTime: string;
   endTime: string;
   costPerPull: number;
+  pullOptions?: GachaPullOption[];
+  pityThreshold?: number;
   currencyType: string;
   featuredUnitIds: string[];
   featuredWeaponIds: string[];
+  items?: GachaBannerItem[];
   isActive?: boolean;
 }
 
@@ -185,6 +205,8 @@ export interface PurchaseOrder {
   packId: string;
   status: 'PAID' | 'PENDING' | 'CANCELLED';
   createdAt: string;
+  webhookSignature?: string;
+  signature?: string;
 }
 
 export type MatchLogLevel = 'INFO' | 'WARN' | 'ERROR' | 'SYSTEM';
