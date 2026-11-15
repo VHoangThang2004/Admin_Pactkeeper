@@ -12,13 +12,16 @@ import {
   Swords,
   MessageSquare,
   Radio,
-  ExternalLink
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import { WEB_TOPUP_URL } from '../constants/links';
-import type { CounselRole } from '../types';
+import { hasPermission } from '../utils/permissions';
+import type { AdminPermissionKey, CounselRole } from '../types';
 
 interface SidebarProps {
   role: CounselRole;
+  permissions?: AdminPermissionKey[];
   onLogout: () => void;
 }
 
@@ -31,64 +34,79 @@ interface SidebarProps {
  * - Real-time Server Cluster telemetry beacon
  * - Direct shortcut link to Player Web Top-Up portal
  */
-export const Sidebar: React.FC<SidebarProps> = ({ role, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ role, permissions = [], onLogout }) => {
   const isTechSupport = role === 'Technical Support' || role === 'Support';
 
-  // Navigation matrix with strict role access mapping from SRS Report 3
-  const allNavItems = [
-    { 
-      path: '/', 
-      label: isTechSupport ? 'System Status & Monitor' : 'Command Dashboard', 
-      icon: isTechSupport ? Activity : Gem, 
-      tag: isTechSupport ? 'TELEMETRY' : 'OVERVIEW', 
-      allowedRoles: ['Admin', 'Server', 'Technical Support', 'Support'] 
+  // Navigation matrix backed by granular RBAC permissions
+  const allNavItems: Array<{
+    path: string;
+    label: string;
+    icon: React.ElementType;
+    tag: string;
+    requiredPermissions: AdminPermissionKey[];
+  }> = [
+    {
+      path: '/',
+      label: isTechSupport ? 'System Status & Monitor' : 'Command Dashboard',
+      icon: isTechSupport ? Activity : Gem,
+      tag: isTechSupport ? 'TELEMETRY' : 'OVERVIEW',
+      requiredPermissions: ['dashboard.view'],
     },
-    { 
-      path: '/players', 
-      label: role === 'Moderator' ? 'User Directory' : 'Manage User Accounts', 
-      icon: Shield, 
-      tag: role === 'Moderator' ? 'PLAYERS' : 'ACCOUNTS', 
-      allowedRoles: ['Admin', 'Server', 'Moderator'] 
+    {
+      path: '/players',
+      label: role === 'Moderator' ? 'User Directory' : 'Manage User Accounts',
+      icon: Shield,
+      tag: role === 'Moderator' ? 'PLAYERS' : 'ACCOUNTS',
+      requiredPermissions: ['players.view'],
     },
-    { 
-      path: '/matches', 
-      label: 'Match Supervision', 
-      icon: Swords, 
-      tag: isTechSupport ? 'DIAGNOSTICS' : 'SPECTATOR', 
-      allowedRoles: ['Admin', 'Server', 'Moderator', 'Technical Support', 'Support'] 
+    {
+      path: '/matches',
+      label: 'Match Supervision',
+      icon: Swords,
+      tag: isTechSupport ? 'DIAGNOSTICS' : 'SPECTATOR',
+      requiredPermissions: ['matches.view'],
     },
-    { 
-      path: '/gacha', 
-      label: 'Gacha / Story Banner', 
-      icon: Sparkles, 
-      tag: 'BANNERS', 
-      allowedRoles: ['Moderator', 'Admin', 'Server'] 
+    {
+      path: '/gacha',
+      label: 'Gacha / Story Banner',
+      icon: Sparkles,
+      tag: 'BANNERS',
+      requiredPermissions: ['gacha.manage'],
     },
-    { 
-      path: '/content', 
-      label: 'Item & Reward Config', 
-      icon: Scroll, 
-      tag: 'ARMORY', 
-      allowedRoles: ['Moderator', 'Admin', 'Server'] 
+    {
+      path: '/content',
+      label: 'Item & Reward Config',
+      icon: Scroll,
+      tag: 'ARMORY',
+      requiredPermissions: ['content.manage'],
     },
-    { 
-      path: '/payments', 
-      label: 'PayOS Revenue Ledger', 
-      icon: Coins, 
-      tag: 'LEDGER', 
-      allowedRoles: ['Admin', 'Server'] 
+    {
+      path: '/payments',
+      label: 'PayOS Revenue Ledger',
+      icon: Coins,
+      tag: 'LEDGER',
+      requiredPermissions: ['payments.view'],
     },
-    { 
-      path: '/support', 
-      label: 'Player Support Desk', 
-      icon: MessageSquare, 
-      tag: 'LIVE CHAT', 
-      allowedRoles: ['Technical Support', 'Support', 'Admin', 'Server'] 
+    {
+      path: '/support',
+      label: 'Player Support Desk',
+      icon: MessageSquare,
+      tag: 'LIVE CHAT',
+      requiredPermissions: ['support.chat'],
+    },
+    {
+      path: '/security',
+      label: 'Security & Audit',
+      icon: ShieldAlert,
+      tag: 'GOVERNANCE',
+      requiredPermissions: ['security.accounts', 'security.roles', 'security.audit'],
     },
   ];
 
-  // Filter modules strictly for the authenticated user's role
-  const visibleNavItems = allNavItems.filter((item) => item.allowedRoles.includes(role));
+  // Filter modules strictly using RBAC role/JWT permission resolution
+  const visibleNavItems = allNavItems.filter((item) =>
+    item.requiredPermissions.some((perm) => hasPermission(role, perm, permissions))
+  );
 
   // Dynamic module section header based on role privileges
   const getSectionTitle = () => {

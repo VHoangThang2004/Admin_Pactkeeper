@@ -2,11 +2,12 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import type { CounselRole } from '../types';
+import type { AdminPermissionKey, CounselRole } from '../types';
 
 interface LayoutProps {
   adminName: string;
   role: CounselRole;
+  permissions?: AdminPermissionKey[];
   onLogout: () => void;
 }
 
@@ -19,7 +20,12 @@ interface LayoutProps {
  * - Sleek floating glass header with breadcrumbs and live server cluster health
  * - Fluid, scrollable content canvas with dark glassmorphic cards
  */
-export const Layout: React.FC<LayoutProps> = ({ adminName, role, onLogout }) => {
+export const Layout: React.FC<LayoutProps> = ({
+  adminName,
+  role,
+  permissions = [],
+  onLogout,
+}) => {
   return (
     <div className="flex min-h-screen bg-[#070a14] text-[#f8fafc] font-sans antialiased relative selection:bg-amber-500/30 selection:text-amber-200">
       {/* Ambient Lighting Spheres (Fixed Background Cosmic Glows) */}
@@ -37,11 +43,11 @@ export const Layout: React.FC<LayoutProps> = ({ adminName, role, onLogout }) => 
       />
 
       {/* Sticky Left Navigation Sidebar (Game Launcher Aesthetic) */}
-      <Sidebar role={role} onLogout={onLogout} />
+      <Sidebar role={role} permissions={permissions} onLogout={onLogout} />
 
       {/* Main Administrative Workspace */}
       <div className="flex-1 flex flex-col min-w-0 z-10">
-        <Header adminName={adminName} role={role} />
+        <Header adminName={adminName} role={role} permissions={permissions} onLogout={onLogout} />
         <main className="flex-1 p-5 md:p-8 overflow-y-auto">
           <Outlet />
         </main>

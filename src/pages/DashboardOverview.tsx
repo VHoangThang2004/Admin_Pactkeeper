@@ -31,6 +31,8 @@ import {
   subscribeToUnifiedPresence,
   type TrackedPlayerPresence,
 } from '../services/playerPresenceService';
+import { SensitiveActionModal } from '../components/SensitiveActionModal';
+import { recordAuditEvent } from '../services/adminSecurityService';
 
 interface DashboardOverviewProps {
   role?: CounselRole;
@@ -68,6 +70,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   // Telemetry Metrics State
   const [loading, setLoading] = useState(true);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [pendingOverride, setPendingOverride] = useState<'login' | 'queue' | 'forceStop' | null>(null);
+  const [overrideError, setOverrideError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Financial & Treasury Metrics
@@ -202,51 +206,88 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
     };
   }, []);
 
-  const toggleLoginStatus = async () => {
-    try {
-      setLoadingAction('login');
-      const newStatus = !serverState.loginBlocked;
-      await adminClient.post('/admin/update-login-status', newStatus);
-      setServerState((prev) => ({ ...prev, loginBlocked: newStatus }));
-      setMessage({
-        text: `Player Login Status updated: ${newStatus ? 'BLOCKED' : 'ALLOWED'}.`,
-        type: 'success',
-      });
-    } catch (err: any) {
-      setMessage({ text: err.response?.data?.message || 'Failed to update login status.', type: 'error' });
-    } finally {
-      setLoadingAction(null);
-    }
+  const toggleLoginStatus = () => {
+    setOverrideError(null);
+    setPendingOverride('login');
   };
 
-  const toggleQueueStatus = async () => {
-    try {
-      setLoadingAction('queue');
-      const newStatus = !serverState.matchmakingBlocked;
-      await adminClient.post('/admin/update-queue-status', newStatus);
-      setServerState((prev) => ({ ...prev, matchmakingBlocked: newStatus }));
-      setMessage({
-        text: `Matchmaking Queue Status updated: ${newStatus ? 'PAUSED' : 'ALLOWED'}.`,
-        type: 'success',
-      });
-    } catch (err: any) {
-      setMessage({ text: err.response?.data?.message || 'Failed to update queue status.', type: 'error' });
-    } finally {
-      setLoadingAction(null);
-    }
+  const toggleQueueStatus = () => {
+    setOverrideError(null);
+    setPendingOverride('queue');
   };
 
-  const handleForceStopAll = async () => {
-    if (!window.confirm('WARNING: Are you sure you want to FORCE STOP all ongoing matches on the realm server?')) {
-      return;
-    }
+  const handleForceStopAll = () => {
+    setOverrideError(null);
+    setPendingOverride('forceStop');
+  };
+
+  const executePendingOverride = async (rationale: string) => {
+    if (!pendingOverride) return;
+    setOverrideError(null);
+    setLoadingAction(pendingOverride);
+
     try {
-      setLoadingAction('forceStop');
-      const res = await adminClient.post('/admin/force-stop-all');
-      setMessage({ text: res.data?.message || 'All matches ended & queue cleared on live server.', type: 'success' });
-      await fetchRealTelemetry();
+      if (pendingOverride === 'login') {
+        const prev = serverState.loginBlocked;
+        const newStatus = !prev;
+        await adminClient.post('/admin/update-login-status', newStatus);
+        setServerState((state) => ({ ...state, loginBlocked: newStatus }));
+        await recordAuditEvent({
+          action: newStatus ? 'SERVER_LOGIN_BLOCKED' : 'SERVER_LOGIN_RESTORED',
+          category: 'SERVER',
+          severity: 'HIGH',
+          targetType: 'RealmGateway',
+          targetLabel: 'Player Authentication Gate',
+          rationale,
+          beforeState: { loginBlocked: prev },
+          afterState: { loginBlocked: newStatus },
+        });
+        setMessage({
+          text: `Player Login Status updated: ${newStatus ? 'BLOCKED' : 'ALLOWED'}.`,
+          type: 'success',
+        });
+      } else if (pendingOverride === 'queue') {
+        const prev = serverState.matchmakingBlocked;
+        const newStatus = !prev;
+        await adminClient.post('/admin/update-queue-status', newStatus);
+        setServerState((state) => ({ ...state, matchmakingBlocked: newStatus }));
+        await recordAuditEvent({
+          action: newStatus ? 'MATCHMAKING_PAUSED' : 'MATCHMAKING_RESUMED',
+          category: 'SERVER',
+          severity: 'HIGH',
+          targetType: 'MatchmakingQueue',
+          targetLabel: 'PvP Queue Override',
+          rationale,
+          beforeState: { matchmakingBlocked: prev },
+          afterState: { matchmakingBlocked: newStatus },
+        });
+        setMessage({
+          text: `Matchmaking Queue Status updated: ${newStatus ? 'PAUSED' : 'ALLOWED'}.`,
+          type: 'success',
+        });
+      } else {
+        const res = await adminClient.post('/admin/force-stop-all');
+        await recordAuditEvent({
+          action: 'FORCE_STOP_ALL_MATCHES',
+          category: 'SERVER',
+          severity: 'CRITICAL',
+          targetType: 'NGOServerCluster',
+          targetLabel: 'All Active PvP Match Instances',
+          rationale,
+          beforeState: { activeMatchesCount },
+          afterState: { terminated: true },
+        });
+        setMessage({
+          text: res.data?.message || 'All matches ended & queue cleared on live server.',
+          type: 'success',
+        });
+        await fetchRealTelemetry();
+      }
+      setPendingOverride(null);
     } catch (err: any) {
-      setMessage({ text: err.response?.data?.message || 'Failed to execute force stop on server.', type: 'error' });
+      const errMsg = err.response?.data?.message || 'Failed to execute emergency server override.';
+      setOverrideError(errMsg);
+      setMessage({ text: errMsg, type: 'error' });
     } finally {
       setLoadingAction(null);
     }
@@ -937,6 +978,47 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           </div>
         </div>
       </div>
+
+      <SensitiveActionModal
+        isOpen={pendingOverride !== null}
+        title={
+          pendingOverride === 'forceStop'
+            ? 'Force Stop All Active Matches'
+            : pendingOverride === 'login'
+            ? serverState.loginBlocked
+              ? 'Restore Player Logins'
+              : 'Block Player Logins'
+            : serverState.matchmakingBlocked
+            ? 'Resume PvP Matchmaking Queue'
+            : 'Pause PvP Matchmaking Queue'
+        }
+        description={
+          pendingOverride === 'forceStop'
+            ? 'Immediately terminates all ongoing dedicated PvP match instances and clears active queues across the realm cluster.'
+            : pendingOverride === 'login'
+            ? 'Modifies the realm player authentication gateway status via /admin/update-login-status.'
+            : 'Modifies PvP matchmaking intake status via /admin/update-queue-status.'
+        }
+        severity={pendingOverride === 'forceStop' ? 'CRITICAL' : 'HIGH'}
+        actionLabel={
+          pendingOverride === 'forceStop' ? 'Execute Force Stop' : 'Apply Server Override'
+        }
+        targetSummary={
+          pendingOverride === 'forceStop'
+            ? `${activeMatchesCount} active NGO match instances`
+            : pendingOverride === 'login'
+            ? `Next state: ${!serverState.loginBlocked ? 'BLOCKED' : 'ALLOWED'}`
+            : `Next state: ${!serverState.matchmakingBlocked ? 'PAUSED' : 'ACTIVE'}`
+        }
+        requireKeyword={pendingOverride === 'forceStop' ? 'FORCE STOP' : undefined}
+        loading={loadingAction !== null}
+        error={overrideError}
+        onCancel={() => {
+          setPendingOverride(null);
+          setOverrideError(null);
+        }}
+        onConfirm={executePendingOverride}
+      />
     </div>
   );
 };

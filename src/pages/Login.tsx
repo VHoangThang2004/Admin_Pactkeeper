@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff, ArrowRight, Activity, ScrollText, KeyRound, Sparkles } from 'lucide-react';
 import { adminClient } from '../api/adminClient';
-import type { CounselRole } from '../types';
+import { recordAuditEvent, recordLoginAttempt } from '../services/adminSecurityService';
+import { extractClaimsFromToken, normalizeCounselRole } from '../utils/authSession';
+import type { AdminPermissionKey, CounselRole } from '../types';
 
 interface LoginProps {
-  onLoginSuccess: (token: string, username: string, role: CounselRole) => void;
+  onLoginSuccess: (
+    token: string,
+    username: string,
+    role: CounselRole,
+    permissions?: AdminPermissionKey[]
+  ) => void;
 }
 
 type SelectableRole = 'Admin' | 'Moderator' | 'Technical Support';
@@ -80,8 +87,9 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
  * - Trust pillars & security verification footer
  */
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+  const isDevMode = import.meta.env.DEV;
   const [selectedRole, setSelectedRole] = useState<SelectableRole>('Admin');
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState(isDevMode ? 'admin' : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,15 +101,18 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const handleSelectRole = (role: SelectableRole) => {
     setSelectedRole(role);
     const config = ROLE_CONFIGS[role];
-    setUsername(config.defaultUsername);
-    setPassword('');
+    if (isDevMode) {
+      setUsername(config.defaultUsername);
+      setPassword('');
+    }
     setError(null);
     setUsernameError(null);
     setPasswordError(null);
   };
 
-  // Quick fill both username & sample password for convenient testing
+  // Quick fill both username & sample password for convenient local dev testing
   const handleQuickFill = (role: SelectableRole) => {
+    if (!isDevMode) return;
     setSelectedRole(role);
     const config = ROLE_CONFIGS[role];
     setUsername(config.defaultUsername);
@@ -137,76 +148,146 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError(null);
 
+    const attemptedUsername = username.trim();
+
     try {
       // 1. Direct login invocation to live Swagger endpoint (/api/Auth/login)
       const response = await adminClient.post('/Auth/login', {
-        username: username.trim(),
+        username: attemptedUsername,
         password,
+        attemptedRole: selectedRole,
       });
 
-      const { token, username: resUser, role: apiRole } = response.data || {};
+      const { token, username: resUser, role: apiRole, permissions: apiPermissions } =
+        response.data || {};
+      const resolvedUser = (typeof resUser === 'string' && resUser.trim()) || attemptedUsername;
+      const claims = extractClaimsFromToken(token);
+      const rawRoleString = String(claims?.role || apiRole || '').trim();
+      const roleLower = rawRoleString.toLowerCase();
 
       // 2. Reject non-privileged Player accounts
-      if (typeof apiRole === 'string' && apiRole.toLowerCase() === 'player') {
-        setError('Access Denied! Account holds a standard Player role. High Counsel privilege is required.');
+      if (roleLower === 'player') {
+        const denyMsg =
+          'Access Denied! Account holds a standard Player role. High Counsel privilege is required.';
+        recordLoginAttempt({
+          username: attemptedUsername,
+          attemptedRole: selectedRole,
+          resolvedRole: 'Player',
+          status: 'DENIED_PLAYER',
+          reason: denyMsg,
+        });
+        void recordAuditEvent({
+          action: 'PLAYER_PORTAL_ACCESS_DENIED',
+          category: 'AUTH',
+          severity: 'HIGH',
+          targetType: 'Account',
+          targetLabel: attemptedUsername,
+          rationale: denyMsg,
+          status: 'FAILED',
+          errorMessage: denyMsg,
+          actorUsername: attemptedUsername,
+          actorRole: 'Player',
+        });
+        setError(denyMsg);
         return;
       }
 
       // 3. Validate token presence in response
-      if (!token && !response.data?.token) {
-        setError('Authentication succeeded but no authorization token was returned by the Gateway.');
+      if (!token) {
+        const noTokenMsg =
+          'Authentication succeeded but no authorization token was returned by the Gateway.';
+        recordLoginAttempt({
+          username: attemptedUsername,
+          attemptedRole: selectedRole,
+          status: 'FAILED',
+          reason: noTokenMsg,
+        });
+        setError(noTokenMsg);
         return;
       }
 
-      // 4. Resolve portal role
-      let normalizedRole: CounselRole = 'Admin';
-      const userLower = (resUser || username).trim().toLowerCase();
-      const roleLower = typeof apiRole === 'string' ? apiRole.toLowerCase() : '';
+      const explicitPermissions = (
+        Array.isArray(apiPermissions) ? apiPermissions : claims?.permissions || []
+      ) as AdminPermissionKey[];
 
-      if (
-        roleLower === 'moderator' ||
-        roleLower === 'mod' ||
-        userLower === 'moderator' ||
-        (roleLower === 'admin' && selectedRole === 'Moderator')
-      ) {
-        normalizedRole = 'Moderator';
-      } else if (
-        roleLower === 'support' ||
-        roleLower === 'technical support' ||
-        roleLower === 'technicalsupport' ||
-        roleLower === 'techsupport' ||
-        roleLower === 'cskh' ||
-        userLower === 'techsupport' ||
-        (roleLower === 'admin' && selectedRole === 'Technical Support')
-      ) {
-        normalizedRole = 'Technical Support';
-      } else if (roleLower === 'server') {
-        normalizedRole = 'Server';
-      } else {
-        normalizedRole = 'Admin';
-      }
-
-      if (token) {
-        onLoginSuccess(token, resUser || username.trim(), normalizedRole);
+      // 4. Resolve authoritative portal role strictly from backend/JWT claim (allow view downgrade only in DEV when Admin)
+      const serverRole = normalizeCounselRole(rawRoleString);
+      if (!serverRole && explicitPermissions.length === 0) {
+        const unauthorizedMsg =
+          'Access Denied! Account role does not hold High Counsel portal permissions.';
+        recordLoginAttempt({
+          username: resolvedUser,
+          attemptedRole: selectedRole,
+          resolvedRole: rawRoleString || 'Unknown',
+          status: 'FAILED',
+          reason: unauthorizedMsg,
+        });
+        setError(unauthorizedMsg);
         return;
-      } else {
-        setError('Authentication succeeded but no authorization token was returned by the Gateway.');
       }
+
+      let normalizedRole: CounselRole =
+        serverRole || ((rawRoleString as CounselRole) || 'Moderator');
+      if (isDevMode && (serverRole === 'Admin' || serverRole === 'Server')) {
+        if (selectedRole === 'Moderator' || resolvedUser.toLowerCase() === 'moderator') {
+          normalizedRole = 'Moderator';
+        } else if (
+          selectedRole === 'Technical Support' ||
+          resolvedUser.toLowerCase() === 'techsupport'
+        ) {
+          normalizedRole = 'Technical Support';
+        }
+      }
+
+      recordLoginAttempt({
+        username: resolvedUser,
+        attemptedRole: selectedRole,
+        resolvedRole: normalizedRole,
+        status: 'SUCCESS',
+        reason: 'Authenticated via POST /api/Auth/login',
+      });
+      void recordAuditEvent({
+        action: 'ADMIN_LOGIN',
+        category: 'AUTH',
+        severity: 'LOW',
+        targetType: 'Session',
+        targetLabel: resolvedUser,
+        afterState: { resolvedRole: normalizedRole },
+        actorUsername: resolvedUser,
+        actorRole: normalizedRole,
+      });
+
+      onLoginSuccess(token, resolvedUser, normalizedRole, explicitPermissions);
+      return;
     } catch (err: any) {
+      let failureMsg =
+        'Unable to connect to Realm Gateway. Please verify the backend server is reachable.';
       if (err.response) {
         const status = err.response.status;
+        const apiMessage =
+          typeof err.response.data?.message === 'string' && err.response.data.message.trim()
+            ? err.response.data.message.trim()
+            : null;
         if (status === 401 || status === 400) {
-          setError(`Invalid credentials for ${selectedRole}! Please verify your username and passcode.`);
+          failureMsg =
+            apiMessage ||
+            `Invalid credentials for ${selectedRole}! Please verify your username and passcode.`;
         } else if (status === 403) {
-          setError('Access Denied! Account lacks High Counsel authorization.');
+          failureMsg =
+            apiMessage || 'Access Denied! Account lacks High Counsel authorization.';
         } else if (status === 500) {
-          setError('Internal Server Error on Realm Gateway (500). Please try again shortly.');
+          failureMsg = 'Internal Server Error on Realm Gateway (500). Please try again shortly.';
         } else {
-          setError(`Authentication failed with status code ${status}.`);
+          failureMsg = apiMessage || `Authentication failed with status code ${status}.`;
         }
-      } else {
-        setError('Unable to connect to Realm Gateway. Please verify the backend server is reachable.');
       }
+      recordLoginAttempt({
+        username: attemptedUsername || '(empty)',
+        attemptedRole: selectedRole,
+        status: 'FAILED',
+        reason: failureMsg,
+      });
+      setError(failureMsg);
     } finally {
       setLoading(false);
     }
@@ -340,16 +421,18 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
                 Counsel Username ({activeConfig.id})
               </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername(activeConfig.defaultUsername);
-                  setPassword('');
-                }}
-                className="text-[11px] text-amber-400 hover:text-amber-300 underline font-mono"
-              >
-                Reset: {activeConfig.defaultUsername}
-              </button>
+              {isDevMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUsername(activeConfig.defaultUsername);
+                    setPassword('');
+                  }}
+                  className="text-[11px] text-amber-400 hover:text-amber-300 underline font-mono"
+                >
+                  Reset: {activeConfig.defaultUsername}
+                </button>
+              )}
             </div>
             <div
               className={`flex items-center gap-3 bg-[#090d1a] border rounded-xl px-3.5 py-2.5 text-sm text-slate-100 transition-colors ${
@@ -418,54 +501,56 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* 1-Click Fast Fill Credentials Shortcuts */}
-        <div className="bg-[#090d1a]/80 border border-white/[0.08] rounded-xl p-3.5 space-y-2 text-xs text-slate-400">
-          <p className="font-semibold text-slate-300 text-xs uppercase tracking-wider flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-              1-Click Fast Fill Test Accounts:
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">Pre-populates Passcode</span>
-          </p>
-          <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => handleQuickFill('Admin')}
-              className={`p-2.5 rounded-xl border text-center transition-all ${
-                selectedRole === 'Admin'
-                  ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold shadow'
-                  : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-amber-400/40 hover:text-white'
-              }`}
-            >
-              <div className="font-bold">👑 Admin</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">admin123</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('Moderator')}
-              className={`p-2.5 rounded-xl border text-center transition-all ${
-                selectedRole === 'Moderator'
-                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold shadow'
-                  : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-cyan-400/40 hover:text-white'
-              }`}
-            >
-              <div className="font-bold">🛡️ Moderator</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">mod123</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('Technical Support')}
-              className={`p-2.5 rounded-xl border text-center transition-all ${
-                selectedRole === 'Technical Support'
-                  ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold shadow'
-                  : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-emerald-400/40 hover:text-white'
-              }`}
-            >
-              <div className="font-bold">🎧 Support</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">tech123</div>
-            </button>
+        {/* 1-Click Fast Fill Credentials Shortcuts (Development Only) */}
+        {isDevMode && (
+          <div className="bg-[#090d1a]/80 border border-white/[0.08] rounded-xl p-3.5 space-y-2 text-xs text-slate-400">
+            <p className="font-semibold text-slate-300 text-xs uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                1-Click Fast Fill Test Accounts (Dev):
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">Pre-populates Passcode</span>
+            </p>
+            <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+              <button
+                type="button"
+                onClick={() => handleQuickFill('Admin')}
+                className={`p-2.5 rounded-xl border text-center transition-all ${
+                  selectedRole === 'Admin'
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold shadow'
+                    : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-amber-400/40 hover:text-white'
+                }`}
+              >
+                <div className="font-bold">👑 Admin</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">admin123</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('Moderator')}
+                className={`p-2.5 rounded-xl border text-center transition-all ${
+                  selectedRole === 'Moderator'
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold shadow'
+                    : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-cyan-400/40 hover:text-white'
+                }`}
+              >
+                <div className="font-bold">🛡️ Moderator</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">mod123</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('Technical Support')}
+                className={`p-2.5 rounded-xl border text-center transition-all ${
+                  selectedRole === 'Technical Support'
+                    ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold shadow'
+                    : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-emerald-400/40 hover:text-white'
+                }`}
+              >
+                <div className="font-bold">🎧 Support</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">tech123</div>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Trust & Security Verification Footer */}
         <div className="text-center border-t border-white/[0.08] pt-3 flex items-center justify-between text-[11px] text-slate-400 font-mono">

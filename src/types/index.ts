@@ -253,4 +253,113 @@ export interface LogFileInfo {
   createdAtUtc: string;
 }
 
+export type AdminPermissionKey =
+  | 'dashboard.view'
+  | 'server.killswitch'
+  | 'players.view'
+  | 'players.ban'
+  | 'treasury.adjust'
+  | 'matches.view'
+  | 'matches.logs'
+  | 'gacha.manage'
+  | 'content.manage'
+  | 'payments.view'
+  | 'payments.manage'
+  | 'support.chat'
+  | 'security.accounts'
+  | 'security.roles'
+  | 'security.audit';
+
+export type AuditLogSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type DataSourceOrigin =
+  | 'BACKEND_API'
+  | 'LOCAL_SESSION_BUFFER'
+  | 'SYSTEM_DEFAULT';
+
+export type AdminAccountStatus = 'ACTIVE' | 'LOCKED' | 'DISABLED';
+
+export interface AdminAccountSummary {
+  id: string;
+  username: string;
+  email?: string;
+  role: CounselRole | string;
+  status: AdminAccountStatus;
+  createdAt?: string;
+  lastLoginAt?: string;
+  lastLoginIp?: string;
+  customPermissions?: AdminPermissionKey[];
+  source?: DataSourceOrigin;
+}
+
+export interface RoleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  permissions: AdminPermissionKey[];
+  isSystemDefault?: boolean;
+  accountCount?: number;
+  updatedAt?: string;
+  source?: DataSourceOrigin;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  actorUsername: string;
+  actorRole: CounselRole | string;
+  action: string;
+  category:
+    | 'AUTH'
+    | 'SERVER'
+    | 'PLAYER'
+    | 'TREASURY'
+    | 'GACHA'
+    | 'CONTENT'
+    | 'PAYMENT'
+    | 'SECURITY';
+  severity: AuditLogSeverity;
+  targetType?: string;
+  targetId?: string;
+  targetLabel?: string;
+  rationale?: string;
+  beforeState?: Record<string, unknown>;
+  afterState?: Record<string, unknown>;
+  status: 'SUCCESS' | 'FAILED';
+  errorMessage?: string;
+  source: DataSourceOrigin;
+}
+
+export type LoginHistoryStatus =
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'DENIED_PLAYER'
+  | 'LOGOUT'
+  | 'SESSION_EXPIRED';
+
+export interface LoginHistoryEntry {
+  id: string;
+  timestamp: string;
+  username: string;
+  attemptedRole?: string;
+  resolvedRole?: string;
+  status: LoginHistoryStatus;
+  ipAddress?: string;
+  userAgent?: string;
+  reason?: string;
+  source: DataSourceOrigin;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface CreateAdminAccountRequest {
+  username: string;
+  password: string;
+  email?: string;
+  role: string;
+}
+
 

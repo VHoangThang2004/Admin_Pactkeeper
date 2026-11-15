@@ -36,6 +36,7 @@ import {
 import { adminClient } from '../api/adminClient';
 import { GemArt } from '../components/GemArt';
 import { WEB_TOPUP_URL } from '../constants/links';
+import { recordAuditEvent } from '../services/adminSecurityService';
 import type { PurchaseOrder, TopUpPackDto } from '../types';
 
 type PackCategoryFilter = 'all' | 'gems' | 'bundles';
@@ -341,6 +342,16 @@ export const PaymentManagement: React.FC = () => {
       await adminClient.patch(`/topuppack/${pack.id}/availability`, {
         isAvailable: nextState,
       });
+      void recordAuditEvent({
+        action: 'TOPUP_PACK_AVAILABILITY_TOGGLED',
+        category: 'PAYMENT',
+        severity: 'HIGH',
+        targetType: 'TopUpPack',
+        targetId: pack.id,
+        targetLabel: pack.name,
+        beforeState: { isAvailable: pack.isAvailable },
+        afterState: { isAvailable: nextState },
+      });
       setPacks((prev) =>
         prev.map((item) =>
           item.id === pack.id ? { ...item, isAvailable: nextState } : item
@@ -531,6 +542,14 @@ export const PaymentManagement: React.FC = () => {
     anchor.click();
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
+    void recordAuditEvent({
+      action: 'PAYMENT_LEDGER_EXPORTED',
+      category: 'PAYMENT',
+      severity: 'MEDIUM',
+      targetType: 'PayOSLedger',
+      targetLabel: `${filteredOrders.length} orders CSV`,
+      afterState: { datePreset, orderStatusFilter, rowCount: filteredOrders.length },
+    });
     showToast(`Exported ${filteredOrders.length} orders to CSV.`);
   };
 

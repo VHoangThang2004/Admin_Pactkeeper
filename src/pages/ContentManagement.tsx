@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminClient } from '../api/adminClient';
+import { SensitiveActionModal } from '../components/SensitiveActionModal';
+import { recordAuditEvent } from '../services/adminSecurityService';
 import type {
   UnitDefinition,
   ChapterConfig,
@@ -55,6 +57,13 @@ export const ContentManagement: React.FC = () => {
 
   // Synchronization loading state
   const [loading, setLoading] = useState(true);
+  const [pendingDelete, setPendingDelete] = useState<{
+    endpoint: string;
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Edit Modal States (for all 6 definitions)
   const [editingUnit, setEditingUnit] = useState<UnitDefinition | null>(null);
@@ -182,19 +191,48 @@ export const ContentManagement: React.FC = () => {
   // ==========================================
   // DELETE HANDLER (Shared)
   // ==========================================
-  const handleDelete = async (endpoint: string, id: string | undefined, name: string) => {
+  const handleDelete = (endpoint: string, id: string | undefined, name: string) => {
     if (!id) {
       alert(`Cannot delete ${name}: Missing database ObjectId.`);
       return;
     }
-    if (!window.confirm(`Are you sure you want to permanently delete "${name}" from ${endpoint} archives? This action cannot be undone.`)) {
-      return;
-    }
+    setDeleteError(null);
+    setPendingDelete({ endpoint, id, name });
+  };
+
+  const executePendingDelete = async (rationale: string) => {
+    if (!pendingDelete) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
     try {
-      await adminClient.delete(`/${endpoint}/${id}`);
+      await adminClient.delete(`/${pendingDelete.endpoint}/${pendingDelete.id}`);
+      await recordAuditEvent({
+        action: 'GAME_DEFINITION_DELETED',
+        category: 'CONTENT',
+        severity: 'HIGH',
+        targetType: pendingDelete.endpoint,
+        targetId: pendingDelete.id,
+        targetLabel: pendingDelete.name,
+        rationale,
+      });
+      setPendingDelete(null);
       await fetchContent();
     } catch (err: any) {
-      alert(err.response?.data?.message || `Failed to delete ${name}.`);
+      const msg = err.response?.data?.message || `Failed to delete ${pendingDelete.name}.`;
+      setDeleteError(msg);
+      void recordAuditEvent({
+        action: 'GAME_DEFINITION_DELETE_FAILED',
+        category: 'CONTENT',
+        severity: 'HIGH',
+        targetType: pendingDelete.endpoint,
+        targetId: pendingDelete.id,
+        targetLabel: pendingDelete.name,
+        rationale,
+        status: 'FAILED',
+        errorMessage: msg,
+      });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -225,6 +263,13 @@ export const ContentManagement: React.FC = () => {
       };
 
       await adminClient.post('/UnitDefinition', payload);
+      void recordAuditEvent({
+        action: 'UNIT_DEFINITION_CREATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'UnitDefinition',
+        targetLabel: newUnitName.trim(),
+      });
       await fetchContent();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to add hero definition.');
@@ -239,6 +284,14 @@ export const ContentManagement: React.FC = () => {
     if (!editingUnit || !editingUnit.id) return;
     try {
       await adminClient.put(`/UnitDefinition/${editingUnit.id}`, editingUnit);
+      void recordAuditEvent({
+        action: 'UNIT_DEFINITION_UPDATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'UnitDefinition',
+        targetId: editingUnit.id,
+        targetLabel: editingUnit.unitName || editingUnit.name || editingUnit.id,
+      });
       await fetchContent();
       setEditingUnit(null);
     } catch (err: any) {
@@ -271,6 +324,13 @@ export const ContentManagement: React.FC = () => {
       };
 
       await adminClient.post('/WeaponDefinition', payload);
+      void recordAuditEvent({
+        action: 'WEAPON_DEFINITION_CREATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'WeaponDefinition',
+        targetLabel: newWeaponName.trim(),
+      });
       await fetchContent();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to add weapon definition.');
@@ -286,6 +346,14 @@ export const ContentManagement: React.FC = () => {
     if (!editingWeapon || !editingWeapon.id) return;
     try {
       await adminClient.put(`/WeaponDefinition/${editingWeapon.id}`, editingWeapon);
+      void recordAuditEvent({
+        action: 'WEAPON_DEFINITION_UPDATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'WeaponDefinition',
+        targetId: editingWeapon.id,
+        targetLabel: editingWeapon.name || editingWeapon.id,
+      });
       await fetchContent();
       setEditingWeapon(null);
     } catch (err: any) {
@@ -317,6 +385,13 @@ export const ContentManagement: React.FC = () => {
       };
 
       await adminClient.post('/TrinketDefinition', payload);
+      void recordAuditEvent({
+        action: 'TRINKET_DEFINITION_CREATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'TrinketDefinition',
+        targetLabel: newTrinketName.trim(),
+      });
       await fetchContent();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to add trinket definition.');
@@ -332,6 +407,14 @@ export const ContentManagement: React.FC = () => {
     if (!editingTrinket || !editingTrinket.id) return;
     try {
       await adminClient.put(`/TrinketDefinition/${editingTrinket.id}`, editingTrinket);
+      void recordAuditEvent({
+        action: 'TRINKET_DEFINITION_UPDATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'TrinketDefinition',
+        targetId: editingTrinket.id,
+        targetLabel: editingTrinket.name || editingTrinket.id,
+      });
       await fetchContent();
       setEditingTrinket(null);
     } catch (err: any) {
@@ -365,6 +448,13 @@ export const ContentManagement: React.FC = () => {
       };
 
       await adminClient.post('/ChapterConfig', payload);
+      void recordAuditEvent({
+        action: 'CHAPTER_CONFIG_CREATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'ChapterConfig',
+        targetLabel: newChapterTitle.trim(),
+      });
       await fetchContent();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to add chapter configuration.');
@@ -379,6 +469,14 @@ export const ContentManagement: React.FC = () => {
     if (!editingChapter || !editingChapter.id) return;
     try {
       await adminClient.put(`/ChapterConfig/${editingChapter.id}`, editingChapter);
+      void recordAuditEvent({
+        action: 'CHAPTER_CONFIG_UPDATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'ChapterConfig',
+        targetId: editingChapter.id,
+        targetLabel: editingChapter.title || editingChapter.chapterName || editingChapter.id,
+      });
       await fetchContent();
       setEditingChapter(null);
     } catch (err: any) {
@@ -403,6 +501,13 @@ export const ContentManagement: React.FC = () => {
       };
 
       await adminClient.post('/ClassDefinition', payload);
+      void recordAuditEvent({
+        action: 'CLASS_DEFINITION_CREATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'ClassDefinition',
+        targetLabel: newClassName.trim(),
+      });
       await fetchContent();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to add class definition.');
@@ -418,6 +523,14 @@ export const ContentManagement: React.FC = () => {
     if (!editingClass || !editingClass.id) return;
     try {
       await adminClient.put(`/ClassDefinition/${editingClass.id}`, editingClass);
+      void recordAuditEvent({
+        action: 'CLASS_DEFINITION_UPDATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'ClassDefinition',
+        targetId: editingClass.id,
+        targetLabel: editingClass.name || editingClass.className || editingClass.id,
+      });
       await fetchContent();
       setEditingClass(null);
     } catch (err: any) {
@@ -435,6 +548,13 @@ export const ContentManagement: React.FC = () => {
       };
 
       await adminClient.post('/SkillDefinition', payload);
+      void recordAuditEvent({
+        action: 'SKILL_DEFINITION_CREATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'SkillDefinition',
+        targetLabel: `Skill #${newSkillId}`,
+      });
       await fetchContent();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to add skill definition.');
@@ -448,6 +568,14 @@ export const ContentManagement: React.FC = () => {
     if (!editingSkill || !editingSkill.id) return;
     try {
       await adminClient.put(`/SkillDefinition/${editingSkill.id}`, editingSkill);
+      void recordAuditEvent({
+        action: 'SKILL_DEFINITION_UPDATED',
+        category: 'CONTENT',
+        severity: 'MEDIUM',
+        targetType: 'SkillDefinition',
+        targetId: editingSkill.id,
+        targetLabel: editingSkill.skillName || String(editingSkill.skillId || editingSkill.id),
+      });
       await fetchContent();
       setEditingSkill(null);
     } catch (err: any) {
@@ -2164,6 +2292,24 @@ export const ContentManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      <SensitiveActionModal
+        isOpen={pendingDelete !== null}
+        title={`Delete ${pendingDelete?.name || 'Game Definition'}`}
+        description={`Permanently deletes this record from the ${pendingDelete?.endpoint || 'CMS'} MongoDB collection. This cannot be undone from the client portal.`}
+        severity="HIGH"
+        actionLabel="Confirm Delete"
+        targetSummary={
+          pendingDelete ? `${pendingDelete.endpoint} / ${pendingDelete.id}` : undefined
+        }
+        loading={deleteLoading}
+        error={deleteError}
+        onCancel={() => {
+          setPendingDelete(null);
+          setDeleteError(null);
+        }}
+        onConfirm={executePendingDelete}
+      />
     </div>
   );
 };

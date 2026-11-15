@@ -7,6 +7,7 @@ import {
   fetchUnifiedPlayerData,
   subscribeToUnifiedPresence,
 } from '../services/playerPresenceService';
+import { recordAuditEvent } from '../services/adminSecurityService';
 
 interface PlayerManagementProps {
   role?: CounselRole;
@@ -126,12 +127,25 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
   const handleSaveAdjustment = async () => {
     if (!selectedPlayer) return;
+    const finalReason = compensationReason.trim() || 'Admin Manual Treasury Adjustment';
+    const isLargeDelta = Math.abs(adjustGems) >= 10000 || Math.abs(adjustGold) >= 100000;
     try {
       await adminClient.post(`/player/adjust-currencies`, {
         playerId: selectedPlayer.playerId,
         gems: adjustGems,
         gold: adjustGold,
-        reason: compensationReason || 'Admin Manual Treasury Adjustment',
+        reason: finalReason,
+      });
+      void recordAuditEvent({
+        action: 'PLAYER_CURRENCY_ADJUSTED',
+        category: 'TREASURY',
+        severity: isLargeDelta ? 'CRITICAL' : 'HIGH',
+        targetType: 'PlayerAccount',
+        targetId: selectedPlayer.playerId,
+        targetLabel: selectedPlayer.username,
+        rationale: finalReason,
+        beforeState: { gems: selectedPlayer.gems ?? 0, gold: selectedPlayer.gold ?? 0 },
+        afterState: { deltaGems: adjustGems, deltaGold: adjustGold },
       });
       setNotification(`Successfully adjusted currencies for ${selectedPlayer.username} (${adjustGems >= 0 ? '+' : ''}${adjustGems} Gems, ${adjustGold >= 0 ? '+' : ''}${adjustGold} Gold).`);
       setSelectedPlayer(null);
@@ -140,7 +154,19 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       setCompensationReason('');
       fetchPlayers();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to apply currency adjustments.');
+      const msg = err.response?.data?.message || 'Failed to apply currency adjustments.';
+      void recordAuditEvent({
+        action: 'PLAYER_CURRENCY_ADJUST_FAILED',
+        category: 'TREASURY',
+        severity: 'HIGH',
+        targetType: 'PlayerAccount',
+        targetId: selectedPlayer.playerId,
+        targetLabel: selectedPlayer.username,
+        rationale: finalReason,
+        status: 'FAILED',
+        errorMessage: msg,
+      });
+      alert(msg);
     }
   };
 
@@ -156,6 +182,17 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         duration: banDuration,
         reason: banReason.trim(),
       });
+      void recordAuditEvent({
+        action: 'PLAYER_BANNED',
+        category: 'PLAYER',
+        severity: banDuration === 'PERMANENT' ? 'CRITICAL' : 'HIGH',
+        targetType: 'PlayerAccount',
+        targetId: banTargetPlayer.playerId,
+        targetLabel: banTargetPlayer.username,
+        rationale: banReason.trim(),
+        beforeState: { isBanned: Boolean(banTargetPlayer.isBanned) },
+        afterState: { isBanned: true, duration: banDuration },
+      });
       setNotification(`Account sanction enforced against ${banTargetPlayer.username} (${banDuration}) for: "${banReason.trim()}".`);
       setBanTargetPlayer(null);
       setBanReason('');
@@ -170,6 +207,17 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     try {
       await adminClient.post(`/player/unban`, {
         playerId: unbanTargetPlayer.playerId,
+      });
+      void recordAuditEvent({
+        action: 'PLAYER_UNBANNED',
+        category: 'PLAYER',
+        severity: 'HIGH',
+        targetType: 'PlayerAccount',
+        targetId: unbanTargetPlayer.playerId,
+        targetLabel: unbanTargetPlayer.username,
+        rationale: 'Account sanction lifted via Player Directory',
+        beforeState: { isBanned: true },
+        afterState: { isBanned: false },
       });
       setNotification(`Account access successfully restored for ${unbanTargetPlayer.username}.`);
       setUnbanTargetPlayer(null);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminClient } from '../api/adminClient';
+import { recordAuditEvent } from '../services/adminSecurityService';
 import type { GachaBanner, GachaBannerItem, GachaPullOption } from '../types';
 import {
   Plus,
@@ -333,6 +334,18 @@ export const GachaManagement: React.FC = () => {
       }
 
       await adminClient.post('/gachabanner', payload);
+      void recordAuditEvent({
+        action: 'GACHA_BANNER_CREATED',
+        category: 'GACHA',
+        severity: 'HIGH',
+        targetType: 'GachaBanner',
+        targetLabel: newTitle.trim(),
+        afterState: {
+          startDate: payload.startDate,
+          expiryDate: payload.expiryDate,
+          pityThreshold: payload.pityThreshold,
+        },
+      });
       await fetchBanners();
       setIsCreating(false);
       showToast(`Created summon banner "${newTitle.trim()}".`);
@@ -351,6 +364,15 @@ export const GachaManagement: React.FC = () => {
     try {
       const endpoint = currentActive ? `/gachabanner/${id}/deactivate` : `/gachabanner/${id}/activate`;
       await adminClient.patch(endpoint);
+      void recordAuditEvent({
+        action: currentActive ? 'GACHA_BANNER_DEACTIVATED' : 'GACHA_BANNER_ACTIVATED',
+        category: 'GACHA',
+        severity: 'HIGH',
+        targetType: 'GachaBanner',
+        targetId: id,
+        beforeState: { isActive: currentActive },
+        afterState: { isActive: !currentActive },
+      });
       setBanners((prev) =>
         prev.map((b) => (b.id === id ? { ...b, isActive: !currentActive } : b))
       );
