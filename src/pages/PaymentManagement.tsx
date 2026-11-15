@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpDown,
   BarChart3,
@@ -19,7 +19,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   TrendingUp,
-  X,
   XCircle,
 } from 'lucide-react';
 import {
@@ -33,9 +32,26 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { Grid } from '@astryxdesign/core/Grid';
+import { Icon } from '@astryxdesign/core/Icon';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { Section } from '@astryxdesign/core/Section';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { Selector, type SelectorOptionData } from '@astryxdesign/core/Selector';
+import { HStack, StackItem, VStack } from '@astryxdesign/core/Stack';
+import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
+import { Heading, Text } from '@astryxdesign/core/Text';
+import { TextInput } from '@astryxdesign/core/TextInput';
 import { adminClient } from '../api/adminClient';
 import { GemArt } from '../components/GemArt';
 import { WEB_TOPUP_URL } from '../constants/links';
+import { useThemeMode } from '../hooks/useThemeMode';
 import { recordAuditEvent } from '../services/adminSecurityService';
 import type { PurchaseOrder, TopUpPackDto } from '../types';
 
@@ -69,6 +85,24 @@ interface CustomTooltipProps {
     payload?: ChartPoint;
   }>;
 }
+
+type OrderTableRow = PurchaseOrder & Record<string, unknown>;
+
+const SORT_OPTIONS: SelectorOptionData[] = [
+  { value: 'NEWEST', label: 'Newest First' },
+  { value: 'OLDEST', label: 'Oldest First' },
+  { value: 'HIGHEST_AMOUNT', label: 'Highest VND Amount' },
+];
+
+const ROW_LIMIT_OPTIONS: SelectorOptionData[] = [
+  { value: '25', label: 'Show 25' },
+  { value: '50', label: 'Show 50' },
+  { value: '100', label: 'Show 100' },
+  { value: 'ALL', label: 'Show All' },
+];
+
+const DATE_INPUT_CLASS =
+  'rounded-[var(--radius-sm,8px)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-input,var(--color-surface-card))] px-2.5 py-1.5 text-xs font-mono text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)] transition-colors';
 
 function isBundlePack(pack: TopUpPackDto): boolean {
   const bundledItemCount =
@@ -117,7 +151,6 @@ function toDayKey(iso: string): string | null {
 
 function escapeCsvCell(value: string | number | null | undefined): string {
   const raw = value == null ? '' : String(value);
-  // Prefix spreadsheet formula triggers to neutralize CSV injection when opened in Excel.
   const neutralized = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
   return `"${neutralized.replace(/"/g, '""')}"`;
 }
@@ -125,7 +158,7 @@ function escapeCsvCell(value: string | number | null | undefined): string {
 function buildOrdersCsv(
   orders: PurchaseOrder[],
   packMap: Map<string, TopUpPackDto>,
-  playerNames: Record<string, string>
+  playerNames: Record<string, string>,
 ): string {
   const headers = [
     'OrderCode',
@@ -202,29 +235,47 @@ async function loadPaymentWorkspace(): Promise<PaymentWorkspaceData> {
   return { packs, orders, playerNames, failedSources, fetchedAt: Date.now() };
 }
 
+function getOrderStatusBadge(
+  status: string,
+): { variant: BadgeVariant; icon: React.ReactNode } {
+  if (status === 'PAID') {
+    return { variant: 'success', icon: <CheckCircle2 size={12} /> };
+  }
+  if (status === 'PENDING') {
+    return { variant: 'warning', icon: <Clock size={12} /> };
+  }
+  return { variant: 'error', icon: <XCircle size={12} /> };
+}
+
 const RevenueTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
   if (!active || !payload || payload.length === 0) return null;
   const point = payload[0]?.payload;
   if (!point) return null;
 
   return (
-    <div className="hy-glass rounded-xl border border-amber-400/30 px-3.5 py-2.5 text-xs shadow-xl">
-      <div className="font-semibold text-amber-200 mb-1">{label || point.label}</div>
-      <div className="text-slate-200">
-        Paid Revenue:{' '}
-        <span className="font-mono font-bold text-emerald-300">
-          {formatVnd(point.revenue)}
-        </span>
-      </div>
-      <div className="text-slate-400 mt-0.5">
-        Paid Orders: <span className="text-slate-100 font-medium">{point.paidCount}</span> /{' '}
-        {point.totalCount} total
-      </div>
-    </div>
+    <Card padding={3} elevation="med">
+      <VStack gap={1}>
+        <Text weight="semibold" size="xsm">
+          {label || point.label}
+        </Text>
+        <Text type="code" size="xsm">
+          Paid Revenue: {formatVnd(point.revenue)}
+        </Text>
+        <Text type="supporting" size="xsm">
+          Paid Orders: {point.paidCount} / {point.totalCount} total
+        </Text>
+      </VStack>
+    </Card>
   );
 };
 
+/**
+ * PaymentManagement — PayOS Gateway Orders, Revenue Analytics & Storefront Crystal Packs.
+ */
 export const PaymentManagement: React.FC = () => {
+  const { mode } = useThemeMode();
+  const isDark = mode === 'dark';
+
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [packs, setPacks] = useState<TopUpPackDto[]>([]);
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
@@ -248,13 +299,9 @@ export const PaymentManagement: React.FC = () => {
 
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<{
-    text: string;
-    tone: 'success' | 'error';
-  } | null>(null);
-
-  const toastTimerRef = useRef<number | null>(null);
-  const copyTimerRef = useRef<number | null>(null);
+  const [notice, setNotice] = useState<{ text: string; status: 'success' | 'error' } | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -268,7 +315,7 @@ export const PaymentManagement: React.FC = () => {
         setSyncError(
           res.failedSources.length > 0
             ? `Partial API response: could not load ${res.failedSources.join(' and ')}.`
-            : null
+            : null,
         );
       })
       .catch(() => {
@@ -281,17 +328,11 @@ export const PaymentManagement: React.FC = () => {
 
     return () => {
       active = false;
-      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
     };
   }, []);
 
-  const showToast = (text: string, tone: 'success' | 'error' = 'success') => {
-    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
-    setToastMessage({ text, tone });
-    toastTimerRef.current = window.setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
+  const showNotice = (text: string, status: 'success' | 'error' = 'success') => {
+    setNotice({ text, status });
   };
 
   const handleRefresh = async () => {
@@ -305,12 +346,12 @@ export const PaymentManagement: React.FC = () => {
       setSyncError(
         res.failedSources.length > 0
           ? `Partial API response: could not load ${res.failedSources.join(' and ')}.`
-          : null
+          : null,
       );
-      showToast('PayOS ledger and pack catalog refreshed.');
+      showNotice('PayOS ledger and pack catalog refreshed.');
     } catch {
       setSyncError('Failed to refresh PayOS telemetry.');
-      showToast('Refresh failed. Check API connectivity.', 'error');
+      showNotice('Refresh failed. Check API connectivity.', 'error');
     } finally {
       setRefreshing(false);
     }
@@ -318,19 +359,20 @@ export const PaymentManagement: React.FC = () => {
 
   const handleCopy = (key: string, value: string, label: string) => {
     if (!navigator.clipboard) {
-      showToast('Clipboard access is unavailable in this browser context.', 'error');
+      showNotice('Clipboard access is unavailable in this browser context.', 'error');
       return;
     }
     navigator.clipboard
       .writeText(value)
       .then(() => {
-        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
         setCopiedKey(key);
-        showToast(`Copied ${label} to clipboard.`);
-        copyTimerRef.current = window.setTimeout(() => setCopiedKey(null), 1800);
+        showNotice(`Copied ${label} to clipboard.`);
+        window.setTimeout(() => {
+          setCopiedKey((prev) => (prev === key ? null : prev));
+        }, 1800);
       })
       .catch(() => {
-        showToast('Failed to copy text to clipboard.', 'error');
+        showNotice('Failed to copy text to clipboard.', 'error');
       });
   };
 
@@ -354,14 +396,14 @@ export const PaymentManagement: React.FC = () => {
       });
       setPacks((prev) =>
         prev.map((item) =>
-          item.id === pack.id ? { ...item, isAvailable: nextState } : item
-        )
+          item.id === pack.id ? { ...item, isAvailable: nextState } : item,
+        ),
       );
-      showToast(
-        `${pack.name} is now ${nextState ? 'available on storefront' : 'hidden from storefront'}.`
+      showNotice(
+        `${pack.name} is now ${nextState ? 'available on storefront' : 'hidden from storefront'}.`,
       );
     } catch {
-      showToast(`Failed to update availability for ${pack.name}.`, 'error');
+      showNotice(`Failed to update availability for ${pack.name}.`, 'error');
     } finally {
       setTogglingPackId(null);
     }
@@ -528,7 +570,7 @@ export const PaymentManagement: React.FC = () => {
 
   const handleExportCsv = () => {
     if (filteredOrders.length === 0) {
-      showToast('No matching orders to export.', 'error');
+      showNotice('No matching orders to export.', 'error');
       return;
     }
     const csvContent = buildOrdersCsv(filteredOrders, packMap, playerNames);
@@ -550,858 +592,833 @@ export const PaymentManagement: React.FC = () => {
       targetLabel: `${filteredOrders.length} orders CSV`,
       afterState: { datePreset, orderStatusFilter, rowCount: filteredOrders.length },
     });
-    showToast(`Exported ${filteredOrders.length} orders to CSV.`);
+    showNotice(`Exported ${filteredOrders.length} orders to CSV.`);
   };
 
+  const chartPalette = useMemo(
+    () => ({
+      stroke: isDark ? '#f2bf4e' : '#966100',
+      fillStop: isDark ? '#f59e0b' : '#b7791f',
+      bar: isDark ? '#34d399' : '#059669',
+      grid: isDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(15, 23, 42, 0.10)',
+      axis: isDark ? '#94a3b8' : '#475569',
+    }),
+    [isDark],
+  );
+
+  const orderColumns: TableColumn<OrderTableRow>[] = [
+    {
+      key: 'orderCode',
+      header: 'Order Code',
+      width: proportional(1.4),
+      renderCell: (row) => {
+        const order = row as unknown as PurchaseOrder;
+        const orderCodeStr = String(order.orderCode);
+        const isCopied = copiedKey === `code-${order.id}`;
+        return (
+          <VStack gap={0.5}>
+            <HStack gap={1} vAlign="center">
+              <Text type="code" weight="bold">
+                #{orderCodeStr}
+              </Text>
+              <IconButton
+                icon={isCopied ? <Check size={12} /> : <Copy size={12} />}
+                label={`Copy order code ${orderCodeStr}`}
+                size="sm"
+                variant="ghost"
+                onClick={() => handleCopy(`code-${order.id}`, orderCodeStr, 'order code')}
+              />
+            </HStack>
+            <Text type="code" size="xsm" color="secondary" maxLines={1}>
+              {order.id}
+            </Text>
+          </VStack>
+        );
+      },
+    },
+    {
+      key: 'player',
+      header: 'Player',
+      width: proportional(1.5),
+      renderCell: (row) => {
+        const order = row as unknown as PurchaseOrder;
+        const username = playerNames[order.playerId];
+        const isCopied = copiedKey === `player-${order.id}`;
+        return (
+          <VStack gap={0.5}>
+            <Text weight="medium" size="sm" maxLines={1}>
+              {username || 'Unknown Account'}
+            </Text>
+            <HStack gap={1} vAlign="center">
+              <Text type="code" size="xsm" color="secondary" maxLines={1}>
+                {order.playerId}
+              </Text>
+              <IconButton
+                icon={isCopied ? <Check size={12} /> : <Copy size={12} />}
+                label={`Copy player ID ${order.playerId}`}
+                size="sm"
+                variant="ghost"
+                onClick={() => handleCopy(`player-${order.id}`, order.playerId, 'player ID')}
+              />
+            </HStack>
+          </VStack>
+        );
+      },
+    },
+    {
+      key: 'pack',
+      header: 'Pack',
+      width: proportional(1.3),
+      renderCell: (row) => {
+        const order = row as unknown as PurchaseOrder;
+        const pack = packMap.get(order.packId);
+        return (
+          <VStack gap={0.5}>
+            <Text weight="medium" size="sm" maxLines={1}>
+              {pack?.name || order.packId}
+            </Text>
+            {pack && (
+              <Text type="code" size="xsm" color="secondary">
+                {pack.gemsAmount.toLocaleString('en-US')} Gems
+              </Text>
+            )}
+          </VStack>
+        );
+      },
+    },
+    {
+      key: 'amount',
+      header: 'Amount (VND)',
+      width: pixel(135),
+      align: 'end',
+      renderCell: (row) => {
+        const order = row as unknown as PurchaseOrder;
+        return (
+          <Text type="code" weight="bold" hasTabularNumbers>
+            {formatVnd(order.amount)}
+          </Text>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      width: pixel(120),
+      renderCell: (row) => {
+        const order = row as unknown as PurchaseOrder;
+        const badgeMeta = getOrderStatusBadge(order.status);
+        return <Badge label={order.status} variant={badgeMeta.variant} icon={badgeMeta.icon} />;
+      },
+    },
+    {
+      key: 'timestamp',
+      header: 'Timestamp',
+      width: pixel(150),
+      renderCell: (row) => {
+        const order = row as unknown as PurchaseOrder;
+        return (
+          <Text type="code" size="xsm" color="secondary">
+            {formatDateTime(order.createdAt)}
+          </Text>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Receipt',
+      width: pixel(110),
+      align: 'end',
+      renderCell: (row) => {
+        const order = row as unknown as PurchaseOrder;
+        return (
+          <Button
+            label="Inspect"
+            variant="ghost"
+            size="sm"
+            icon={<Receipt size={14} />}
+            onClick={() => setSelectedOrder(order)}
+          />
+        );
+      },
+    },
+  ];
+
+  const selectedPack = selectedOrder ? packMap.get(selectedOrder.packId) : undefined;
+  const selectedSig = selectedOrder
+    ? selectedOrder.webhookSignature || selectedOrder.signature || ''
+    : '';
+
   return (
-    <div className="space-y-6 pb-10">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div
-          role="status"
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-medium shadow-2xl backdrop-blur-xl ${
-            toastMessage.tone === 'error'
-              ? 'bg-rose-950/90 border-rose-500/40 text-rose-100'
-              : 'bg-slate-900/95 border-amber-400/40 text-amber-100'
-          }`}
-        >
-          {toastMessage.tone === 'error' ? (
-            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          )}
-          <span>{toastMessage.text}</span>
-          <button
-            type="button"
-            onClick={() => setToastMessage(null)}
-            className="ml-2 text-slate-400 hover:text-slate-100"
-            aria-label="Dismiss notification"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
+    <VStack gap={5}>
+      {notice && (
+        <Banner
+          status={notice.status}
+          title={notice.status === 'error' ? 'Treasury Alert' : 'PayOS Ledger Notice'}
+          description={notice.text}
+          isDismissable
+          onDismiss={() => setNotice(null)}
+        />
       )}
 
       {/* Header & Top Actions */}
-      <div className="hy-card p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <CreditCard className="w-5 h-5 text-amber-400" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-amber-300/90">
-              PayOS Gateway &amp; Economy Treasury
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold hy-gold-text mt-1">
-            Payment &amp; Top-Up Administration
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Monitor VND order settlement, revenue trajectories, and storefront crystal availability.
-          </p>
-        </div>
+      <Section padding={5}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+          <VStack gap={1.5}>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Badge label="PAYOS GATEWAY & TREASURY" variant="purple" />
+              <Text type="code" size="xsm" color="secondary">
+                VND Settlement &amp; Crystal Catalog
+              </Text>
+            </HStack>
+            <HStack gap={2} vAlign="center">
+              <Icon icon={CreditCard} size="lg" color="accent" />
+              <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
+                PAYMENT &amp; TOP-UP ADMINISTRATION
+              </Heading>
+            </HStack>
+            <Text type="supporting" size="sm">
+              Monitor VND order settlement, revenue trajectories, and storefront crystal availability.
+            </Text>
+          </VStack>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <a
-            href={WEB_TOPUP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hy-btn-glass px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
-            Open Player Storefront
-          </a>
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={filteredOrders.length === 0}
-            className="hy-btn-glass px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-300" />
-            Export CSV ({filteredOrders.length})
-          </button>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing || loading}
-            className="hy-btn-gold px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Syncing...' : 'Refresh Telemetry'}
-          </button>
-        </div>
-      </div>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Button
+              label="Open Storefront"
+              variant="secondary"
+              size="md"
+              icon={<ExternalLink size={14} />}
+              href={WEB_TOPUP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+            <Button
+              label={`Export CSV (${filteredOrders.length})`}
+              variant="secondary"
+              size="md"
+              icon={<Download size={14} />}
+              isDisabled={filteredOrders.length === 0}
+              onClick={handleExportCsv}
+            />
+            <Button
+              label={refreshing ? 'Syncing...' : 'Refresh Telemetry'}
+              variant="primary"
+              size="md"
+              icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />}
+              isLoading={refreshing || loading}
+              onClick={() => void handleRefresh()}
+            />
+          </HStack>
+        </HStack>
+      </Section>
 
-      {/* Partial Sync / Error Warning */}
       {syncError && (
-        <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 px-4 py-3 text-sm text-rose-200 flex items-center gap-2.5">
-          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-          <span>{syncError}</span>
-        </div>
+        <Banner
+          status="warning"
+          title="Partial Telemetry Synchronization"
+          description={syncError}
+          isDismissable
+          onDismiss={() => setSyncError(null)}
+        />
       )}
 
       {/* Global Date Scope Bar */}
-      <div className="hy-glass rounded-2xl border border-white/10 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-          <Calendar className="w-4 h-4 text-amber-400" />
-          <span>Telemetry Timeframe:</span>
-        </div>
+      <Section padding={4}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+          <HStack gap={2} vAlign="center">
+            <Icon icon={Calendar} size="sm" color="accent" />
+            <Text type="label" size="sm" weight="semibold">
+              Telemetry Timeframe
+            </Text>
+          </HStack>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {(
-            [
-              { id: 'ALL', label: 'All Time' },
-              { id: '7D', label: 'Last 7 Days' },
-              { id: '30D', label: 'Last 30 Days' },
-              { id: 'CUSTOM', label: 'Custom Range' },
-            ] as const
-          ).map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => setDatePreset(preset.id)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                datePreset === preset.id
-                  ? 'hy-tab-active'
-                  : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:text-slate-200'
-              }`}
+          <HStack gap={3} vAlign="center" wrap="wrap">
+            <SegmentedControl
+              label="Timeframe preset"
+              value={datePreset}
+              onChange={(val) => setDatePreset(val as DateRangePreset)}
             >
-              {preset.label}
-            </button>
-          ))}
+              <SegmentedControlItem value="ALL" label="All Time" />
+              <SegmentedControlItem value="7D" label="Last 7 Days" />
+              <SegmentedControlItem value="30D" label="Last 30 Days" />
+              <SegmentedControlItem value="CUSTOM" label="Custom Range" />
+            </SegmentedControl>
 
-          {datePreset === 'CUSTOM' && (
-            <div className="flex flex-wrap items-center gap-2 pl-2 border-l border-white/10">
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                aria-label="Filter start date"
-                className="bg-slate-950/80 border border-white/15 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-400/60"
-              />
-              <span className="text-xs text-slate-500">to</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                aria-label="Filter end date"
-                className="bg-slate-950/80 border border-white/15 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-400/60"
-              />
-              {(customStartDate || customEndDate) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomStartDate('');
-                    setCustomEndDate('');
-                  }}
-                  className="text-xs text-slate-400 hover:text-amber-300 px-2 py-1"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+            {datePreset === 'CUSTOM' && (
+              <HStack gap={2} vAlign="center" wrap="wrap">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  aria-label="Filter start date"
+                  className={DATE_INPUT_CLASS}
+                />
+                <Text type="supporting" size="xsm">
+                  to
+                </Text>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  aria-label="Filter end date"
+                  className={DATE_INPUT_CLASS}
+                />
+                {(customStartDate || customEndDate) && (
+                  <Button
+                    label="Clear"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCustomStartDate('');
+                      setCustomEndDate('');
+                    }}
+                  />
+                )}
+              </HStack>
+            )}
+          </HStack>
+        </HStack>
+      </Section>
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="hy-card p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Paid Revenue (VND)
-            </span>
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-bold text-emerald-300 font-mono mt-2">
-            {loading ? '...' : formatVnd(kpis.grossRevenue)}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            {kpis.paidCount} settled orders in range
-          </div>
-        </div>
+      <Grid columns={{ minWidth: 220, max: 4 }} gap={4}>
+        <Card padding={4}>
+          <VStack gap={1.5}>
+            <HStack justify="between" vAlign="center">
+              <Text type="label" size="xsm" color="secondary">
+                Paid Revenue (VND)
+              </Text>
+              <Icon icon={TrendingUp} size="md" color="success" />
+            </HStack>
+            <Text type="display-3" weight="bold" hasTabularNumbers>
+              {loading ? '...' : formatVnd(kpis.grossRevenue)}
+            </Text>
+            <Text type="supporting" size="xsm">
+              {kpis.paidCount} settled orders in range
+            </Text>
+          </VStack>
+        </Card>
 
-        <div className="hy-card p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Avg Order Value &amp; Gems
-            </span>
-            <Gem className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="text-2xl font-bold text-cyan-200 font-mono mt-2">
-            {loading ? '...' : formatVnd(kpis.avgOrderValue)}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            {kpis.totalGemsIssued.toLocaleString('en-US')} gems delivered to accounts
-          </div>
-        </div>
+        <Card padding={4}>
+          <VStack gap={1.5}>
+            <HStack justify="between" vAlign="center">
+              <Text type="label" size="xsm" color="secondary">
+                Avg Order Value &amp; Gems
+              </Text>
+              <Icon icon={Gem} size="md" color="info" />
+            </HStack>
+            <Text type="display-3" weight="bold" hasTabularNumbers>
+              {loading ? '...' : formatVnd(kpis.avgOrderValue)}
+            </Text>
+            <Text type="supporting" size="xsm">
+              {kpis.totalGemsIssued.toLocaleString('en-US')} gems delivered to accounts
+            </Text>
+          </VStack>
+        </Card>
 
-        <div className="hy-card p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Settlement Rate
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-bold text-amber-200 font-mono mt-2">
-            {loading ? '...' : `${kpis.conversionRate.toFixed(1)}%`}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            {kpis.pendingCount} pending · {kpis.cancelledCount} cancelled
-          </div>
-        </div>
+        <Card padding={4}>
+          <VStack gap={1.5}>
+            <HStack justify="between" vAlign="center">
+              <Text type="label" size="xsm" color="secondary">
+                Settlement Rate
+              </Text>
+              <Icon icon={CheckCircle2} size="md" color="accent" />
+            </HStack>
+            <Text type="display-3" weight="bold" hasTabularNumbers>
+              {loading ? '...' : `${kpis.conversionRate.toFixed(1)}%`}
+            </Text>
+            <Text type="supporting" size="xsm">
+              {kpis.pendingCount} pending · {kpis.cancelledCount} cancelled
+            </Text>
+          </VStack>
+        </Card>
 
-        <div className="hy-card p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Storefront Catalog
-            </span>
-            <Package className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-2xl font-bold text-purple-200 font-mono mt-2">
-            {loading ? '...' : `${kpis.availablePacksCount} / ${packs.length}`}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            Active top-up packs live for purchase
-          </div>
-        </div>
-      </div>
+        <Card padding={4}>
+          <VStack gap={1.5}>
+            <HStack justify="between" vAlign="center">
+              <Text type="label" size="xsm" color="secondary">
+                Storefront Catalog
+              </Text>
+              <Icon icon={Package} size="md" color="accent" />
+            </HStack>
+            <Text type="display-3" weight="bold" hasTabularNumbers>
+              {loading ? '...' : `${kpis.availablePacksCount} / ${packs.length}`}
+            </Text>
+            <Text type="supporting" size="xsm">
+              Active top-up packs live for purchase
+            </Text>
+          </VStack>
+        </Card>
+      </Grid>
 
       {/* Recharts Revenue Analytics */}
-      <div className="hy-card p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-amber-400" />
-              Revenue &amp; Pack Performance Analytics
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Aggregated strictly from orders marked PAID inside the selected timeframe.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setChartView('daily')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                chartView === 'daily'
-                  ? 'hy-tab-active'
-                  : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:text-slate-200'
-              }`}
-            >
-              Daily Revenue Trend
-            </button>
-            <button
-              type="button"
-              onClick={() => setChartView('packs')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                chartView === 'packs'
-                  ? 'hy-tab-active'
-                  : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:text-slate-200'
-              }`}
-            >
-              Top Packs by Revenue
-            </button>
-          </div>
-        </div>
+      <Section padding={5}>
+        <VStack gap={4}>
+          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+            <VStack gap={0.5}>
+              <HStack gap={2} vAlign="center">
+                <Icon icon={BarChart3} size="md" color="accent" />
+                <Heading level={2} className="font-cinzel">
+                  Revenue &amp; Pack Performance Analytics
+                </Heading>
+              </HStack>
+              <Text type="supporting" size="xsm">
+                Aggregated strictly from orders marked PAID inside the selected timeframe.
+              </Text>
+            </VStack>
 
-        {(chartView === 'daily' ? dailyChartData : packChartData).length === 0 ? (
-          <div className="h-56 rounded-xl border border-dashed border-white/10 flex items-center justify-center text-sm text-slate-500">
-            {loading
-              ? 'Loading PayOS revenue series...'
-              : 'No transaction data falls within the selected timeframe.'}
-          </div>
-        ) : (
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartView === 'daily' ? (
-                <AreaChart
-                  data={dailyChartData}
-                  margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="payosRevenueFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.45} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-                  <XAxis
-                    dataKey="label"
-                    stroke="#94a3b8"
-                    fontSize={11}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    stroke="#94a3b8"
-                    fontSize={11}
-                    tickLine={false}
-                    tickFormatter={formatCompactVnd}
-                  />
-                  <Tooltip content={<RevenueTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#fbbf24"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#payosRevenueFill)"
-                  />
-                </AreaChart>
-              ) : (
-                <BarChart
-                  data={packChartData}
-                  margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-                  <XAxis
-                    dataKey="label"
-                    stroke="#94a3b8"
-                    fontSize={11}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    stroke="#94a3b8"
-                    fontSize={11}
-                    tickLine={false}
-                    tickFormatter={formatCompactVnd}
-                  />
-                  <Tooltip content={<RevenueTooltip />} />
-                  <Bar dataKey="revenue" fill="#34d399" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              )}
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
+            <SegmentedControl
+              label="Chart mode"
+              value={chartView}
+              onChange={(val) => setChartView(val as ChartViewMode)}
+            >
+              <SegmentedControlItem value="daily" label="Daily Revenue Trend" />
+              <SegmentedControlItem value="packs" label="Top Packs by Revenue" />
+            </SegmentedControl>
+          </HStack>
+
+          {(chartView === 'daily' ? dailyChartData : packChartData).length === 0 ? (
+            <EmptyState
+              isCompact
+              icon={<BarChart3 size={24} />}
+              title={
+                loading
+                  ? 'Loading PayOS Revenue Series...'
+                  : 'No Transaction Data in Selected Window'
+              }
+              description="Adjust your timeframe filter or refresh PayOS telemetry."
+            />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartView === 'daily' ? (
+                  <AreaChart
+                    data={dailyChartData}
+                    margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="payosRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={chartPalette.fillStop} stopOpacity={0.4} />
+                        <stop offset="95%" stopColor={chartPalette.fillStop} stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartPalette.grid} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={chartPalette.axis}
+                      fontSize={11}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      stroke={chartPalette.axis}
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={formatCompactVnd}
+                    />
+                    <Tooltip content={<RevenueTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke={chartPalette.stroke}
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#payosRevenueFill)"
+                    />
+                  </AreaChart>
+                ) : (
+                  <BarChart
+                    data={packChartData}
+                    margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartPalette.grid} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={chartPalette.axis}
+                      fontSize={11}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      stroke={chartPalette.axis}
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={formatCompactVnd}
+                    />
+                    <Tooltip content={<RevenueTooltip />} />
+                    <Bar dataKey="revenue" fill={chartPalette.bar} radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          )}
+        </VStack>
+      </Section>
 
       {/* Storefront Packs Catalog */}
-      <div className="hy-card p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-100">
-              Top-Up Packs &amp; Bundles Catalog
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Toggle availability directly via{' '}
-              <code className="text-amber-300">PATCH /topuppack/&#123;id&#125;/availability</code>.
-            </p>
-          </div>
+      <Section padding={5}>
+        <VStack gap={4}>
+          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+            <VStack gap={0.5}>
+              <Heading level={2} className="font-cinzel">
+                Top-Up Packs &amp; Bundles Catalog
+              </Heading>
+              <Text type="supporting" size="xsm">
+                Toggle storefront availability via PATCH /topuppack/&#123;id&#125;/availability.
+              </Text>
+            </VStack>
 
-          <div className="flex items-center gap-2">
-            {(
-              [
-                { id: 'all', label: `All (${packs.length})` },
-                {
-                  id: 'gems',
-                  label: `Crystals (${packs.filter((p) => !isBundlePack(p)).length})`,
-                },
-                {
-                  id: 'bundles',
-                  label: `Bundles & Passes (${packs.filter(isBundlePack).length})`,
-                },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setPackCategory(tab.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  packCategory === tab.id
-                    ? 'hy-tab-active'
-                    : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:text-slate-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
+            <SegmentedControl
+              label="Filter top-up packs"
+              value={packCategory}
+              onChange={(val) => setPackCategory(val as PackCategoryFilter)}
+            >
+              <SegmentedControlItem value="all" label={`All (${packs.length})`} />
+              <SegmentedControlItem
+                value="gems"
+                label={`Crystals (${packs.filter((p) => !isBundlePack(p)).length})`}
+              />
+              <SegmentedControlItem
+                value="bundles"
+                label={`Bundles (${packs.filter(isBundlePack).length})`}
+              />
+            </SegmentedControl>
+          </HStack>
 
-        {loading ? (
-          <div className="py-10 text-center text-sm text-slate-400">
-            Synchronizing storefront packs...
-          </div>
-        ) : filteredPacks.length === 0 ? (
-          <div className="py-10 text-center text-sm text-slate-500 border border-dashed border-white/10 rounded-xl">
-            No top-up packs in this category.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredPacks.map((pack) => {
-              const bundleItems = [
-                ...(pack.unitNames ?? []).map((n) => `Unit: ${n}`),
-                ...(pack.weaponNames ?? []).map((n) => `Weapon: ${n}`),
-                ...(pack.trinketNames ?? []).map((n) => `Trinket: ${n}`),
-              ];
-              const isToggling = togglingPackId === pack.id;
+          {loading ? (
+            <EmptyState
+              isCompact
+              icon={<Package size={24} />}
+              title="Synchronizing Storefront Packs..."
+              description="Fetching top-up crystal denominations and bundle manifests."
+            />
+          ) : filteredPacks.length === 0 ? (
+            <EmptyState
+              isCompact
+              icon={<Package size={24} />}
+              title="No Top-Up Packs in Category"
+              description="Switch categories to inspect other storefront denominations."
+            />
+          ) : (
+            <Grid columns={{ minWidth: 270, max: 3 }} gap={4}>
+              {filteredPacks.map((pack) => {
+                const bundleItems = [
+                  ...(pack.unitNames ?? []).map((n) => `Unit: ${n}`),
+                  ...(pack.weaponNames ?? []).map((n) => `Weapon: ${n}`),
+                  ...(pack.trinketNames ?? []).map((n) => `Trinket: ${n}`),
+                ];
+                const isToggling = togglingPackId === pack.id;
 
-              return (
-                <div
-                  key={pack.id}
-                  className={`rounded-2xl border p-4 flex flex-col justify-between transition-all ${
-                    pack.isAvailable
-                      ? 'bg-slate-900/60 border-amber-400/25'
-                      : 'bg-slate-950/70 border-white/10 opacity-80'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-xl bg-slate-950/90 border border-white/10 flex items-center justify-center shrink-0">
-                        <GemArt gemsAmount={pack.gemsAmount} size={46} />
+                return (
+                  <Card
+                    key={pack.id}
+                    padding={4}
+                    variant={pack.isAvailable ? 'default' : 'muted'}
+                  >
+                    <VStack gap={3}>
+                      <HStack justify="between" vAlign="start" gap={3}>
+                        <HStack gap={3} vAlign="center" className="min-w-0">
+                          <div className="w-14 h-14 rounded-[var(--radius-md,10px)] bg-slate-950/90 border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
+                            <GemArt gemsAmount={pack.gemsAmount} size={44} />
+                          </div>
+                          <VStack gap={0.5} className="min-w-0">
+                            <Text weight="bold" size="sm" maxLines={1}>
+                              {pack.name}
+                            </Text>
+                            <Text type="code" size="xsm" color="secondary">
+                              {pack.gemsAmount.toLocaleString('en-US')} Astral Gems
+                            </Text>
+                            <Text type="code" size="sm" weight="bold" hasTabularNumbers>
+                              {formatVnd(pack.priceVnd)}
+                            </Text>
+                          </VStack>
+                        </HStack>
+
+                        <Badge
+                          label={pack.isAvailable ? 'Active' : 'Hidden'}
+                          variant={pack.isAvailable ? 'success' : 'neutral'}
+                        />
+                      </HStack>
+
+                      {bundleItems.length > 0 && (
+                        <HStack gap={1.5} wrap="wrap">
+                          {bundleItems.map((label) => (
+                            <Badge key={label} label={label} variant="purple" />
+                          ))}
+                        </HStack>
+                      )}
+
+                      <div className="pt-3 border-t border-[var(--color-border-subtle)]">
+                        <HStack justify="between" vAlign="center" gap={2}>
+                          <Text type="code" size="xsm" color="secondary" maxLines={1}>
+                            ID: {pack.id}
+                          </Text>
+                          <StackItem size="static">
+                            <Button
+                              label={
+                                isToggling
+                                  ? 'Updating...'
+                                  : pack.isAvailable
+                                    ? 'Disable Pack'
+                                    : 'Enable Pack'
+                              }
+                              variant={pack.isAvailable ? 'destructive' : 'secondary'}
+                              size="sm"
+                              icon={<Power size={13} />}
+                              isDisabled={togglingPackId !== null}
+                              isLoading={isToggling}
+                              onClick={() => void togglePackAvailability(pack)}
+                            />
+                          </StackItem>
+                        </HStack>
                       </div>
-                      <div>
-                        <div className="text-sm font-bold text-slate-100">{pack.name}</div>
-                        <div className="text-xs text-cyan-300 font-semibold mt-0.5">
-                          {pack.gemsAmount.toLocaleString('en-US')} Astral Gems
-                        </div>
-                        <div className="text-xs font-mono text-amber-300 mt-0.5">
-                          {formatVnd(pack.priceVnd)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                        pack.isAvailable
-                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                          : 'bg-slate-800 text-slate-400 border-white/10'
-                      }`}
-                    >
-                      {pack.isAvailable ? 'Active' : 'Hidden'}
-                    </span>
-                  </div>
-
-                  {bundleItems.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {bundleItems.map((label) => (
-                        <span
-                          key={label}
-                          className="text-[11px] px-2 py-0.5 rounded-md bg-purple-500/15 border border-purple-400/30 text-purple-200"
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-mono text-slate-500 truncate">
-                      ID: {pack.id}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={togglingPackId !== null}
-                      onClick={() => togglePackAvailability(pack)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50 ${
-                        pack.isAvailable
-                          ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25'
-                          : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
-                      }`}
-                    >
-                      <Power className="w-3.5 h-3.5" />
-                      {isToggling
-                        ? 'Updating...'
-                        : pack.isAvailable
-                        ? 'Disable Pack'
-                        : 'Enable Pack'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    </VStack>
+                  </Card>
+                );
+              })}
+            </Grid>
+          )}
+        </VStack>
+      </Section>
 
       {/* Transactions Ledger */}
-      <div className="hy-card p-6 space-y-5">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-100">PayOS Transaction Ledger</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Showing {displayedOrders.length} of {filteredOrders.length} matching orders (
-              {dateScopedOrders.length} inside active date filter).
-            </p>
-          </div>
+      <Section padding={5}>
+        <VStack gap={4}>
+          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+            <VStack gap={0.5}>
+              <Heading level={2} className="font-cinzel">
+                PayOS Transaction Ledger
+              </Heading>
+              <Text type="supporting" size="xsm">
+                Showing {displayedOrders.length} of {filteredOrders.length} matching orders (
+                {dateScopedOrders.length} inside active date filter).
+              </Text>
+            </VStack>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                { id: 'ALL', label: `All (${dateScopedOrders.length})` },
-                { id: 'PAID', label: `Paid (${kpis.paidCount})` },
-                { id: 'PENDING', label: `Pending (${kpis.pendingCount})` },
-                { id: 'CANCELLED', label: `Cancelled (${kpis.cancelledCount})` },
-              ] as const
-            ).map((statusTab) => (
-              <button
-                key={statusTab.id}
-                type="button"
-                onClick={() => setOrderStatusFilter(statusTab.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  orderStatusFilter === statusTab.id
-                    ? 'hy-tab-active'
-                    : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:text-slate-200'
-                }`}
-              >
-                {statusTab.label}
-              </button>
-            ))}
-          </div>
-        </div>
+            <SegmentedControl
+              label="Filter orders by status"
+              value={orderStatusFilter}
+              onChange={(val) => setOrderStatusFilter(val as OrderStatusFilter)}
+            >
+              <SegmentedControlItem value="ALL" label={`All (${dateScopedOrders.length})`} />
+              <SegmentedControlItem value="PAID" label={`Paid (${kpis.paidCount})`} />
+              <SegmentedControlItem value="PENDING" label={`Pending (${kpis.pendingCount})`} />
+              <SegmentedControlItem value="CANCELLED" label={`Cancelled (${kpis.cancelledCount})`} />
+            </SegmentedControl>
+          </HStack>
 
-        {/* Search / Sort / Row Limit Controls */}
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Order Code, Order ID, Username, Player ID, or Pack..."
-              className="w-full bg-slate-950/70 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-400/50"
-            />
-          </div>
+          {/* Search, Sort & Limit Controls */}
+          <HStack gap={3} wrap="wrap" vAlign="center">
+            <div className="flex-1 min-w-[240px]">
+              <TextInput
+                label="Search transactions"
+                isLabelHidden
+                size="sm"
+                placeholder="Search by Order Code, Order ID, Username, Player ID, or Pack..."
+                value={searchQuery}
+                onChange={setSearchQuery}
+                hasClear
+                startIcon={<Search size={14} />}
+              />
+            </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-slate-950/70 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-300">
-              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
-              <select
+            <div className="w-48">
+              <Selector
+                label="Sort orders"
+                isLabelHidden
+                size="sm"
+                options={SORT_OPTIONS}
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as OrderSortOption)}
-                aria-label="Sort orders"
-                className="bg-transparent text-slate-200 focus:outline-none"
-              >
-                <option value="NEWEST" className="bg-slate-900">
-                  Newest First
-                </option>
-                <option value="OLDEST" className="bg-slate-900">
-                  Oldest First
-                </option>
-                <option value="HIGHEST_AMOUNT" className="bg-slate-900">
-                  Highest VND Amount
-                </option>
-              </select>
+                onChange={(val) => {
+                  if (val) setSortBy(val as OrderSortOption);
+                }}
+                startIcon={<ArrowUpDown size={14} />}
+              />
             </div>
 
-            <div className="flex items-center gap-1.5 bg-slate-950/70 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-300">
-              <span className="text-slate-400">Show:</span>
-              <select
+            <div className="w-36">
+              <Selector
+                label="Rows limit"
+                isLabelHidden
+                size="sm"
+                options={ROW_LIMIT_OPTIONS}
                 value={rowLimit}
-                onChange={(e) => setRowLimit(e.target.value as RowLimitOption)}
-                aria-label="Row limit"
-                className="bg-transparent text-slate-200 focus:outline-none"
-              >
-                <option value="25" className="bg-slate-900">
-                  25
-                </option>
-                <option value="50" className="bg-slate-900">
-                  50
-                </option>
-                <option value="100" className="bg-slate-900">
-                  100
-                </option>
-                <option value="ALL" className="bg-slate-900">
-                  All
-                </option>
-              </select>
+                onChange={(val) => {
+                  if (val) setRowLimit(val as RowLimitOption);
+                }}
+              />
             </div>
-          </div>
-        </div>
+          </HStack>
 
-        {/* Orders Table */}
-        <div className="overflow-x-auto rounded-xl border border-white/10">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-950/70 border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400">
-                <th className="py-3 px-4">Order Code</th>
-                <th className="py-3 px-4">Player</th>
-                <th className="py-3 px-4">Pack</th>
-                <th className="py-3 px-4">Amount (VND)</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Timestamp</th>
-                <th className="py-3 px-4 text-right">Receipt</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5 text-sm">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">
-                    Synchronizing PayOS transactions...
-                  </td>
-                </tr>
-              ) : displayedOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-500">
-                    No PayOS orders match your active filters.
-                  </td>
-                </tr>
-              ) : (
-                displayedOrders.map((order) => {
-                  const pack = packMap.get(order.packId);
-                  const username = playerNames[order.playerId];
-                  const orderCodeStr = String(order.orderCode);
+          <Table
+            columns={orderColumns}
+            data={loading ? [] : (displayedOrders as OrderTableRow[])}
+            idKey="id"
+            density="balanced"
+            aria-label="PayOS Transaction Ledger"
+            emptyState={
+              <EmptyState
+                isCompact
+                icon={<Receipt size={24} />}
+                title={loading ? 'Synchronizing PayOS Transactions...' : 'No PayOS Orders Match Filters'}
+                description={
+                  loading
+                    ? 'Fetching latest settlement receipts and player mappings.'
+                    : 'Try clearing the search query or widening the date range.'
+                }
+              />
+            }
+          />
+        </VStack>
+      </Section>
 
-                  return (
-                    <tr
-                      key={order.id}
-                      className="hover:bg-white/[0.03] transition-colors"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 font-mono text-amber-300 font-semibold">
-                          <span>#{orderCodeStr}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopy(`code-${order.id}`, orderCodeStr, 'order code')
-                            }
-                            className="text-slate-500 hover:text-amber-300"
-                            aria-label={`Copy order code ${orderCodeStr}`}
-                          >
-                            {copiedKey === `code-${order.id}` ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-500 truncate max-w-[160px]">
-                          {order.id}
-                        </div>
-                      </td>
+      {/* Receipt & Webhook Audit Modal */}
+      <Dialog
+        isOpen={Boolean(selectedOrder)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedOrder(null);
+        }}
+        purpose="info"
+        width={540}
+      >
+        {selectedOrder && (
+          <VStack gap={4}>
+            <DialogHeader
+              title={`Order #${selectedOrder.orderCode}`}
+              subtitle="PayOS Order Receipt & Webhook Audit"
+              endContent={
+                <Badge
+                  label={selectedOrder.status}
+                  variant={getOrderStatusBadge(selectedOrder.status).variant}
+                />
+              }
+              onOpenChange={() => setSelectedOrder(null)}
+            />
 
-                      <td className="py-3 px-4">
-                        <div className="text-slate-100 font-medium">
-                          {username || 'Unknown Account'}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500">
-                          <span className="truncate max-w-[150px]">{order.playerId}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopy(
-                                `player-${order.id}`,
-                                order.playerId,
-                                'player ID'
-                              )
-                            }
-                            className="text-slate-500 hover:text-amber-300"
-                            aria-label={`Copy player ID ${order.playerId}`}
-                          >
-                            {copiedKey === `player-${order.id}` ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
+            <Card padding={4} variant="muted">
+              <VStack gap={3}>
+                <HStack justify="between" vAlign="center" gap={3}>
+                  <Text type="label" size="xsm" color="secondary">
+                    Internal Order ID
+                  </Text>
+                  <Text type="code" size="xsm">
+                    {selectedOrder.id}
+                  </Text>
+                </HStack>
 
-                      <td className="py-3 px-4">
-                        <div className="text-slate-200 font-medium">
-                          {pack?.name || order.packId}
-                        </div>
-                        {pack && (
-                          <div className="text-[11px] text-cyan-300">
-                            {pack.gemsAmount.toLocaleString('en-US')} Gems
-                          </div>
-                        )}
-                      </td>
+                <HStack justify="between" vAlign="start" gap={3}>
+                  <Text type="label" size="xsm" color="secondary">
+                    Player Account
+                  </Text>
+                  <VStack gap={0} className="text-right">
+                    <Text weight="semibold" size="sm">
+                      {playerNames[selectedOrder.playerId] || 'Username unavailable'}
+                    </Text>
+                    <Text type="code" size="xsm" color="secondary">
+                      {selectedOrder.playerId}
+                    </Text>
+                  </VStack>
+                </HStack>
 
-                      <td className="py-3 px-4 font-mono font-semibold text-slate-100">
-                        {formatVnd(order.amount)}
-                      </td>
+                <HStack justify="between" vAlign="center" gap={3}>
+                  <Text type="label" size="xsm" color="secondary">
+                    Top-Up Pack
+                  </Text>
+                  <Text size="sm" weight="medium">
+                    {selectedPack?.name || selectedOrder.packId}
+                    {selectedPack
+                      ? ` (${selectedPack.gemsAmount.toLocaleString('en-US')} Gems)`
+                      : ''}
+                  </Text>
+                </HStack>
 
-                      <td className="py-3 px-4">
-                        {order.status === 'PAID' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            <CheckCircle2 className="w-3 h-3" />
-                            PAID
-                          </span>
-                        ) : order.status === 'PENDING' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                            <Clock className="w-3 h-3" />
-                            PENDING
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
-                            <XCircle className="w-3 h-3" />
-                            CANCELLED
-                          </span>
-                        )}
-                      </td>
+                <HStack justify="between" vAlign="center" gap={3}>
+                  <Text type="label" size="xsm" color="secondary">
+                    Settlement Amount
+                  </Text>
+                  <Text type="code" size="base" weight="bold" hasTabularNumbers>
+                    {formatVnd(selectedOrder.amount)}
+                  </Text>
+                </HStack>
 
-                      <td className="py-3 px-4 text-xs text-slate-400 whitespace-nowrap">
-                        {formatDateTime(order.createdAt)}
-                      </td>
+                <HStack justify="between" vAlign="center" gap={3}>
+                  <Text type="label" size="xsm" color="secondary">
+                    Created At
+                  </Text>
+                  <Text type="code" size="xsm">
+                    {formatDateTime(selectedOrder.createdAt)}
+                  </Text>
+                </HStack>
+              </VStack>
+            </Card>
 
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOrder(order)}
-                          className="hy-btn-glass px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
-                        >
-                          <Receipt className="w-3.5 h-3.5 text-amber-300" />
-                          Inspect
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Screen 32: Receipt & Webhook Audit Modal */}
-      {selectedOrder && (
-        <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setSelectedOrder(null)}
-        >
-          <div
-            className="hy-glass w-full max-w-lg rounded-2xl border border-amber-400/30 p-6 space-y-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-widest text-amber-300">
-                  PayOS Order Receipt
-                </div>
-                <h3 className="text-xl font-bold text-slate-100 font-mono mt-1">
-                  Order #{selectedOrder.orderCode}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="text-slate-400 hover:text-slate-100 p-1 rounded-lg hover:bg-white/10"
-                aria-label="Close receipt modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-slate-400">Internal Order ID:</span>
-                <span className="font-mono text-xs text-slate-200 break-all text-right">
-                  {selectedOrder.id}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-slate-400">Player Account:</span>
-                <div className="text-right">
-                  <div className="text-slate-100 font-semibold">
-                    {playerNames[selectedOrder.playerId] || 'Username unavailable'}
-                  </div>
-                  <div className="font-mono text-xs text-slate-400">
-                    {selectedOrder.playerId}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-slate-400">Top-Up Pack:</span>
-                <span className="text-slate-100 font-medium text-right">
-                  {packMap.get(selectedOrder.packId)?.name || selectedOrder.packId}
-                  {packMap.get(selectedOrder.packId) && (
-                    <span className="text-cyan-300 text-xs ml-2">
-                      ({packMap.get(selectedOrder.packId)!.gemsAmount.toLocaleString('en-US')}{' '}
-                      Gems)
-                    </span>
-                  )}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-slate-400">Settlement Amount:</span>
-                <span className="font-mono font-bold text-amber-300 text-base">
-                  {formatVnd(selectedOrder.amount)}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-slate-400">Payment Status:</span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                    selectedOrder.status === 'PAID'
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                      : selectedOrder.status === 'PENDING'
-                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                      : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                  }`}
-                >
-                  {selectedOrder.status}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-slate-400">Created At:</span>
-                <span className="text-slate-200 text-xs">
-                  {formatDateTime(selectedOrder.createdAt)}
-                </span>
-              </div>
-
-              {/* Status-accurate Webhook Audit Row */}
-              <div className="pt-3 border-t border-white/10 space-y-1.5">
-                <div className="flex justify-between items-center gap-4">
-                  <span className="text-slate-400">Webhook Settlement:</span>
+            <Card padding={4} variant="muted">
+              <VStack gap={2}>
+                <HStack justify="between" vAlign="center" gap={3}>
+                  <Text type="label" size="xsm" color="secondary">
+                    Webhook Settlement
+                  </Text>
                   {selectedOrder.status === 'PAID' ? (
-                    <span className="font-mono text-emerald-300 font-semibold text-xs flex items-center gap-1.5 text-right">
-                      <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                      {selectedOrder.webhookSignature || selectedOrder.signature
-                        ? 'PayOS Paid (Signature Recorded)'
-                        : 'PayOS Settled (Server Verified)'}
-                    </span>
+                    <HStack gap={1.5} vAlign="center">
+                      <Icon icon={ShieldCheck} size="sm" color="success" />
+                      <Text type="code" size="xsm" weight="semibold">
+                        {selectedSig
+                          ? 'PayOS Paid (Signature Recorded)'
+                          : 'PayOS Settled (Server Verified)'}
+                      </Text>
+                    </HStack>
                   ) : selectedOrder.status === 'PENDING' ? (
-                    <span className="font-mono text-amber-300 font-semibold text-xs flex items-center gap-1.5 text-right">
-                      <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                      Awaiting PayOS Callback
-                    </span>
+                    <HStack gap={1.5} vAlign="center">
+                      <Icon icon={Clock} size="sm" color="warning" />
+                      <Text type="code" size="xsm" weight="semibold">
+                        Awaiting PayOS Callback
+                      </Text>
+                    </HStack>
                   ) : (
-                    <span className="font-mono text-rose-300 font-semibold text-xs flex items-center gap-1.5 text-right">
-                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-                      Cancelled / Unsettled
-                    </span>
+                    <HStack gap={1.5} vAlign="center">
+                      <Icon icon={ShieldAlert} size="sm" color="error" />
+                      <Text type="code" size="xsm" weight="semibold">
+                        Cancelled / Unsettled
+                      </Text>
+                    </HStack>
                   )}
-                </div>
+                </HStack>
 
-                {(selectedOrder.webhookSignature || selectedOrder.signature) && (
-                  <div className="bg-slate-950/80 border border-white/10 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] text-slate-300 truncate">
-                      {selectedOrder.webhookSignature || selectedOrder.signature}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleCopy(
-                          'modal-sig',
-                          selectedOrder.webhookSignature || selectedOrder.signature || '',
-                          'webhook signature'
-                        )
-                      }
-                      className="text-xs text-amber-300 hover:text-amber-200 shrink-0"
-                    >
-                      {copiedKey === 'modal-sig' ? 'Copied' : 'Copy'}
-                    </button>
-                  </div>
+                {selectedSig && (
+                  <HStack justify="between" vAlign="center" gap={2}>
+                    <Text type="code" size="xsm" color="secondary" maxLines={1}>
+                      {selectedSig}
+                    </Text>
+                    <StackItem size="static">
+                      <Button
+                        label={copiedKey === 'modal-sig' ? 'Copied' : 'Copy'}
+                        variant="ghost"
+                        size="sm"
+                        icon={
+                          copiedKey === 'modal-sig' ? (
+                            <Check size={13} />
+                          ) : (
+                            <Copy size={13} />
+                          )
+                        }
+                        onClick={() =>
+                          handleCopy('modal-sig', selectedSig, 'webhook signature')
+                        }
+                      />
+                    </StackItem>
+                  </HStack>
                 )}
-              </div>
-            </div>
+              </VStack>
+            </Card>
 
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                type="button"
+            <HStack justify="end">
+              <Button
+                label="Close"
+                variant="secondary"
+                size="md"
                 onClick={() => setSelectedOrder(null)}
-                className="hy-btn-glass px-4 py-2 rounded-xl text-xs font-semibold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+              />
+            </HStack>
+          </VStack>
+        )}
+      </Dialog>
+    </VStack>
   );
 };

@@ -1,17 +1,38 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { Grid } from '@astryxdesign/core/Grid';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Heading } from '@astryxdesign/core/Heading';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { Section } from '@astryxdesign/core/Section';
+import { Selector, type SelectorOptionData } from '@astryxdesign/core/Selector';
+import { StatusDot } from '@astryxdesign/core/StatusDot';
+import { Tab, TabList } from '@astryxdesign/core/TabList';
+import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
+import { Text } from '@astryxdesign/core/Text';
+import { TextArea } from '@astryxdesign/core/TextArea';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { VStack } from '@astryxdesign/core/VStack';
 import {
+  Activity,
   CheckCircle2,
   Clock,
   Download,
   Eye,
-  FileSearch,
-  History,
+  FileClock,
+  Key,
   KeyRound,
   Lock,
   LogOut,
   Plus,
   RefreshCw,
-  Search,
+  RotateCcw,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -20,7 +41,6 @@ import {
   UserCheck,
   UserPlus,
   Users,
-  X,
 } from 'lucide-react';
 import { SensitiveActionModal } from '../components/SensitiveActionModal';
 import {
@@ -41,1888 +61,2037 @@ import {
 import { formatRemainingDuration, getTokenExpiryMs } from '../utils/authSession';
 import { DEFAULT_ROLE_DEFINITIONS, PERMISSION_CATALOG } from '../utils/permissions';
 import type {
+  AdminAccountStatus,
   AdminAccountSummary,
   AdminPermissionKey,
   AuditLogEntry,
   AuditLogSeverity,
   CounselRole,
-  DataSourceOrigin,
   LoginHistoryEntry,
   LoginHistoryStatus,
   RoleDefinition,
 } from '../types';
 
-interface SecurityGovernanceProps {
+export interface SecurityGovernanceProps {
   currentUsername: string;
-  currentRole: CounselRole;
+  currentRole: CounselRole | string;
 }
 
-type SecurityTab = 'accounts' | 'roles' | 'audit' | 'logins';
+type GovernanceTab = 'accounts' | 'roles' | 'audit' | 'logins';
+type AccountStatusFilter = 'ALL' | AdminAccountStatus;
+type AuditCategoryFilter = 'ALL' | AuditLogEntry['category'];
+type AuditSeverityFilter = 'ALL' | AuditLogSeverity;
+type AuditStatusFilter = 'ALL' | 'SUCCESS' | 'FAILED';
+type LoginStatusFilter = 'ALL' | LoginHistoryStatus;
 
-interface SecuritySnapshot {
-  accounts: AdminAccountSummary[];
-  accountsConnected: boolean;
-  accountsNotice?: string;
-  roles: RoleDefinition[];
-  rolesConnected: boolean;
-  rolesNotice?: string;
-  auditLogs: AuditLogEntry[];
-  auditConnected: boolean;
-  auditNotice?: string;
-  loginHistory: LoginHistoryEntry[];
-  loginConnected: boolean;
-  loginNotice?: string;
-  fetchedAt: number;
-}
+type AdminAccountRow = AdminAccountSummary & Record<string, unknown>;
+type AuditLogRow = AuditLogEntry & Record<string, unknown>;
+type LoginHistoryRow = LoginHistoryEntry & Record<string, unknown>;
 
-interface PendingSensitiveGuard {
+interface PendingSensitiveGovernanceAction {
   title: string;
   description: string;
+  targetLabel?: string;
+  targetSummary: string;
   severity: 'HIGH' | 'CRITICAL';
   actionLabel: string;
-  targetSummary?: string;
   requireKeyword?: string;
-  onExecute: (rationale: string) => Promise<void>;
+  execute: (rationale: string) => Promise<void>;
 }
 
-async function loadSecuritySnapshot(): Promise<SecuritySnapshot> {
-  const [accountsRes, rolesRes, auditRes, loginRes] = await Promise.all([
-    fetchAdminAccounts(),
-    fetchRoleDefinitions(),
-    fetchAuditLogs(),
-    fetchLoginHistory(),
-  ]);
+const ACCOUNT_STATUS_OPTIONS: SelectorOptionData[] = [
+  { value: 'ALL', label: 'All Statuses' },
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'LOCKED', label: 'Locked' },
+  { value: 'DISABLED', label: 'Disabled' },
+];
 
-  return {
-    accounts: accountsRes.items,
-    accountsConnected: accountsRes.backendConnected,
-    accountsNotice: accountsRes.notice,
-    roles: rolesRes.items,
-    rolesConnected: rolesRes.backendConnected,
-    rolesNotice: rolesRes.notice,
-    auditLogs: auditRes.items,
-    auditConnected: auditRes.backendConnected,
-    auditNotice: auditRes.notice,
-    loginHistory: loginRes.items,
-    loginConnected: loginRes.backendConnected,
-    loginNotice: loginRes.notice,
-    fetchedAt: Date.now(),
-  };
-}
+const AUDIT_CATEGORY_OPTIONS: SelectorOptionData[] = [
+  { value: 'ALL', label: 'All Categories' },
+  { value: 'AUTH', label: 'Authentication' },
+  { value: 'SERVER', label: 'Server Ops' },
+  { value: 'PLAYER', label: 'Players' },
+  { value: 'TREASURY', label: 'Treasury' },
+  { value: 'GACHA', label: 'Gacha' },
+  { value: 'CONTENT', label: 'SRPG Content' },
+  { value: 'PAYMENT', label: 'Payments' },
+  { value: 'SECURITY', label: 'Security' },
+];
 
-function formatIsoTime(iso?: string): string {
-  if (!iso) return 'Never';
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return iso;
+const AUDIT_SEVERITY_OPTIONS: SelectorOptionData[] = [
+  { value: 'ALL', label: 'All Severities' },
+  { value: 'CRITICAL', label: 'Critical' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'LOW', label: 'Low' },
+];
+
+const AUDIT_STATUS_OPTIONS: SelectorOptionData[] = [
+  { value: 'ALL', label: 'All Outcomes' },
+  { value: 'SUCCESS', label: 'Success Only' },
+  { value: 'FAILED', label: 'Failed Only' },
+];
+
+const LOGIN_STATUS_OPTIONS: SelectorOptionData[] = [
+  { value: 'ALL', label: 'All Auth Events' },
+  { value: 'SUCCESS', label: 'Success' },
+  { value: 'FAILED', label: 'Failed' },
+  { value: 'DENIED_PLAYER', label: 'Denied Player' },
+  { value: 'LOGOUT', label: 'Logout' },
+  { value: 'SESSION_EXPIRED', label: 'Session Expired' },
+];
+
+const SEVERITY_BADGE_MAP: Record<AuditLogSeverity, BadgeVariant> = {
+  CRITICAL: 'error',
+  HIGH: 'warning',
+  MEDIUM: 'info',
+  LOW: 'neutral',
+};
+
+const ACCOUNT_STATUS_BADGE_MAP: Record<AdminAccountStatus, BadgeVariant> = {
+  ACTIVE: 'success',
+  LOCKED: 'error',
+  DISABLED: 'warning',
+};
+
+const LOGIN_STATUS_BADGE_MAP: Record<LoginHistoryStatus, BadgeVariant> = {
+  SUCCESS: 'success',
+  FAILED: 'error',
+  DENIED_PLAYER: 'warning',
+  LOGOUT: 'info',
+  SESSION_EXPIRED: 'neutral',
+};
+
+const DATE_INPUT_CLASS =
+  'h-8 rounded-lg border px-2.5 text-xs outline-none transition-colors focus:ring-2';
+
+const DATE_INPUT_STYLE: React.CSSProperties = {
+  backgroundColor: 'var(--color-surface-elevated, var(--color-surface))',
+  borderColor: 'var(--color-border-primary)',
+  color: 'var(--color-text-primary)',
+};
+
+function formatDateTime(value?: string): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString('en-GB', {
-    year: 'numeric',
-    month: 'short',
     day: '2-digit',
+    month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   });
 }
 
-function severityBadgeClass(severity: AuditLogSeverity): string {
-  switch (severity) {
-    case 'CRITICAL':
-      return 'bg-rose-500/15 text-rose-300 border-rose-500/35';
-    case 'HIGH':
-      return 'bg-amber-500/15 text-amber-300 border-amber-400/35';
-    case 'MEDIUM':
-      return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/35';
-    default:
-      return 'bg-slate-700/40 text-slate-300 border-white/10';
-  }
+function getRoleBadgeVariant(roleName: string): BadgeVariant {
+  const lower = roleName.trim().toLowerCase();
+  if (lower === 'admin' || lower === 'server') return 'purple';
+  if (lower === 'moderator' || lower === 'mod') return 'info';
+  if (lower.includes('support') || lower === 'cskh') return 'teal';
+  return 'warning';
 }
 
-function sourceBadgeLabel(source?: DataSourceOrigin): { text: string; cls: string } {
-  if (source === 'BACKEND_API') {
-    return {
-      text: 'SERVER API',
-      cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-    };
+function isWithinDateRange(timestamp: string, fromDate: string, toDate: string): boolean {
+  if (!fromDate && !toDate) return true;
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return false;
+  if (fromDate) {
+    const startMs = new Date(`${fromDate}T00:00:00`).getTime();
+    if (parsed.getTime() < startMs) return false;
   }
-  if (source === 'SYSTEM_DEFAULT') {
-    return {
-      text: 'DEFAULT RBAC',
-      cls: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
-    };
+  if (toDate) {
+    const endMs = new Date(`${toDate}T23:59:59.999`).getTime();
+    if (parsed.getTime() > endMs) return false;
   }
-  return {
-    text: 'SESSION BUFFER',
-    cls: 'bg-amber-500/15 text-amber-300 border-amber-400/30',
-  };
-}
-
-function loginStatusBadge(status: LoginHistoryStatus): string {
-  switch (status) {
-    case 'SUCCESS':
-      return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-    case 'FAILED':
-    case 'DENIED_PLAYER':
-      return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
-    case 'SESSION_EXPIRED':
-      return 'bg-amber-500/15 text-amber-300 border-amber-400/30';
-    case 'LOGOUT':
-    default:
-      return 'bg-slate-700/40 text-slate-300 border-white/15';
-  }
+  return true;
 }
 
 export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
   currentUsername,
   currentRole,
 }) => {
-  const [activeTab, setActiveTab] = useState<SecurityTab>('accounts');
+  const [activeTab, setActiveTab] = useState<GovernanceTab>('accounts');
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string>('');
+  const [notices, setNotices] = useState<string[]>([]);
+  const [feedback, setFeedback] = useState<{ status: 'success' | 'error'; title: string; detail: string } | null>(
+    null
+  );
 
+  // Collections
   const [accounts, setAccounts] = useState<AdminAccountSummary[]>([]);
-  const [accountsConnected, setAccountsConnected] = useState(false);
-  const [accountsNotice, setAccountsNotice] = useState<string | undefined>();
-
   const [roles, setRoles] = useState<RoleDefinition[]>(DEFAULT_ROLE_DEFINITIONS);
-  const [rolesConnected, setRolesConnected] = useState(false);
-  const [rolesNotice, setRolesNotice] = useState<string | undefined>();
-
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
-  const [auditConnected, setAuditConnected] = useState(false);
-  const [auditNotice, setAuditNotice] = useState<string | undefined>();
-
   const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>([]);
-  const [loginConnected, setLoginConnected] = useState(false);
-  const [loginNotice, setLoginNotice] = useState<string | undefined>();
 
-  const [snapshotTimeMs, setSnapshotTimeMs] = useState(0);
-  const [toast, setToast] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
-  const toastTimerRef = useRef<number | null>(null);
+  // Active JWT session expiry ticker
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  // Accounts filters & modals
-  const [accountSearch, setAccountSearch] = useState('');
-  const [accountRoleFilter, setAccountRoleFilter] = useState('ALL');
+  const tokenExpiryMs = useMemo(
+    () => getTokenExpiryMs(sessionStorage.getItem('adminToken')),
+    // Re-read when sync runs or ticker advances
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nowMs, lastSyncedAt]
+  );
+
+  // Tab 1: Account Directory filters & modals
+  const [accountQuery, setAccountQuery] = useState('');
+  const [accountStatusFilter, setAccountStatusFilter] = useState<AccountStatusFilter>('ALL');
+
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
-  const [newAccUsername, setNewAccUsername] = useState('');
-  const [newAccEmail, setNewAccEmail] = useState('');
-  const [newAccRole, setNewAccRole] = useState('Moderator');
-  const [newAccPassword, setNewAccPassword] = useState('');
-  const [createAccRationale, setCreateAccRationale] = useState('');
-  const [createAccError, setCreateAccError] = useState<string | null>(null);
-  const [createAccSubmitting, setCreateAccSubmitting] = useState(false);
+  const [createUsername, setCreateUsername] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createRole, setCreateRole] = useState<string>('Moderator');
+  const [createFormError, setCreateFormError] = useState<string | null>(null);
 
   const [roleEditAccount, setRoleEditAccount] = useState<AdminAccountSummary | null>(null);
-  const [targetAccountRole, setTargetAccountRole] = useState('Moderator');
+  const [roleEditNextRole, setRoleEditNextRole] = useState<string>('Moderator');
+
   const [resetPwdAccount, setResetPwdAccount] = useState<AdminAccountSummary | null>(null);
   const [resetPwdValue, setResetPwdValue] = useState('');
-  const [resetPwdRationale, setResetPwdRationale] = useState('');
+  const [resetPwdConfirm, setResetPwdConfirm] = useState('');
   const [resetPwdError, setResetPwdError] = useState<string | null>(null);
-  const [resetPwdSubmitting, setResetPwdSubmitting] = useState(false);
 
-  // Roles matrix state
-  const [selectedRoleId, setSelectedRoleId] = useState<string>('role-admin');
+  // Tab 2: RBAC Matrix state
+  const [selectedRoleId, setSelectedRoleId] = useState<string>(DEFAULT_ROLE_DEFINITIONS[0].id);
   const [draftPermissions, setDraftPermissions] = useState<AdminPermissionKey[]>(
     DEFAULT_ROLE_DEFINITIONS[0].permissions
   );
+
   const [isCreateRoleOpen, setIsCreateRoleOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleDesc, setNewRoleDesc] = useState('');
-  const [newRoleRationale, setNewRoleRationale] = useState('');
-  const [createRoleError, setCreateRoleError] = useState<string | null>(null);
-  const [createRoleSubmitting, setCreateRoleSubmitting] = useState(false);
+  const [newRoleDescription, setNewRoleDescription] = useState('');
+  const [newRolePermissions, setNewRolePermissions] = useState<AdminPermissionKey[]>([
+    'dashboard.view',
+    'players.view',
+  ]);
+  const [newRoleError, setNewRoleError] = useState<string | null>(null);
 
-  // Audit Log filters & inspect modal
-  const [auditSearch, setAuditSearch] = useState('');
-  const [auditSeverityFilter, setAuditSeverityFilter] = useState<'ALL' | AuditLogSeverity>('ALL');
-  const [auditCategoryFilter, setAuditCategoryFilter] = useState<string>('ALL');
-  const [auditStartDate, setAuditStartDate] = useState('');
-  const [auditEndDate, setAuditEndDate] = useState('');
+  // Tab 3: Audit Log filters & detail modal
+  const [auditQuery, setAuditQuery] = useState('');
+  const [auditCategory, setAuditCategory] = useState<AuditCategoryFilter>('ALL');
+  const [auditSeverity, setAuditSeverity] = useState<AuditSeverityFilter>('ALL');
+  const [auditStatus, setAuditStatus] = useState<AuditStatusFilter>('ALL');
+  const [auditDateFrom, setAuditDateFrom] = useState('');
+  const [auditDateTo, setAuditDateTo] = useState('');
   const [inspectingAudit, setInspectingAudit] = useState<AuditLogEntry | null>(null);
 
-  // Login History filters
-  const [loginSearch, setLoginSearch] = useState('');
-  const [loginStatusFilter, setLoginStatusFilter] = useState<'ALL' | LoginHistoryStatus>('ALL');
+  // Tab 4: Login History filters
+  const [loginQuery, setLoginQuery] = useState('');
+  const [loginStatus, setLoginStatus] = useState<LoginStatusFilter>('ALL');
+  const [loginDateFrom, setLoginDateFrom] = useState('');
+  const [loginDateTo, setLoginDateTo] = useState('');
 
-  // Shared sensitive action modal
-  const [sensitiveGuard, setSensitiveGuard] = useState<PendingSensitiveGuard | null>(null);
-  const [guardLoading, setGuardLoading] = useState(false);
-  const [guardError, setGuardError] = useState<string | null>(null);
+  // Shared SensitiveActionModal flow
+  const [pendingAction, setPendingAction] = useState<PendingSensitiveGovernanceAction | null>(null);
 
-  const applySnapshot = (snap: SecuritySnapshot) => {
-    setAccounts(snap.accounts);
-    setAccountsConnected(snap.accountsConnected);
-    setAccountsNotice(snap.accountsNotice);
+  const loadSecuritySnapshot = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [accountsRes, rolesRes, auditsRes, loginsRes] = await Promise.all([
+        fetchAdminAccounts(),
+        fetchRoleDefinitions(),
+        fetchAuditLogs(),
+        fetchLoginHistory(),
+      ]);
 
-    setRoles(snap.roles);
-    setRolesConnected(snap.rolesConnected);
-    setRolesNotice(snap.rolesNotice);
-    const activeRole = snap.roles.find((r) => r.id === selectedRoleId) || snap.roles[0];
-    if (activeRole) {
-      setSelectedRoleId(activeRole.id);
-      setDraftPermissions(activeRole.permissions);
-    }
+      setAccounts(accountsRes.items);
+      const nextRoles = rolesRes.items.length > 0 ? rolesRes.items : DEFAULT_ROLE_DEFINITIONS;
+      setRoles(nextRoles);
+      setAuditLogs(auditsRes.items);
+      setLoginHistory(loginsRes.items);
 
-    setAuditLogs(snap.auditLogs);
-    setAuditConnected(snap.auditConnected);
-    setAuditNotice(snap.auditNotice);
-
-    setLoginHistory(snap.loginHistory);
-    setLoginConnected(snap.loginConnected);
-    setLoginNotice(snap.loginNotice);
-    setSnapshotTimeMs(snap.fetchedAt);
-  };
-
-  useEffect(() => {
-    let active = true;
-    loadSecuritySnapshot()
-      .then((snap) => {
-        if (!active) return;
-        setAccounts(snap.accounts);
-        setAccountsConnected(snap.accountsConnected);
-        setAccountsNotice(snap.accountsNotice);
-
-        setRoles(snap.roles);
-        setRolesConnected(snap.rolesConnected);
-        setRolesNotice(snap.rolesNotice);
-        if (snap.roles[0]) {
-          setSelectedRoleId(snap.roles[0].id);
-          setDraftPermissions(snap.roles[0].permissions);
+      setSelectedRoleId((prevId) => {
+        const matched = nextRoles.find((r) => r.id === prevId) || nextRoles[0];
+        if (matched) {
+          setDraftPermissions([...matched.permissions]);
+          return matched.id;
         }
-
-        setAuditLogs(snap.auditLogs);
-        setAuditConnected(snap.auditConnected);
-        setAuditNotice(snap.auditNotice);
-
-        setLoginHistory(snap.loginHistory);
-        setLoginConnected(snap.loginConnected);
-        setLoginNotice(snap.loginNotice);
-        setSnapshotTimeMs(snap.fetchedAt);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+        return prevId;
       });
 
-    return () => {
-      active = false;
-      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
-    };
+      const activeNotices = [
+        accountsRes.notice,
+        rolesRes.notice,
+        auditsRes.notice,
+        loginsRes.notice,
+      ].filter((msg): msg is string => Boolean(msg));
+      setNotices(Array.from(new Set(activeNotices)));
+      setLastSyncedAt(new Date().toLocaleTimeString());
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const showToast = (text: string, tone: 'success' | 'error' = 'success') => {
-    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
-    setToast({ text, tone });
-    toastTimerRef.current = window.setTimeout(() => setToast(null), 4000);
-  };
+  useEffect(() => {
+    void loadSecuritySnapshot();
+  }, [loadSecuritySnapshot]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      const snap = await loadSecuritySnapshot();
-      applySnapshot(snap);
-      showToast('Security telemetry refreshed.');
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  // Derived collections & counts
+  const availableRoleOptions = useMemo<SelectorOptionData[]>(() => {
+    const names = Array.from(
+      new Set([
+        ...roles.map((r) => r.name),
+        ...DEFAULT_ROLE_DEFINITIONS.map((r) => r.name),
+      ])
+    );
+    return names.map((name) => ({ value: name, label: name }));
+  }, [roles]);
 
-  const sessionExpiryText = useMemo(() => {
-    const token = sessionStorage.getItem('adminToken');
-    const expiryMs = getTokenExpiryMs(token);
-    if (!expiryMs || snapshotTimeMs === 0) return 'Session token active (no exp claim)';
-    return formatRemainingDuration(expiryMs - snapshotTimeMs);
-  }, [snapshotTimeMs]);
+  const filteredAccounts = useMemo<AdminAccountRow[]>(() => {
+    const q = accountQuery.trim().toLowerCase();
+    return accounts
+      .filter((acc) => {
+        if (accountStatusFilter !== 'ALL' && acc.status !== accountStatusFilter) {
+          return false;
+        }
+        if (!q) return true;
+        return (
+          acc.username.toLowerCase().includes(q) ||
+          (acc.email && acc.email.toLowerCase().includes(q)) ||
+          String(acc.role).toLowerCase().includes(q) ||
+          acc.id.toLowerCase().includes(q)
+        );
+      })
+      .map((acc) => ({ ...acc }));
+  }, [accounts, accountQuery, accountStatusFilter]);
 
-  const filteredAccounts = useMemo(() => {
-    const q = accountSearch.trim().toLowerCase();
-    return accounts.filter((acc) => {
-      if (accountRoleFilter !== 'ALL' && acc.role !== accountRoleFilter) return false;
-      if (!q) return true;
-      return (
-        acc.username.toLowerCase().includes(q) ||
-        (acc.email || '').toLowerCase().includes(q) ||
-        acc.role.toLowerCase().includes(q)
-      );
-    });
-  }, [accounts, accountSearch, accountRoleFilter]);
-
-  const selectedRoleDef = useMemo(
-    () => roles.find((r) => r.id === selectedRoleId) || roles[0],
+  const selectedRole = useMemo(
+    () => roles.find((r) => r.id === selectedRoleId) || roles[0] || DEFAULT_ROLE_DEFINITIONS[0],
     [roles, selectedRoleId]
   );
 
+  const isSelectedRoleSovereignAdmin = useMemo(
+    () => selectedRole.isSystemDefault === true && selectedRole.name.trim().toLowerCase() === 'admin',
+    [selectedRole]
+  );
+
+  const roleDiffCount = useMemo(() => {
+    const orig = new Set(selectedRole.permissions);
+    const draft = new Set(draftPermissions);
+    let diff = 0;
+    for (const p of orig) if (!draft.has(p)) diff += 1;
+    for (const p of draft) if (!orig.has(p)) diff += 1;
+    return diff;
+  }, [selectedRole, draftPermissions]);
+
   const permissionGroups = useMemo(() => {
     const groups = new Map<string, typeof PERMISSION_CATALOG>();
-    for (const item of PERMISSION_CATALOG) {
-      const list = groups.get(item.group) ?? [];
-      list.push(item);
-      groups.set(item.group, list);
+    for (const perm of PERMISSION_CATALOG) {
+      const list = groups.get(perm.group) || [];
+      list.push(perm);
+      groups.set(perm.group, list);
     }
     return Array.from(groups.entries());
   }, []);
 
-  const hasUnsavedRoleChanges = useMemo(() => {
-    if (!selectedRoleDef) return false;
-    if (draftPermissions.length !== selectedRoleDef.permissions.length) return true;
-    const baseline = new Set(selectedRoleDef.permissions);
-    return draftPermissions.some((p) => !baseline.has(p));
-  }, [selectedRoleDef, draftPermissions]);
+  const filteredAudits = useMemo<AuditLogRow[]>(() => {
+    const q = auditQuery.trim().toLowerCase();
+    return auditLogs
+      .filter((entry) => {
+        if (auditCategory !== 'ALL' && entry.category !== auditCategory) return false;
+        if (auditSeverity !== 'ALL' && entry.severity !== auditSeverity) return false;
+        if (auditStatus !== 'ALL' && entry.status !== auditStatus) return false;
+        if (!isWithinDateRange(entry.timestamp, auditDateFrom, auditDateTo)) return false;
+        if (!q) return true;
+        return (
+          entry.action.toLowerCase().includes(q) ||
+          entry.actorUsername.toLowerCase().includes(q) ||
+          (entry.targetLabel && entry.targetLabel.toLowerCase().includes(q)) ||
+          (entry.targetId && entry.targetId.toLowerCase().includes(q)) ||
+          (entry.rationale && entry.rationale.toLowerCase().includes(q))
+        );
+      })
+      .map((entry) => ({ ...entry }));
+  }, [auditLogs, auditQuery, auditCategory, auditSeverity, auditStatus, auditDateFrom, auditDateTo]);
 
-  const filteredAuditLogs = useMemo(() => {
-    const q = auditSearch.trim().toLowerCase();
-    const minMs = auditStartDate ? new Date(`${auditStartDate}T00:00:00`).getTime() : null;
-    const maxMs = auditEndDate ? new Date(`${auditEndDate}T23:59:59.999`).getTime() : null;
+  const filteredLogins = useMemo<LoginHistoryRow[]>(() => {
+    const q = loginQuery.trim().toLowerCase();
+    return loginHistory
+      .filter((entry) => {
+        if (loginStatus !== 'ALL' && entry.status !== loginStatus) return false;
+        if (!isWithinDateRange(entry.timestamp, loginDateFrom, loginDateTo)) return false;
+        if (!q) return true;
+        return (
+          entry.username.toLowerCase().includes(q) ||
+          (entry.ipAddress && entry.ipAddress.toLowerCase().includes(q)) ||
+          (entry.resolvedRole && entry.resolvedRole.toLowerCase().includes(q)) ||
+          (entry.reason && entry.reason.toLowerCase().includes(q))
+        );
+      })
+      .map((entry) => ({ ...entry }));
+  }, [loginHistory, loginQuery, loginStatus, loginDateFrom, loginDateTo]);
 
-    return auditLogs.filter((entry) => {
-      if (auditSeverityFilter !== 'ALL' && entry.severity !== auditSeverityFilter) return false;
-      if (auditCategoryFilter !== 'ALL' && entry.category !== auditCategoryFilter) return false;
+  const summaryStats = useMemo(() => {
+    const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;
+    const lockedAccounts = accounts.filter((a) => a.status === 'LOCKED').length;
+    const criticalAudits = auditLogs.filter((a) => a.severity === 'CRITICAL').length;
+    const failedAudits = auditLogs.filter((a) => a.status === 'FAILED').length;
+    const deniedOrFailedLogins = loginHistory.filter(
+      (l) => l.status === 'FAILED' || l.status === 'DENIED_PLAYER'
+    ).length;
+    return {
+      activeAccounts,
+      lockedAccounts,
+      criticalAudits,
+      failedAudits,
+      deniedOrFailedLogins,
+    };
+  }, [accounts, auditLogs, loginHistory]);
 
-      const ts = new Date(entry.timestamp).getTime();
-      if (minMs !== null && !Number.isNaN(ts) && ts < minMs) return false;
-      if (maxMs !== null && !Number.isNaN(ts) && ts > maxMs) return false;
+  // Handlers
+  const handleSelectRoleForMatrix = (roleItem: RoleDefinition) => {
+    setSelectedRoleId(roleItem.id);
+    setDraftPermissions([...roleItem.permissions]);
+  };
 
-      if (!q) return true;
-      return (
-        entry.actorUsername.toLowerCase().includes(q) ||
-        entry.action.toLowerCase().includes(q) ||
-        (entry.targetLabel || '').toLowerCase().includes(q) ||
-        (entry.targetId || '').toLowerCase().includes(q) ||
-        (entry.rationale || '').toLowerCase().includes(q)
-      );
+  const toggleDraftPermission = (permKey: AdminPermissionKey, checked: boolean) => {
+    if (isSelectedRoleSovereignAdmin) return;
+    setDraftPermissions((prev) => {
+      if (checked) {
+        return prev.includes(permKey) ? prev : [...prev, permKey];
+      }
+      return prev.filter((k) => k !== permKey);
     });
-  }, [auditLogs, auditSearch, auditSeverityFilter, auditCategoryFilter, auditStartDate, auditEndDate]);
-
-  const filteredLoginHistory = useMemo(() => {
-    const q = loginSearch.trim().toLowerCase();
-    return loginHistory.filter((item) => {
-      if (loginStatusFilter !== 'ALL' && item.status !== loginStatusFilter) return false;
-      if (!q) return true;
-      return (
-        item.username.toLowerCase().includes(q) ||
-        (item.resolvedRole || '').toLowerCase().includes(q) ||
-        (item.attemptedRole || '').toLowerCase().includes(q) ||
-        (item.ipAddress || '').toLowerCase().includes(q) ||
-        (item.reason || '').toLowerCase().includes(q)
-      );
-    });
-  }, [loginHistory, loginSearch, loginStatusFilter]);
-
-  const openGuard = (config: PendingSensitiveGuard) => {
-    setGuardError(null);
-    setSensitiveGuard(config);
   };
 
-  const handleConfirmGuard = async (rationale: string) => {
-    if (!sensitiveGuard) return;
-    setGuardLoading(true);
-    setGuardError(null);
-    try {
-      await sensitiveGuard.onExecute(rationale);
-      setSensitiveGuard(null);
-      const snap = await loadSecuritySnapshot();
-      applySnapshot(snap);
-    } catch (err) {
-      setGuardError(err instanceof Error ? err.message : 'Operation failed.');
-    } finally {
-      setGuardLoading(false);
-    }
-  };
-
-  const handleCreateAccountSubmit = async (e: React.FormEvent) => {
+  const handleCreateAccountSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setCreateAccError(null);
-    if (!newAccUsername.trim() || newAccPassword.length < 8 || createAccRationale.trim().length < 5) {
-      setCreateAccError(
-        'Username, initial passcode (>= 8 chars), and audit rationale (>= 5 chars) are required.'
-      );
+    const trimmedUser = createUsername.trim();
+    if (trimmedUser.length < 3) {
+      setCreateFormError('Username must be at least 3 characters.');
       return;
     }
-    setCreateAccSubmitting(true);
-    try {
-      await createAdminAccount(
-        {
-          username: newAccUsername.trim(),
-          email: newAccEmail.trim() || undefined,
-          role: newAccRole,
-          password: newAccPassword,
-        },
-        createAccRationale.trim()
-      );
-      setIsCreateAccountOpen(false);
-      setNewAccUsername('');
-      setNewAccEmail('');
-      setNewAccPassword('');
-      setCreateAccRationale('');
-      showToast(`Created High Counsel account "${newAccUsername.trim()}".`);
-      await handleRefresh();
-    } catch (err) {
-      setCreateAccError(err instanceof Error ? err.message : 'Failed to create account.');
-      const snap = await loadSecuritySnapshot();
-      applySnapshot(snap);
-    } finally {
-      setCreateAccSubmitting(false);
-    }
-  };
-
-  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetPwdAccount) return;
-    setResetPwdError(null);
-    if (resetPwdValue.length < 8 || resetPwdRationale.trim().length < 5) {
-      setResetPwdError('Temporary passcode (>= 8 chars) and rationale (>= 5 chars) are required.');
+    if (createPassword.length < 8) {
+      setCreateFormError('Temporary password must be at least 8 characters.');
       return;
     }
-    setResetPwdSubmitting(true);
-    try {
-      await resetAdminAccountPassword(resetPwdAccount, resetPwdValue, resetPwdRationale.trim());
-      showToast(`Password reset completed for "${resetPwdAccount.username}".`);
-      setResetPwdAccount(null);
-      setResetPwdValue('');
-      setResetPwdRationale('');
-      await handleRefresh();
-    } catch (err) {
-      setResetPwdError(err instanceof Error ? err.message : 'Failed to reset passcode.');
-    } finally {
-      setResetPwdSubmitting(false);
-    }
-  };
 
-  const handleSelectRoleForMatrix = (role: RoleDefinition) => {
-    setSelectedRoleId(role.id);
-    setDraftPermissions([...role.permissions]);
-  };
+    const payload = {
+      username: trimmedUser,
+      password: createPassword,
+      email: createEmail.trim() || undefined,
+      role: createRole,
+    };
 
-  const toggleDraftPermission = (permKey: AdminPermissionKey) => {
-    setDraftPermissions((prev) =>
-      prev.includes(permKey) ? prev.filter((k) => k !== permKey) : [...prev, permKey]
-    );
-  };
-
-  const handleCreateRoleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreateRoleError(null);
-    if (!newRoleName.trim() || newRoleRationale.trim().length < 5) {
-      setCreateRoleError('Role name and audit rationale (>= 5 chars) are required.');
-      return;
-    }
-    setCreateRoleSubmitting(true);
-    try {
-      await createRoleDefinition(
-        {
-          name: newRoleName.trim(),
-          description: newRoleDesc.trim() || `Custom role created by ${currentUsername}`,
-          permissions: ['dashboard.view'],
-        },
-        newRoleRationale.trim()
-      );
-      setIsCreateRoleOpen(false);
-      setNewRoleName('');
-      setNewRoleDesc('');
-      setNewRoleRationale('');
-      showToast(`Created role "${newRoleName.trim()}".`);
-      await handleRefresh();
-    } catch (err) {
-      setCreateRoleError(err instanceof Error ? err.message : 'Failed to create role.');
-    } finally {
-      setCreateRoleSubmitting(false);
-    }
-  };
-
-  const handleExportAuditCsv = () => {
-    if (filteredAuditLogs.length === 0) {
-      showToast('No matching audit entries to export.', 'error');
-      return;
-    }
-    const csv = buildAuditLogsCsv(filteredAuditLogs);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `pactkeeper-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showToast(`Exported ${filteredAuditLogs.length} audit log records to CSV.`);
-  };
-
-  const handleClearSessionBuffers = () => {
-    openGuard({
-      title: 'Clear Local Session Telemetry Buffers',
+    setCreateFormError(null);
+    setIsCreateAccountOpen(false);
+    setPendingAction({
+      title: 'Authorize New Counsel Staff Account',
       description:
-        'Clears only the local browser audit/login history buffer stored in localStorage. Backend server records remain untouched.',
-      severity: 'HIGH',
-      actionLabel: 'Clear Browser Buffer',
-      targetSummary: 'Local Browser Security Buffers',
-      onExecute: async () => {
-        clearLocalSecurityBuffers();
-        showToast('Cleared local browser security buffers.');
+        'Creates a privileged staff operator account with access to the High Counsel Admin Portal.',
+      targetLabel: 'New Operator',
+      targetSummary: `${payload.username} • Role: ${payload.role}`,
+      severity: 'CRITICAL',
+      actionLabel: 'Provision Staff Account',
+      requireKeyword: 'CREATE',
+      execute: async (rationale: string) => {
+        await createAdminAccount(payload, rationale);
+        setCreateUsername('');
+        setCreateEmail('');
+        setCreatePassword('');
+        setFeedback({
+          status: 'success',
+          title: 'Staff Account Provisioned',
+          detail: `Operator "${payload.username}" created with role ${payload.role}.`,
+        });
+        await loadSecuritySnapshot();
       },
     });
   };
 
-  const criticalAuditCount = useMemo(
-    () => auditLogs.filter((a) => a.severity === 'CRITICAL').length,
-    [auditLogs]
+  const handleAssignRoleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleEditAccount) return;
+    const targetAccount = roleEditAccount;
+    const nextRole = roleEditNextRole;
+    setRoleEditAccount(null);
+    setPendingAction({
+      title: 'Reassign Counsel Staff Role',
+      description: `Changes RBAC authority tier for ${targetAccount.username} from "${targetAccount.role}" to "${nextRole}".`,
+      targetLabel: 'Staff Operator',
+      targetSummary: `${targetAccount.username}: ${targetAccount.role} → ${nextRole}`,
+      severity: 'CRITICAL',
+      actionLabel: 'Apply Role Change',
+      requireKeyword: 'ROLE',
+      execute: async (rationale: string) => {
+        await updateAdminAccountRole(targetAccount, nextRole, rationale);
+        setFeedback({
+          status: 'success',
+          title: 'Role Updated',
+          detail: `${targetAccount.username} assigned to ${nextRole}.`,
+        });
+        await loadSecuritySnapshot();
+      },
+    });
+  };
+
+  const handleResetPasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPwdAccount) return;
+    if (resetPwdValue.length < 8) {
+      setResetPwdError('New password must be at least 8 characters.');
+      return;
+    }
+    if (resetPwdValue !== resetPwdConfirm) {
+      setResetPwdError('Password confirmation does not match.');
+      return;
+    }
+
+    const targetAccount = resetPwdAccount;
+    const nextPassword = resetPwdValue;
+    setResetPwdError(null);
+    setResetPwdAccount(null);
+    setResetPwdValue('');
+    setResetPwdConfirm('');
+
+    setPendingAction({
+      title: 'Force Reset Staff Credentials',
+      description: `Overwrites the login password for counsel account "${targetAccount.username}".`,
+      targetLabel: 'Target Account',
+      targetSummary: `${targetAccount.username} (${targetAccount.role})`,
+      severity: 'CRITICAL',
+      actionLabel: 'Reset Password',
+      requireKeyword: 'RESET',
+      execute: async (rationale: string) => {
+        await resetAdminAccountPassword(targetAccount, nextPassword, rationale);
+        setFeedback({
+          status: 'success',
+          title: 'Password Reset Complete',
+          detail: `Updated credentials for ${targetAccount.username}.`,
+        });
+        await loadSecuritySnapshot();
+      },
+    });
+  };
+
+  const requestAccountLockToggle = useCallback(
+    (acc: AdminAccountSummary) => {
+      const nextStatus: AdminAccountStatus = acc.status === 'LOCKED' ? 'ACTIVE' : 'LOCKED';
+      const isLocking = nextStatus === 'LOCKED';
+      setPendingAction({
+        title: isLocking ? 'Lock Staff Account' : 'Unlock Staff Account',
+        description: isLocking
+          ? `Immediately suspends authentication for "${acc.username}".`
+          : `Restores login privileges for suspended operator "${acc.username}".`,
+        targetLabel: 'Target Operator',
+        targetSummary: `${acc.username} (${acc.status} → ${nextStatus})`,
+        severity: 'CRITICAL',
+        actionLabel: isLocking ? 'Lock Account' : 'Unlock Account',
+        requireKeyword: isLocking ? 'LOCK' : 'UNLOCK',
+        execute: async (rationale: string) => {
+          await toggleAdminAccountLock(acc, nextStatus, rationale);
+          setFeedback({
+            status: 'success',
+            title: isLocking ? 'Account Locked' : 'Account Unlocked',
+            detail: `${acc.username} is now ${nextStatus}.`,
+          });
+          await loadSecuritySnapshot();
+        },
+      });
+    },
+    [loadSecuritySnapshot]
   );
 
-  const failedLoginCount = useMemo(
-    () => loginHistory.filter((l) => l.status === 'FAILED' || l.status === 'DENIED_PLAYER').length,
-    [loginHistory]
+  const requestRevokeSessions = useCallback(
+    (acc: AdminAccountSummary) => {
+      setPendingAction({
+        title: 'Revoke Active JWT Sessions',
+        description: `Invalidates active bearer tokens and refresh sessions for "${acc.username}".`,
+        targetLabel: 'Target Operator',
+        targetSummary: `${acc.username} • ${acc.role}`,
+        severity: 'HIGH',
+        actionLabel: 'Revoke Sessions',
+        execute: async (rationale: string) => {
+          await revokeAdminAccountSessions(acc, rationale);
+          setFeedback({
+            status: 'success',
+            title: 'Sessions Revoked',
+            detail: `Active tokens terminated for ${acc.username}.`,
+          });
+          await loadSecuritySnapshot();
+        },
+      });
+    },
+    [loadSecuritySnapshot]
   );
+
+  const requestSaveRoleMatrix = () => {
+    if (isSelectedRoleSovereignAdmin || roleDiffCount === 0) return;
+    const targetRole = selectedRole;
+    const permsCopy = [...draftPermissions];
+    setPendingAction({
+      title: 'Commit RBAC Permission Matrix',
+      description: `Updates ${permsCopy.length} permissions assigned to role "${targetRole.name}".`,
+      targetLabel: 'Target Role',
+      targetSummary: `${targetRole.name} (${roleDiffCount} permission change${roleDiffCount === 1 ? '' : 's'})`,
+      severity: 'CRITICAL',
+      actionLabel: 'Save Permissions',
+      requireKeyword: 'MATRIX',
+      execute: async (rationale: string) => {
+        await saveRolePermissions(targetRole, permsCopy, rationale);
+        setFeedback({
+          status: 'success',
+          title: 'RBAC Matrix Updated',
+          detail: `Saved ${permsCopy.length} permissions for role "${targetRole.name}".`,
+        });
+        await loadSecuritySnapshot();
+      },
+    });
+  };
+
+  const handleCreateRoleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = newRoleName.trim();
+    if (trimmedName.length < 3) {
+      setNewRoleError('Role name must be at least 3 characters.');
+      return;
+    }
+    if (newRolePermissions.length === 0) {
+      setNewRoleError('Select at least one permission capability for this role.');
+      return;
+    }
+    const payload = {
+      name: trimmedName,
+      description: newRoleDescription.trim() || `Custom High Counsel role: ${trimmedName}`,
+      permissions: [...newRolePermissions],
+    };
+
+    setNewRoleError(null);
+    setIsCreateRoleOpen(false);
+    setPendingAction({
+      title: 'Create Custom RBAC Role',
+      description: `Registers a new staff authorization role "${payload.name}" with ${payload.permissions.length} capabilities.`,
+      targetLabel: 'Role Definition',
+      targetSummary: `${payload.name} (${payload.permissions.length} perms)`,
+      severity: 'CRITICAL',
+      actionLabel: 'Create Role',
+      requireKeyword: 'ROLE',
+      execute: async (rationale: string) => {
+        await createRoleDefinition(payload, rationale);
+        setNewRoleName('');
+        setNewRoleDescription('');
+        setFeedback({
+          status: 'success',
+          title: 'Custom Role Created',
+          detail: `Registered role "${payload.name}" with ${payload.permissions.length} permissions.`,
+        });
+        await loadSecuritySnapshot();
+      },
+    });
+  };
+
+  const handleExportAuditCsv = () => {
+    const csvContent = buildAuditLogsCsv(filteredAudits);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `pactkeeper-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClearSessionBuffers = () => {
+    setPendingAction({
+      title: 'Purge Local Browser Telemetry Buffers',
+      description:
+        'Clears the local session audit & login fallback cache stored in this browser. Server-side MongoDB/API logs remain untouched.',
+      targetLabel: 'Storage Scope',
+      targetSummary: 'Local Browser Audit & Auth Buffer',
+      severity: 'HIGH',
+      actionLabel: 'Clear Local Buffer',
+      execute: async () => {
+        clearLocalSecurityBuffers();
+        setFeedback({
+          status: 'success',
+          title: 'Local Telemetry Buffer Cleared',
+          detail: 'Browser session buffers emptied and re-synced from server telemetry.',
+        });
+        await loadSecuritySnapshot();
+      },
+    });
+  };
+
+  // Table column schemas
+  const accountColumns = useMemo<TableColumn<AdminAccountRow>[]>(
+    () => [
+      {
+        key: 'username',
+        header: 'Counsel Operator',
+        width: proportional(2, { minWidth: 180 }),
+        renderCell: (row) => {
+          const isSelf = row.username.toLowerCase() === currentUsername.toLowerCase();
+          return (
+            <VStack gap={0.5}>
+              <HStack gap={2} vAlign="center" wrap="wrap">
+                <Text weight="semibold" color="primary">
+                  {row.username}
+                </Text>
+                {isSelf && <Badge variant="yellow" label="YOU" />}
+              </HStack>
+              <Text type="supporting" size="xsm" color="secondary">
+                {row.email || `ID: ${row.id}`}
+              </Text>
+            </VStack>
+          );
+        },
+      },
+      {
+        key: 'role',
+        header: 'Assigned Role',
+        width: pixel(160),
+        renderCell: (row) => (
+          <Badge variant={getRoleBadgeVariant(String(row.role))} label={String(row.role)} />
+        ),
+      },
+      {
+        key: 'status',
+        header: 'Account Status',
+        width: pixel(140),
+        renderCell: (row) => (
+          <Badge
+            variant={ACCOUNT_STATUS_BADGE_MAP[row.status] ?? 'neutral'}
+            label={row.status}
+          />
+        ),
+      },
+      {
+        key: 'lastLoginAt',
+        header: 'Last Auth Telemetry',
+        width: proportional(1.5, { minWidth: 170 }),
+        renderCell: (row) => (
+          <VStack gap={0.5}>
+            <Text size="sm" color="primary">
+              {formatDateTime(row.lastLoginAt)}
+            </Text>
+            <Text type="code" size="xsm" color="secondary">
+              {row.lastLoginIp || 'IP unavailable'}
+            </Text>
+          </VStack>
+        ),
+      },
+      {
+        key: 'actions',
+        header: 'Governance Controls',
+        width: pixel(310),
+        align: 'end',
+        renderCell: (row) => {
+          const isSelf = row.username.toLowerCase() === currentUsername.toLowerCase();
+          const isLocked = row.status === 'LOCKED';
+          return (
+            <HStack gap={1.5} justify="end" wrap="wrap">
+              <Button
+                size="sm"
+                variant="secondary"
+                label="Role"
+                icon={<Shield className="w-3.5 h-3.5" />}
+                onClick={() => {
+                  setRoleEditAccount(row);
+                  setRoleEditNextRole(String(row.role));
+                }}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                label="Password"
+                icon={<Key className="w-3.5 h-3.5" />}
+                onClick={() => {
+                  setResetPwdAccount(row);
+                  setResetPwdValue('');
+                  setResetPwdConfirm('');
+                  setResetPwdError(null);
+                }}
+              />
+              <IconButton
+                size="sm"
+                variant="ghost"
+                label="Revoke active JWT sessions"
+                icon={<LogOut className="w-3.5 h-3.5" />}
+                onClick={() => requestRevokeSessions(row)}
+              />
+              <Button
+                size="sm"
+                variant={isLocked ? 'primary' : 'destructive'}
+                label={isLocked ? 'Unlock' : 'Lock'}
+                icon={isLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                isDisabled={isSelf}
+                onClick={() => requestAccountLockToggle(row)}
+              />
+            </HStack>
+          );
+        },
+      },
+    ],
+    [currentUsername, requestAccountLockToggle, requestRevokeSessions]
+  );
+
+  const auditColumns = useMemo<TableColumn<AuditLogRow>[]>(
+    () => [
+      {
+        key: 'timestamp',
+        header: 'Timestamp',
+        width: pixel(175),
+        renderCell: (row) => (
+          <Text type="code" size="xsm" color="secondary">
+            {formatDateTime(row.timestamp)}
+          </Text>
+        ),
+      },
+      {
+        key: 'actorUsername',
+        header: 'Operator',
+        width: pixel(165),
+        renderCell: (row) => (
+          <VStack gap={0.5}>
+            <Text size="sm" weight="semibold" color="primary">
+              {row.actorUsername}
+            </Text>
+            <Text type="supporting" size="xsm" color="secondary">
+              {row.actorRole}
+            </Text>
+          </VStack>
+        ),
+      },
+      {
+        key: 'action',
+        header: 'Action & Category',
+        width: proportional(1.6, { minWidth: 200 }),
+        renderCell: (row) => (
+          <VStack gap={1}>
+            <Text type="code" size="sm" weight="semibold" color="primary">
+              {row.action}
+            </Text>
+            <HStack gap={1.5} wrap="wrap">
+              <Badge variant="neutral" label={row.category} />
+              <Badge
+                variant={row.source === 'BACKEND_API' ? 'info' : 'yellow'}
+                label={row.source === 'BACKEND_API' ? 'SERVER' : 'LOCAL'}
+              />
+            </HStack>
+          </VStack>
+        ),
+      },
+      {
+        key: 'severity',
+        header: 'Severity',
+        width: pixel(110),
+        renderCell: (row) => (
+          <Badge variant={SEVERITY_BADGE_MAP[row.severity] ?? 'neutral'} label={row.severity} />
+        ),
+      },
+      {
+        key: 'targetLabel',
+        header: 'Target & Rationale',
+        width: proportional(1.8, { minWidth: 190 }),
+        renderCell: (row) => (
+          <VStack gap={0.5}>
+            <Text size="sm" weight="medium" color="primary">
+              {row.targetLabel || row.targetId || row.targetType || '—'}
+            </Text>
+            <Text type="supporting" size="xsm" color="secondary">
+              {row.rationale || row.errorMessage || 'No rationale recorded'}
+            </Text>
+          </VStack>
+        ),
+      },
+      {
+        key: 'status',
+        header: 'Outcome',
+        width: pixel(110),
+        renderCell: (row) => (
+          <Badge variant={row.status === 'FAILED' ? 'error' : 'success'} label={row.status} />
+        ),
+      },
+      {
+        key: 'inspect',
+        header: '',
+        width: pixel(64),
+        align: 'end',
+        renderCell: (row) => (
+          <IconButton
+            size="sm"
+            variant="ghost"
+            label={`Inspect audit entry ${row.id}`}
+            icon={<Eye className="w-4 h-4" />}
+            onClick={() => setInspectingAudit(row)}
+          />
+        ),
+      },
+    ],
+    []
+  );
+
+  const loginColumns = useMemo<TableColumn<LoginHistoryRow>[]>(
+    () => [
+      {
+        key: 'timestamp',
+        header: 'Timestamp',
+        width: pixel(180),
+        renderCell: (row) => (
+          <Text type="code" size="xsm" color="secondary">
+            {formatDateTime(row.timestamp)}
+          </Text>
+        ),
+      },
+      {
+        key: 'username',
+        header: 'Account / Subject',
+        width: pixel(175),
+        renderCell: (row) => (
+          <VStack gap={0.5}>
+            <Text size="sm" weight="semibold" color="primary">
+              {row.username}
+            </Text>
+            <Text type="supporting" size="xsm" color="secondary">
+              Role: {row.resolvedRole || row.attemptedRole || 'Unknown'}
+            </Text>
+          </VStack>
+        ),
+      },
+      {
+        key: 'status',
+        header: 'Auth Outcome',
+        width: pixel(150),
+        renderCell: (row) => (
+          <Badge variant={LOGIN_STATUS_BADGE_MAP[row.status] ?? 'neutral'} label={row.status} />
+        ),
+      },
+      {
+        key: 'ipAddress',
+        header: 'Origin & Agent',
+        width: proportional(1.5, { minWidth: 180 }),
+        renderCell: (row) => (
+          <VStack gap={0.5}>
+            <Text type="code" size="xsm" color="primary">
+              {row.ipAddress || 'Client Browser Session'}
+            </Text>
+            <Text type="supporting" size="xsm" color="secondary">
+              {row.userAgent ? `${row.userAgent.slice(0, 68)}${row.userAgent.length > 68 ? '…' : ''}` : '—'}
+            </Text>
+          </VStack>
+        ),
+      },
+      {
+        key: 'reason',
+        header: 'Details / Telemetry Source',
+        width: proportional(1.4, { minWidth: 170 }),
+        renderCell: (row) => (
+          <VStack gap={1}>
+            <Text size="sm" color="primary">
+              {row.reason || 'Standard counsel portal authentication event'}
+            </Text>
+            <Badge
+              variant={row.source === 'BACKEND_API' ? 'info' : 'yellow'}
+              label={row.source === 'BACKEND_API' ? 'SERVER' : 'LOCAL'}
+            />
+          </VStack>
+        ),
+      },
+    ],
+    []
+  );
+
+  const sessionRemainingLabel = useMemo(() => {
+    if (tokenExpiryMs === null) return 'No expiry claim in token';
+    return formatRemainingDuration(tokenExpiryMs - nowMs);
+  }, [tokenExpiryMs, nowMs]);
 
   return (
-    <div className="space-y-6 pb-10">
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          role="status"
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-medium shadow-2xl backdrop-blur-xl ${
-            toast.tone === 'error'
-              ? 'bg-rose-950/90 border-rose-500/40 text-rose-100'
-              : 'bg-slate-900/95 border-amber-400/40 text-amber-100'
-          }`}
-        >
-          {toast.tone === 'error' ? (
-            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          )}
-          <span>{toast.text}</span>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="ml-2 text-slate-400 hover:text-slate-100"
-            aria-label="Dismiss toast"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="hy-card p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-amber-400" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-amber-300/90">
-              High Counsel Security &amp; Governance
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold font-cinzel hy-gold-text mt-1">
-            ADMIN ACCOUNTS, ROLES &amp; AUDIT CENTER
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Manage counsel operator access, inspect RBAC permission matrices, track authentication history, and audit sensitive actions.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing || loading}
-          className="hy-btn-gold px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 self-start lg:self-auto disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          <span>{refreshing ? 'Syncing...' : 'Refresh Security Telemetry'}</span>
-        </button>
-      </div>
-
-      {/* Security Summary Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="hy-card p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="uppercase font-semibold">Active Operator</span>
-            <UserCheck className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-lg font-bold text-slate-100 mt-1 font-mono truncate">
-            {currentUsername}
-          </div>
-          <div className="text-[11px] text-amber-300 mt-0.5">
-            {currentRole} · TTL: {sessionExpiryText}
-          </div>
-        </div>
-
-        <div className="hy-card p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="uppercase font-semibold">Counsel Directory</span>
-            <Users className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="text-lg font-bold text-cyan-200 mt-1 font-mono">
-            {accountsConnected ? `${accounts.length} Accounts` : 'API Not Connected'}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">
-            {roles.length} configured role definitions
-          </div>
-        </div>
-
-        <div className="hy-card p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="uppercase font-semibold">Sensitive Audit Trail</span>
-            <FileSearch className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-lg font-bold text-amber-200 mt-1 font-mono">
-            {auditLogs.length} Events
-          </div>
-          <div className="text-[11px] text-rose-300 mt-0.5">
-            {criticalAuditCount} CRITICAL sensitivity actions logged
-          </div>
-        </div>
-
-        <div className="hy-card p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="uppercase font-semibold">Authentication Monitor</span>
-            <History className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-lg font-bold text-purple-200 mt-1 font-mono">
-            {loginHistory.length} Auth Events
-          </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">
-            {failedLoginCount} failed / denied attempts recorded
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            { id: 'accounts', label: 'Admin Accounts', icon: Users },
-            { id: 'roles', label: 'Roles & RBAC Matrix', icon: Shield },
-            { id: 'audit', label: `Audit Log (${auditLogs.length})`, icon: FileSearch },
-            { id: 'logins', label: `Login History (${loginHistory.length})`, icon: History },
-          ] as const
-        ).map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
-                activeTab === tab.id
-                  ? 'hy-tab-active'
-                  : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:text-slate-100'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TAB 1: ADMIN ACCOUNTS */}
-      {activeTab === 'accounts' && (
-        <div className="hy-card p-6 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-100">High Counsel Staff Accounts</h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Create, suspend, rotate passwords, and assign authority roles for administrative accounts.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setCreateAccError(null);
-                setIsCreateAccountOpen(true);
-              }}
-              className="hy-btn-gold px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto text-slate-950"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>New Counsel Account</span>
-            </button>
-          </div>
-
-          {!accountsConnected && accountsNotice && (
-            <div className="rounded-xl border border-amber-400/35 bg-amber-950/30 p-3.5 text-xs text-amber-200 flex items-start gap-2.5">
-              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-semibold">Backend Admin Account API Status</div>
-                <div className="text-amber-200/85 mt-0.5">{accountsNotice}</div>
+    <VStack gap={5}>
+      {/* Page Header & Active Session Card */}
+      <Section padding={5}>
+        <VStack gap={4}>
+          <HStack justify="between" vAlign="center" gap={3} wrap="wrap">
+            <HStack gap={3} vAlign="center">
+              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-6 h-6 text-amber-500" />
               </div>
-            </div>
-          )}
+              <VStack gap={0.5}>
+                <Heading level={1} type="display-3">
+                  SECURITY &amp; GOVERNANCE
+                </Heading>
+                <Text size="sm" color="secondary">
+                  High Counsel RBAC access matrix, staff directory, immutable audit trail &amp; authentication telemetry
+                </Text>
+              </VStack>
+            </HStack>
 
-          {/* Verified Current Operator Session Card */}
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-300 font-bold font-cinzel">
-                {currentUsername.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <div className="font-semibold text-slate-100">
-                  {currentUsername}{' '}
-                  <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono">
-                    CURRENT SESSION
-                  </span>
-                </div>
-                <div className="text-slate-400 mt-0.5">
-                  Active Role: <strong className="text-amber-300">{currentRole}</strong> · Token TTL:{' '}
-                  <span className="font-mono text-slate-200">{sessionExpiryText}</span>
-                </div>
-              </div>
-            </div>
-            <span className="text-[11px] font-mono text-emerald-300">Authenticated via /Auth/login</span>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={accountSearch}
-                onChange={(e) => setAccountSearch(e.target.value)}
-                placeholder="Search by username, email, or role..."
-                className="w-full bg-slate-950/70 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-400/50"
-              />
-            </div>
-            <select
-              value={accountRoleFilter}
-              onChange={(e) => setAccountRoleFilter(e.target.value)}
-              aria-label="Filter accounts by role"
-              className="bg-slate-950/70 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none"
-            >
-              <option value="ALL" className="bg-slate-900">
-                All Roles
-              </option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.name} className="bg-slate-900">
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Accounts Table */}
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-950/70 border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400">
-                  <th className="py-3 px-4">Operator</th>
-                  <th className="py-3 px-4">Assigned Role</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Last Login / IP</th>
-                  <th className="py-3 px-4 text-right">Governance Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
-                      Loading staff accounts...
-                    </td>
-                  </tr>
-                ) : filteredAccounts.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500">
-                      {accountsConnected
-                        ? 'No staff accounts match your search filter.'
-                        : 'No remote staff directory loaded. Connect GET /api/admin/accounts on .NET 9 to list and manage all counsel accounts.'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAccounts.map((acc) => {
-                    const isSelf = acc.username.toLowerCase() === currentUsername.toLowerCase();
-                    const isLocked = acc.status === 'LOCKED' || acc.status === 'DISABLED';
-                    return (
-                      <tr key={acc.id} className="hover:bg-white/[0.03]">
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-100 font-mono">
-                            {acc.username}
-                            {isSelf && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-400/30">
-                                YOU
-                              </span>
-                            )}
-                          </div>
-                          {acc.email && <div className="text-[11px] text-slate-400">{acc.email}</div>}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                            {acc.role}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              acc.status === 'ACTIVE'
-                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                            }`}
-                          >
-                            {acc.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-400">
-                          <div>{formatIsoTime(acc.lastLoginAt)}</div>
-                          {acc.lastLoginIp && (
-                            <div className="text-[11px] font-mono text-slate-500">{acc.lastLoginIp}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRoleEditAccount(acc);
-                                setTargetAccountRole(acc.role);
-                              }}
-                              className="hy-btn-glass px-2.5 py-1 rounded-lg text-[11px]"
-                            >
-                              Role
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setResetPwdAccount(acc);
-                                setResetPwdValue('');
-                                setResetPwdRationale('');
-                                setResetPwdError(null);
-                              }}
-                              className="hy-btn-glass px-2.5 py-1 rounded-lg text-[11px] inline-flex items-center gap-1"
-                            >
-                              <KeyRound className="w-3 h-3 text-amber-300" />
-                              Reset
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isSelf}
-                              onClick={() =>
-                                openGuard({
-                                  title: isLocked ? 'Unlock Counsel Account' : 'Lock Counsel Account',
-                                  description: isLocked
-                                    ? `Restore portal login access for ${acc.username}.`
-                                    : `Immediately suspend portal login access for ${acc.username}.`,
-                                  severity: 'CRITICAL',
-                                  actionLabel: isLocked ? 'Unlock Account' : 'Lock Account',
-                                  targetSummary: `${acc.username} (${acc.role})`,
-                                  requireKeyword: isLocked ? undefined : 'CONFIRM',
-                                  onExecute: async (rationale) => {
-                                    await toggleAdminAccountLock(
-                                      acc,
-                                      isLocked ? 'ACTIVE' : 'LOCKED',
-                                      rationale
-                                    );
-                                    showToast(
-                                      `${acc.username} is now ${isLocked ? 'ACTIVE' : 'LOCKED'}.`
-                                    );
-                                  },
-                                })
-                              }
-                              className={`px-2.5 py-1 rounded-lg text-[11px] border inline-flex items-center gap-1 disabled:opacity-40 ${
-                                isLocked
-                                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                              }`}
-                            >
-                              {isLocked ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                              {isLocked ? 'Unlock' : 'Lock'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openGuard({
-                                  title: 'Revoke Active Sessions',
-                                  description: `Invalidate active JWT/refresh tokens for ${acc.username}.`,
-                                  severity: 'HIGH',
-                                  actionLabel: 'Revoke Sessions',
-                                  targetSummary: acc.username,
-                                  onExecute: async (rationale) => {
-                                    await revokeAdminAccountSessions(acc, rationale);
-                                    showToast(`Sessions revoked for ${acc.username}.`);
-                                  },
-                                })
-                              }
-                              className="hy-btn-glass px-2.5 py-1 rounded-lg text-[11px] inline-flex items-center gap-1"
-                              title="Revoke active sessions"
-                            >
-                              <LogOut className="w-3 h-3 text-rose-300" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: ROLES & RBAC MATRIX */}
-      {activeTab === 'roles' && (
-        <div className="space-y-4">
-          {!rolesConnected && rolesNotice && (
-            <div className="rounded-xl border border-amber-400/35 bg-amber-950/30 p-3.5 text-xs text-amber-200 flex items-start gap-2.5">
-              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-semibold">Built-in RBAC Matrix Fallback</div>
-                <div className="text-amber-200/85 mt-0.5">
-                  {rolesNotice} Currently displaying the portal&apos;s verified default RBAC rules for inspection. Saving edits requires backend <code className="font-mono text-amber-300">PUT /api/admin/roles/&#123;id&#125;/permissions</code>.
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* Role Selector Column */}
-            <div className="lg:col-span-4 hy-card p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-slate-100">Defined Roles</h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateRoleError(null);
-                    setIsCreateRoleOpen(true);
-                  }}
-                  className="hy-btn-glass px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5 text-amber-300" />
-                  New Role
-                </button>
-              </div>
-
-              <div className="space-y-2.5">
-                {roles.map((roleItem) => {
-                  const isSelected = selectedRoleDef?.id === roleItem.id;
-                  const srcBadge = sourceBadgeLabel(roleItem.source);
-                  return (
-                    <button
-                      key={roleItem.id}
-                      type="button"
-                      onClick={() => handleSelectRoleForMatrix(roleItem)}
-                      className={`w-full text-left p-3.5 rounded-xl border transition-all ${
-                        isSelected
-                          ? 'bg-amber-500/15 border-amber-400/50 shadow'
-                          : 'bg-slate-950/60 border-white/10 hover:border-white/25'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-sm text-slate-100">{roleItem.name}</span>
-                        <span
-                          className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${srcBadge.cls}`}
-                        >
-                          {srcBadge.text}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-                        {roleItem.description}
-                      </p>
-                      <div className="text-[11px] font-mono text-amber-300 mt-2">
-                        {roleItem.permissions.length} / {PERMISSION_CATALOG.length} permissions enabled
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Permission Matrix Column */}
-            <div className="lg:col-span-8 hy-card p-5 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10 pb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-100">
-                    Permission Matrix —{' '}
-                    <span className="text-amber-300">{selectedRoleDef?.name}</span>
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Configure granular access capabilities per operational domain.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {hasUnsavedRoleChanges && selectedRoleDef && (
-                    <button
-                      type="button"
-                      onClick={() => setDraftPermissions([...selectedRoleDef.permissions])}
-                      className="hy-btn-glass px-3 py-1.5 rounded-lg text-xs"
-                    >
-                      Reset
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    disabled={!selectedRoleDef || !hasUnsavedRoleChanges}
-                    onClick={() => {
-                      if (!selectedRoleDef) return;
-                      openGuard({
-                        title: `Update Permissions for "${selectedRoleDef.name}"`,
-                        description: `Modifies RBAC permissions (${draftPermissions.length} selected). Changes affect all accounts assigned to this role.`,
-                        severity: 'CRITICAL',
-                        actionLabel: 'Save Role Matrix',
-                        targetSummary: `${selectedRoleDef.name} (${draftPermissions.length} permissions)`,
-                        requireKeyword: 'CONFIRM',
-                        onExecute: async (rationale) => {
-                          await saveRolePermissions(selectedRoleDef, draftPermissions, rationale);
-                          showToast(`Saved permissions for role "${selectedRoleDef.name}".`);
-                        },
-                      });
-                    }}
-                    className="hy-btn-gold px-4 py-2 rounded-xl text-xs font-bold text-slate-950 disabled:opacity-40"
-                  >
-                    Save Matrix Changes
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {permissionGroups.map(([groupName, descriptors]) => (
-                  <div
-                    key={groupName}
-                    className="rounded-xl border border-white/10 bg-slate-950/50 p-4 space-y-2.5"
-                  >
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300 font-cinzel">
-                      {groupName}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                      {descriptors.map((perm) => {
-                        const checked = draftPermissions.includes(perm.key);
-                        const protectAdminCore =
-                          selectedRoleDef?.name === 'Admin' && perm.key.startsWith('security.');
-                        return (
-                          <label
-                            key={perm.key}
-                            className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
-                              checked
-                                ? 'bg-emerald-500/10 border-emerald-500/30'
-                                : 'bg-slate-900/60 border-white/5 hover:border-white/15'
-                            } ${protectAdminCore ? 'opacity-85' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={protectAdminCore}
-                              onChange={() => toggleDraftPermission(perm.key)}
-                              className="mt-0.5 accent-amber-400"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold text-slate-100">{perm.label}</span>
-                                <span
-                                  className={`text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${severityBadgeClass(
-                                    perm.risk
-                                  )}`}
-                                >
-                                  {perm.risk}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{perm.description}</p>
-                              <div className="text-[10px] font-mono text-slate-500 mt-0.5">
-                                {perm.key}
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: AUDIT LOG & SENSITIVE ACTIONS */}
-      {activeTab === 'audit' && (
-        <div className="hy-card p-6 space-y-5">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-100">
-                System Audit Log &amp; Sensitive Actions
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Tracks privileged actions, operator rationale, target IDs, and state diffs.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportAuditCsv}
-                disabled={filteredAuditLogs.length === 0}
-                className="hy-btn-glass px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-300" />
-                Export CSV ({filteredAuditLogs.length})
-              </button>
-              <button
-                type="button"
-                onClick={handleClearSessionBuffers}
-                className="hy-btn-glass px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-300 flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Clear Browser Buffer
-              </button>
-            </div>
-          </div>
-
-          {!auditConnected && auditNotice && (
-            <div className="rounded-xl border border-amber-400/35 bg-amber-950/30 p-3.5 text-xs text-amber-200 flex items-start gap-2.5">
-              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-semibold">Audit Backend Sync Notice</div>
-                <div className="text-amber-200/85 mt-0.5">
-                  {auditNotice} Sensitive actions performed in this browser remain captured with the{' '}
-                  <code className="font-mono text-amber-300">SESSION BUFFER</code> tag until backend persistence is enabled.
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
-            <div className="relative xl:col-span-2">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={auditSearch}
-                onChange={(e) => setAuditSearch(e.target.value)}
-                placeholder="Search actor, action, target ID, or rationale..."
-                className="w-full bg-slate-950/70 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 outline-none focus:border-amber-400/50"
-              />
-            </div>
-
-            <select
-              value={auditSeverityFilter}
-              onChange={(e) => setAuditSeverityFilter(e.target.value as 'ALL' | AuditLogSeverity)}
-              aria-label="Filter audit logs by severity"
-              className="bg-slate-950/70 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none"
-            >
-              <option value="ALL" className="bg-slate-900">
-                All Severities
-              </option>
-              <option value="CRITICAL" className="bg-slate-900">
-                CRITICAL
-              </option>
-              <option value="HIGH" className="bg-slate-900">
-                HIGH
-              </option>
-              <option value="MEDIUM" className="bg-slate-900">
-                MEDIUM
-              </option>
-              <option value="LOW" className="bg-slate-900">
-                LOW
-              </option>
-            </select>
-
-            <select
-              value={auditCategoryFilter}
-              onChange={(e) => setAuditCategoryFilter(e.target.value)}
-              aria-label="Filter audit logs by category"
-              className="bg-slate-950/70 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none"
-            >
-              <option value="ALL" className="bg-slate-900">
-                All Categories
-              </option>
-              {['AUTH', 'SERVER', 'PLAYER', 'TREASURY', 'GACHA', 'CONTENT', 'PAYMENT', 'SECURITY'].map(
-                (cat) => (
-                  <option key={cat} value={cat} className="bg-slate-900">
-                    {cat}
-                  </option>
-                )
+            <HStack gap={2} wrap="wrap" vAlign="center">
+              {lastSyncedAt && (
+                <HStack gap={1.5} vAlign="center">
+                  <StatusDot variant="success" label="Security snapshot synchronized" />
+                  <Text type="code" size="xsm" color="secondary">
+                    Synced {lastSyncedAt}
+                  </Text>
+                </HStack>
               )}
-            </select>
-
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                value={auditStartDate}
-                onChange={(e) => setAuditStartDate(e.target.value)}
-                aria-label="Audit start date"
-                className="w-full bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-2 text-[11px] text-slate-200 outline-none"
+              <Button
+                variant="secondary"
+                size="sm"
+                label="Refresh"
+                icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+                onClick={() => void loadSecuritySnapshot()}
+                isDisabled={loading}
               />
-              <input
-                type="date"
-                value={auditEndDate}
-                onChange={(e) => setAuditEndDate(e.target.value)}
-                aria-label="Audit end date"
-                className="w-full bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-2 text-[11px] text-slate-200 outline-none"
+              <Button
+                variant="secondary"
+                size="sm"
+                label="Purge Local Buffers"
+                icon={<Trash2 className="w-4 h-4" />}
+                onClick={handleClearSessionBuffers}
               />
-            </div>
-          </div>
+              <Button
+                variant="primary"
+                size="sm"
+                label="Create Staff"
+                icon={<UserPlus className="w-4 h-4" />}
+                onClick={() => {
+                  setCreateFormError(null);
+                  setIsCreateAccountOpen(true);
+                }}
+              />
+            </HStack>
+          </HStack>
 
-          {/* Audit Table */}
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-950/70 border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400">
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Actor</th>
-                  <th className="py-3 px-4">Action &amp; Severity</th>
-                  <th className="py-3 px-4">Target &amp; Rationale</th>
-                  <th className="py-3 px-4">Source / Status</th>
-                  <th className="py-3 px-4 text-right">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredAuditLogs.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-500">
-                      No sensitive actions match the selected filters yet.
-                    </td>
-                  </tr>
+          {/* Operator Session Bar */}
+          <Card variant="muted" padding={3}>
+            <HStack justify="between" vAlign="center" gap={3} wrap="wrap">
+              <HStack gap={3} vAlign="center" wrap="wrap">
+                <HStack gap={1.5} vAlign="center">
+                  <UserCheck className="w-4 h-4 text-amber-500" />
+                  <Text size="sm" color="secondary">
+                    Signed in as
+                  </Text>
+                  <Text size="sm" weight="bold" color="primary">
+                    {currentUsername}
+                  </Text>
+                </HStack>
+                <Badge variant={getRoleBadgeVariant(String(currentRole))} label={String(currentRole)} />
+              </HStack>
+
+              <HStack gap={2} vAlign="center">
+                <Clock className="w-4 h-4 text-sky-500" />
+                <Text size="sm" color="secondary">
+                  JWT Token TTL:
+                </Text>
+                <Badge
+                  variant={
+                    tokenExpiryMs !== null && tokenExpiryMs - nowMs < 300_000
+                      ? 'warning'
+                      : 'info'
+                  }
+                  label={sessionRemainingLabel}
+                />
+              </HStack>
+            </HStack>
+          </Card>
+
+          {feedback && (
+            <Banner
+              status={feedback.status}
+              title={feedback.title}
+              description={feedback.detail}
+              isDismissable
+              onDismiss={() => setFeedback(null)}
+            />
+          )}
+
+          {notices.length > 0 && (
+            <Banner
+              status="info"
+              title="Security API Fallback / Notice"
+              description={notices.join(' | ')}
+              isDismissable
+              onDismiss={() => setNotices([])}
+            />
+          )}
+
+          {/* 4 KPI Summary Cards */}
+          <Grid columns={{ minWidth: 210, max: 4, repeat: 'fit' }} gap={3}>
+            <Card variant="default" padding={4}>
+              <VStack gap={1}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="supporting" size="xsm" color="secondary">
+                    Counsel Accounts
+                  </Text>
+                  <Users className="w-4 h-4 text-amber-500" />
+                </HStack>
+                <Heading level={2} type="display-3">
+                  {accounts.length}
+                </Heading>
+                <Text type="supporting" size="xsm" color="secondary">
+                  {summaryStats.activeAccounts} active • {summaryStats.lockedAccounts} locked
+                </Text>
+              </VStack>
+            </Card>
+
+            <Card variant="default" padding={4}>
+              <VStack gap={1}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="supporting" size="xsm" color="secondary">
+                    RBAC Roles
+                  </Text>
+                  <Shield className="w-4 h-4 text-indigo-500" />
+                </HStack>
+                <Heading level={2} type="display-3">
+                  {roles.length}
+                </Heading>
+                <Text type="supporting" size="xsm" color="secondary">
+                  {PERMISSION_CATALOG.length} governed capabilities
+                </Text>
+              </VStack>
+            </Card>
+
+            <Card variant="default" padding={4}>
+              <VStack gap={1}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="supporting" size="xsm" color="secondary">
+                    Audit Events
+                  </Text>
+                  <FileClock className="w-4 h-4 text-rose-500" />
+                </HStack>
+                <Heading level={2} type="display-3">
+                  {auditLogs.length}
+                </Heading>
+                <Text type="supporting" size="xsm" color="secondary">
+                  {summaryStats.criticalAudits} critical • {summaryStats.failedAudits} failed
+                </Text>
+              </VStack>
+            </Card>
+
+            <Card variant="default" padding={4}>
+              <VStack gap={1}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="supporting" size="xsm" color="secondary">
+                    Auth Events
+                  </Text>
+                  <Activity className="w-4 h-4 text-emerald-500" />
+                </HStack>
+                <Heading level={2} type="display-3">
+                  {loginHistory.length}
+                </Heading>
+                <Text type="supporting" size="xsm" color="secondary">
+                  {summaryStats.deniedOrFailedLogins} rejected/failed attempts
+                </Text>
+              </VStack>
+            </Card>
+          </Grid>
+        </VStack>
+      </Section>
+
+      {/* Main Navigation Tabs */}
+      <Section padding={5}>
+        <VStack gap={4}>
+          <TabList
+            value={activeTab}
+            onChange={(val) => setActiveTab(val as GovernanceTab)}
+            role="tablist"
+            hasDivider
+          >
+            <Tab
+              value="accounts"
+              panelId="panel-accounts"
+              label="Staff Accounts"
+              icon={<Users className="w-4 h-4" />}
+              endContent={<Badge variant="neutral" label={accounts.length} />}
+            />
+            <Tab
+              value="roles"
+              panelId="panel-roles"
+              label="RBAC Permissions"
+              icon={<Shield className="w-4 h-4" />}
+              endContent={<Badge variant="purple" label={roles.length} />}
+            />
+            <Tab
+              value="audit"
+              panelId="panel-audit"
+              label="Audit Log"
+              icon={<FileClock className="w-4 h-4" />}
+              endContent={<Badge variant="warning" label={auditLogs.length} />}
+            />
+            <Tab
+              value="logins"
+              panelId="panel-logins"
+              label="Login History"
+              icon={<KeyRound className="w-4 h-4" />}
+              endContent={<Badge variant="info" label={loginHistory.length} />}
+            />
+          </TabList>
+
+          {/* TAB 1: STAFF ACCOUNTS */}
+          {activeTab === 'accounts' && (
+            <div role="tabpanel" id="panel-accounts">
+              <VStack gap={4}>
+                <HStack justify="between" vAlign="end" gap={3} wrap="wrap">
+                  <HStack gap={3} vAlign="end" wrap="wrap" className="flex-1 min-w-[260px]">
+                    <div className="flex-1 min-w-[220px] max-w-md">
+                      <TextInput
+                        label="Search Staff Accounts"
+                        type="search"
+                        value={accountQuery}
+                        onChange={setAccountQuery}
+                        placeholder="Search username, email, role, or ID..."
+                      />
+                    </div>
+                    <div className="w-44">
+                      <Selector
+                        label="Status Filter"
+                        options={ACCOUNT_STATUS_OPTIONS}
+                        value={accountStatusFilter}
+                        onChange={(val) => setAccountStatusFilter(val as AccountStatusFilter)}
+                      />
+                    </div>
+                  </HStack>
+
+                  <Button
+                    variant="primary"
+                    label="New Staff Account"
+                    icon={<UserPlus className="w-4 h-4" />}
+                    onClick={() => {
+                      setCreateFormError(null);
+                      setIsCreateAccountOpen(true);
+                    }}
+                  />
+                </HStack>
+
+                {filteredAccounts.length === 0 ? (
+                  <EmptyState
+                    title={loading ? 'Loading Counsel Directory...' : 'No Staff Accounts Matched'}
+                    description={
+                      loading
+                        ? 'Fetching privileged accounts from the High Counsel security service.'
+                        : 'Try clearing the search query or create a new counsel staff account.'
+                    }
+                    icon={<Users className="w-8 h-8" />}
+                    actions={
+                      !loading ? (
+                        <Button
+                          variant="secondary"
+                          label="Create Staff Account"
+                          icon={<UserPlus className="w-4 h-4" />}
+                          onClick={() => setIsCreateAccountOpen(true)}
+                        />
+                      ) : undefined
+                    }
+                  />
                 ) : (
-                  filteredAuditLogs.map((entry) => {
-                    const src = sourceBadgeLabel(entry.source);
-                    return (
-                      <tr key={entry.id} className="hover:bg-white/[0.03]">
-                        <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
-                          {formatIsoTime(entry.timestamp)}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-mono font-semibold text-slate-100">
-                            {entry.actorUsername}
-                          </div>
-                          <div className="text-[11px] text-amber-300/90">{entry.actorRole}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-mono font-semibold text-slate-100">
-                            {entry.action}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span
-                              className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${severityBadgeClass(
-                                entry.severity
-                              )}`}
-                            >
-                              {entry.severity}
-                            </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-                              {entry.category}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 max-w-xs">
-                          <div className="text-slate-200 font-medium truncate">
-                            {entry.targetLabel || entry.targetId || 'Realm System'}
-                          </div>
-                          {entry.rationale && (
-                            <div className="text-[11px] text-slate-400 truncate">
-                              {entry.rationale}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex flex-col items-start gap-1">
-                            <span
-                              className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${src.cls}`}
-                            >
-                              {src.text}
-                            </span>
-                            <span
-                              className={`text-[10px] font-mono font-bold ${
-                                entry.status === 'SUCCESS' ? 'text-emerald-300' : 'text-rose-300'
-                              }`}
-                            >
-                              {entry.status}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setInspectingAudit(entry)}
-                            className="hy-btn-glass px-2.5 py-1 rounded-lg text-[11px] inline-flex items-center gap-1"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-amber-300" />
-                            Inspect
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  <Table
+                    columns={accountColumns}
+                    data={filteredAccounts}
+                    idKey="id"
+                    density="balanced"
+                    hasHover
+                    aria-label="Counsel Admin Accounts"
+                  />
                 )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: LOGIN HISTORY */}
-      {activeTab === 'logins' && (
-        <div className="hy-card p-6 space-y-5">
-          <div>
-            <h2 className="text-lg font-bold text-slate-100">
-              Admin Login History &amp; Session Events
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Monitor successful logins, failed passcodes, denied player attempts, logouts, and session expirations.
-            </p>
-          </div>
-
-          {!loginConnected && loginNotice && (
-            <div className="rounded-xl border border-amber-400/35 bg-amber-950/30 p-3.5 text-xs text-amber-200 flex items-start gap-2.5">
-              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-semibold">Login History Telemetry Notice</div>
-                <div className="text-amber-200/85 mt-0.5">
-                  {loginNotice} Currently showing authentication events captured on this browser client (IP addresses require backend telemetry).
-                </div>
-              </div>
+              </VStack>
             </div>
           )}
 
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={loginSearch}
-                onChange={(e) => setLoginSearch(e.target.value)}
-                placeholder="Search by username, role, IP, or reason..."
-                className="w-full bg-slate-950/70 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 outline-none focus:border-amber-400/50"
-              />
-            </div>
+          {/* TAB 2: RBAC PERMISSIONS MATRIX */}
+          {activeTab === 'roles' && (
+            <div role="tabpanel" id="panel-roles">
+              <Grid columns={{ minWidth: 300, max: 3, repeat: 'fit' }} gap={4}>
+                {/* Role selector rail (1 column on wide grid, full width on narrow) */}
+                <VStack gap={3}>
+                  <HStack justify="between" vAlign="center">
+                    <Heading level={3} type="display-3">
+                      Roles
+                    </Heading>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      label="New Role"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => {
+                        setNewRoleError(null);
+                        setIsCreateRoleOpen(true);
+                      }}
+                    />
+                  </HStack>
 
-            <select
-              value={loginStatusFilter}
-              onChange={(e) =>
-                setLoginStatusFilter(e.target.value as 'ALL' | LoginHistoryStatus)
-              }
-              aria-label="Filter login history by status"
-              className="bg-slate-950/70 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none"
-            >
-              <option value="ALL" className="bg-slate-900">
-                All Auth Statuses
-              </option>
-              <option value="SUCCESS" className="bg-slate-900">
-                SUCCESS
-              </option>
-              <option value="FAILED" className="bg-slate-900">
-                FAILED
-              </option>
-              <option value="DENIED_PLAYER" className="bg-slate-900">
-                DENIED_PLAYER
-              </option>
-              <option value="LOGOUT" className="bg-slate-900">
-                LOGOUT
-              </option>
-              <option value="SESSION_EXPIRED" className="bg-slate-900">
-                SESSION_EXPIRED
-              </option>
-            </select>
-          </div>
+                  <VStack gap={2}>
+                    {roles.map((r) => {
+                      const isSelected = r.id === selectedRole.id;
+                      return (
+                        <Card
+                          key={r.id}
+                          variant={isSelected ? 'default' : 'muted'}
+                          padding={3}
+                          onClick={() => handleSelectRoleForMatrix(r)}
+                          className={`cursor-pointer transition-all ${
+                            isSelected ? 'ring-2 ring-amber-500/60' : 'hover:opacity-95'
+                          }`}
+                        >
+                          <VStack gap={1.5}>
+                            <HStack justify="between" vAlign="center" gap={2}>
+                              <HStack gap={2} vAlign="center">
+                                <Badge variant={getRoleBadgeVariant(r.name)} label={r.name} />
+                                {r.isSystemDefault && <Badge variant="neutral" label="SYSTEM" />}
+                              </HStack>
+                              <Text type="code" size="xsm" color="secondary">
+                                {r.permissions.length} perms
+                              </Text>
+                            </HStack>
+                            <Text type="supporting" size="xsm" color="secondary">
+                              {r.description}
+                            </Text>
+                          </VStack>
+                        </Card>
+                      );
+                    })}
+                  </VStack>
+                </VStack>
 
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-950/70 border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400">
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Username</th>
-                  <th className="py-3 px-4">Role / Attempt</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Client / IP &amp; Notes</th>
-                  <th className="py-3 px-4">Source</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredLoginHistory.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-500">
-                      No authentication events match the selected filter.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredLoginHistory.map((item) => {
-                    const src = sourceBadgeLabel(item.source);
-                    return (
-                      <tr key={item.id} className="hover:bg-white/[0.03]">
-                        <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-slate-500" />
-                            {formatIsoTime(item.timestamp)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 font-mono font-semibold text-slate-100">
-                          {item.username}
-                        </td>
-                        <td className="py-3 px-4 text-slate-300">
-                          <div>{item.resolvedRole || item.attemptedRole || '—'}</div>
-                          {item.attemptedRole &&
-                            item.resolvedRole &&
-                            item.attemptedRole !== item.resolvedRole && (
-                              <div className="text-[10px] text-slate-500">
-                                Requested: {item.attemptedRole}
-                              </div>
+                {/* Permission Matrix Editor */}
+                <div className="lg:col-span-2">
+                  <VStack gap={4}>
+                    <Card variant="muted" padding={4}>
+                      <HStack justify="between" vAlign="center" gap={3} wrap="wrap">
+                        <VStack gap={1}>
+                          <HStack gap={2} vAlign="center" wrap="wrap">
+                            <Heading level={3} type="display-3">
+                              {selectedRole.name} Matrix
+                            </Heading>
+                            <Badge
+                              variant="info"
+                              label={`${draftPermissions.length}/${PERMISSION_CATALOG.length} active`}
+                            />
+                            {roleDiffCount > 0 && (
+                              <Badge variant="warning" label={`${roleDiffCount} unsaved`} />
                             )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${loginStatusBadge(
-                              item.status
-                            )}`}
-                          >
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 max-w-xs">
-                          <div className="text-slate-200 truncate">
-                            {item.reason || 'Standard gateway authentication'}
-                          </div>
-                          <div className="text-[10px] font-mono text-slate-500 truncate mt-0.5">
-                            {item.ipAddress ? `IP: ${item.ipAddress}` : 'IP: Server-side only'}
-                            {item.userAgent ? ` · ${item.userAgent}` : ''}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${src.cls}`}
-                          >
-                            {src.text}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
+                          </HStack>
+                          <Text size="sm" color="secondary">
+                            {selectedRole.description}
+                          </Text>
+                        </VStack>
+
+                        <HStack gap={2} wrap="wrap">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            label="Reset Draft"
+                            icon={<RotateCcw className="w-3.5 h-3.5" />}
+                            isDisabled={roleDiffCount === 0}
+                            onClick={() => setDraftPermissions([...selectedRole.permissions])}
+                          />
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            label="Save Matrix"
+                            icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                            isDisabled={isSelectedRoleSovereignAdmin || roleDiffCount === 0}
+                            onClick={requestSaveRoleMatrix}
+                          />
+                        </HStack>
+                      </HStack>
+                    </Card>
+
+                    {isSelectedRoleSovereignAdmin && (
+                      <Banner
+                        status="info"
+                        title="Protected System Sovereign Role"
+                        description='The built-in "Admin" role retains unconditional access across all portal capabilities to guarantee administrative recovery.'
+                        collapsible={false}
+                      />
+                    )}
+
+                    <VStack gap={3}>
+                      {permissionGroups.map(([groupName, groupPerms]) => (
+                        <Card key={groupName} variant="default" padding={4}>
+                          <VStack gap={3}>
+                            <HStack justify="between" vAlign="center">
+                              <Text weight="bold" color="primary">
+                                {groupName}
+                              </Text>
+                              <Badge
+                                variant="neutral"
+                                label={`${groupPerms.filter((p) => draftPermissions.includes(p.key)).length}/${groupPerms.length}`}
+                              />
+                            </HStack>
+
+                            <Grid columns={{ minWidth: 260, max: 2, repeat: 'fit' }} gap={3}>
+                              {groupPerms.map((perm) => {
+                                const isChecked =
+                                  isSelectedRoleSovereignAdmin ||
+                                  draftPermissions.includes(perm.key);
+                                return (
+                                  <Card key={perm.key} variant="muted" padding={3}>
+                                    <HStack justify="between" vAlign="start" gap={2}>
+                                      <CheckboxInput
+                                        label={perm.label}
+                                        description={`${perm.key} — ${perm.description}`}
+                                        value={isChecked}
+                                        isDisabled={isSelectedRoleSovereignAdmin}
+                                        disabledMessage="Built-in sovereign Admin role permissions cannot be revoked."
+                                        onChange={(checked) =>
+                                          toggleDraftPermission(perm.key, checked)
+                                        }
+                                      />
+                                      <Badge
+                                        variant={SEVERITY_BADGE_MAP[perm.risk]}
+                                        label={perm.risk}
+                                      />
+                                    </HStack>
+                                  </Card>
+                                );
+                              })}
+                            </Grid>
+                          </VStack>
+                        </Card>
+                      ))}
+                    </VStack>
+                  </VStack>
+                </div>
+              </Grid>
+            </div>
+          )}
+
+          {/* TAB 3: AUDIT LOG */}
+          {activeTab === 'audit' && (
+            <div role="tabpanel" id="panel-audit">
+              <VStack gap={4}>
+                <Grid columns={{ minWidth: 170, max: 6, repeat: 'fit' }} gap={2}>
+                  <TextInput
+                    label="Search Audit Trail"
+                    type="search"
+                    value={auditQuery}
+                    onChange={setAuditQuery}
+                    placeholder="Action, actor, target..."
+                  />
+                  <Selector
+                    label="Category"
+                    options={AUDIT_CATEGORY_OPTIONS}
+                    value={auditCategory}
+                    onChange={(val) => setAuditCategory(val as AuditCategoryFilter)}
+                  />
+                  <Selector
+                    label="Severity"
+                    options={AUDIT_SEVERITY_OPTIONS}
+                    value={auditSeverity}
+                    onChange={(val) => setAuditSeverity(val as AuditSeverityFilter)}
+                  />
+                  <Selector
+                    label="Outcome"
+                    options={AUDIT_STATUS_OPTIONS}
+                    value={auditStatus}
+                    onChange={(val) => setAuditStatus(val as AuditStatusFilter)}
+                  />
+                  <VStack gap={1}>
+                    <label
+                      htmlFor="audit-date-from"
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      From Date
+                    </label>
+                    <input
+                      id="audit-date-from"
+                      type="date"
+                      value={auditDateFrom}
+                      onChange={(e) => setAuditDateFrom(e.target.value)}
+                      className={DATE_INPUT_CLASS}
+                      style={DATE_INPUT_STYLE}
+                    />
+                  </VStack>
+                  <VStack gap={1}>
+                    <label
+                      htmlFor="audit-date-to"
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      To Date
+                    </label>
+                    <input
+                      id="audit-date-to"
+                      type="date"
+                      value={auditDateTo}
+                      onChange={(e) => setAuditDateTo(e.target.value)}
+                      className={DATE_INPUT_CLASS}
+                      style={DATE_INPUT_STYLE}
+                    />
+                  </VStack>
+                </Grid>
+
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <Text size="sm" color="secondary">
+                    Showing {filteredAudits.length} of {auditLogs.length} audit events
+                  </Text>
+                  <HStack gap={2} wrap="wrap">
+                    {(auditQuery ||
+                      auditCategory !== 'ALL' ||
+                      auditSeverity !== 'ALL' ||
+                      auditStatus !== 'ALL' ||
+                      auditDateFrom ||
+                      auditDateTo) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        label="Reset Filters"
+                        onClick={() => {
+                          setAuditQuery('');
+                          setAuditCategory('ALL');
+                          setAuditSeverity('ALL');
+                          setAuditStatus('ALL');
+                          setAuditDateFrom('');
+                          setAuditDateTo('');
+                        }}
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      label="Export Filtered CSV"
+                      icon={<Download className="w-4 h-4" />}
+                      onClick={handleExportAuditCsv}
+                      isDisabled={filteredAudits.length === 0}
+                    />
+                  </HStack>
+                </HStack>
+
+                {filteredAudits.length === 0 ? (
+                  <EmptyState
+                    title="No Audit Events Match Current Filters"
+                    description="Adjust the date range, category, or search term to inspect administrative audit history."
+                    icon={<FileClock className="w-8 h-8" />}
+                  />
+                ) : (
+                  <Table
+                    columns={auditColumns}
+                    data={filteredAudits}
+                    idKey="id"
+                    density="compact"
+                    hasHover
+                    aria-label="Security Audit Log"
+                  />
                 )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* CREATE ADMIN ACCOUNT MODAL */}
-      {isCreateAccountOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => !createAccSubmitting && setIsCreateAccountOpen(false)}
-        >
-          <div
-            className="hy-glass w-full max-w-md rounded-2xl border border-amber-400/35 p-6 space-y-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-base font-bold font-cinzel text-slate-100 flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-amber-300" />
-                CREATE COUNSEL ACCOUNT
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsCreateAccountOpen(false)}
-                className="text-slate-400 hover:text-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              </VStack>
             </div>
+          )}
 
-            {createAccError && (
-              <div className="rounded-xl bg-rose-950/60 border border-rose-500/40 px-3 py-2 text-xs text-rose-200">
-                {createAccError}
-              </div>
-            )}
+          {/* TAB 4: LOGIN HISTORY */}
+          {activeTab === 'logins' && (
+            <div role="tabpanel" id="panel-logins">
+              <VStack gap={4}>
+                <Grid columns={{ minWidth: 190, max: 4, repeat: 'fit' }} gap={3}>
+                  <TextInput
+                    label="Search Auth Subjects"
+                    type="search"
+                    value={loginQuery}
+                    onChange={setLoginQuery}
+                    placeholder="Username, IP address, reason..."
+                  />
+                  <Selector
+                    label="Auth Outcome"
+                    options={LOGIN_STATUS_OPTIONS}
+                    value={loginStatus}
+                    onChange={(val) => setLoginStatus(val as LoginStatusFilter)}
+                  />
+                  <VStack gap={1}>
+                    <label
+                      htmlFor="login-date-from"
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      From Date
+                    </label>
+                    <input
+                      id="login-date-from"
+                      type="date"
+                      value={loginDateFrom}
+                      onChange={(e) => setLoginDateFrom(e.target.value)}
+                      className={DATE_INPUT_CLASS}
+                      style={DATE_INPUT_STYLE}
+                    />
+                  </VStack>
+                  <VStack gap={1}>
+                    <label
+                      htmlFor="login-date-to"
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      To Date
+                    </label>
+                    <input
+                      id="login-date-to"
+                      type="date"
+                      value={loginDateTo}
+                      onChange={(e) => setLoginDateTo(e.target.value)}
+                      className={DATE_INPUT_CLASS}
+                      style={DATE_INPUT_STYLE}
+                    />
+                  </VStack>
+                </Grid>
 
-            <form onSubmit={handleCreateAccountSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Username *</label>
-                <input
-                  type="text"
-                  value={newAccUsername}
-                  onChange={(e) => setNewAccUsername(e.target.value)}
-                  placeholder="e.g. mod_nguyen"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 font-mono outline-none"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Email (optional)</label>
-                <input
-                  type="email"
-                  value={newAccEmail}
-                  onChange={(e) => setNewAccEmail(e.target.value)}
-                  placeholder="staff@pactkeeper.local"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Assigned Role *</label>
-                <select
-                  value={newAccRole}
-                  onChange={(e) => setNewAccRole(e.target.value)}
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
-                >
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.name} className="bg-slate-900">
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  Initial Passcode (&ge; 8 chars) *
-                </label>
-                <input
-                  type="password"
-                  value={newAccPassword}
-                  onChange={(e) => setNewAccPassword(e.target.value)}
-                  placeholder="Temporary password"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 font-mono outline-none"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Audit Rationale *</label>
-                <input
-                  type="text"
-                  value={createAccRationale}
-                  onChange={(e) => setCreateAccRationale(e.target.value)}
-                  placeholder="e.g. Onboarding Q4 LiveOps Moderator"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
-                />
-              </div>
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <Text size="sm" color="secondary">
+                    Showing {filteredLogins.length} of {loginHistory.length} authentication events
+                  </Text>
+                  {(loginQuery || loginStatus !== 'ALL' || loginDateFrom || loginDateTo) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      label="Reset Filters"
+                      onClick={() => {
+                        setLoginQuery('');
+                        setLoginStatus('ALL');
+                        setLoginDateFrom('');
+                        setLoginDateTo('');
+                      }}
+                    />
+                  )}
+                </HStack>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-                <button
-                  type="button"
+                {filteredLogins.length === 0 ? (
+                  <EmptyState
+                    title="No Authentication Records Found"
+                    description="Authentication events from logins, rejected player attempts, logouts, and expired JWT sessions appear here."
+                    icon={<KeyRound className="w-8 h-8" />}
+                  />
+                ) : (
+                  <Table
+                    columns={loginColumns}
+                    data={filteredLogins}
+                    idKey="id"
+                    density="compact"
+                    hasHover
+                    aria-label="Authentication Telemetry"
+                  />
+                )}
+              </VStack>
+            </div>
+          )}
+        </VStack>
+      </Section>
+
+      {/* DIALOG: Create Staff Account */}
+      <Dialog
+        isOpen={isCreateAccountOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateAccountOpen(false);
+            setCreateFormError(null);
+          }
+        }}
+        purpose="form"
+        width={480}
+      >
+        <VStack gap={4}>
+          <DialogHeader
+            title="Create Counsel Staff Account"
+            subtitle="Provision a new backend administrator, moderator, or support operator."
+            startContent={<UserPlus className="w-5 h-5 text-amber-500" />}
+            onOpenChange={(open) => {
+              if (!open) setIsCreateAccountOpen(false);
+            }}
+          />
+
+          {createFormError && (
+            <Banner
+              status="error"
+              title="Validation Error"
+              description={createFormError}
+              collapsible={false}
+            />
+          )}
+
+          <form onSubmit={handleCreateAccountSubmit}>
+            <VStack gap={3}>
+              <TextInput
+                label="Operator Username"
+                value={createUsername}
+                onChange={setCreateUsername}
+                placeholder="e.g. counsel_mod_01"
+                isRequired
+              />
+              <TextInput
+                label="Staff Email (optional)"
+                type="email"
+                value={createEmail}
+                onChange={setCreateEmail}
+                placeholder="staff@pactkeeper.gg"
+              />
+              <TextInput
+                label="Temporary Password"
+                type="password"
+                value={createPassword}
+                onChange={setCreatePassword}
+                placeholder="Minimum 8 characters"
+                isRequired
+              />
+              <Selector
+                label="Initial RBAC Role"
+                options={availableRoleOptions}
+                value={createRole}
+                onChange={(val) => setCreateRole(String(val))}
+              />
+              <HStack justify="end" gap={2} paddingBlockStart={2}>
+                <Button
+                  variant="secondary"
+                  label="Cancel"
                   onClick={() => setIsCreateAccountOpen(false)}
-                  className="hy-btn-glass px-3.5 py-2 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
+                />
+                <Button
                   type="submit"
-                  disabled={createAccSubmitting}
-                  className="hy-btn-gold px-4 py-2 rounded-xl font-bold text-slate-950 disabled:opacity-50"
-                >
-                  {createAccSubmitting ? 'Creating...' : 'Create Account'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ASSIGN ROLE MODAL */}
-      {roleEditAccount && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setRoleEditAccount(null)}
-        >
-          <div
-            className="hy-glass w-full max-w-sm rounded-2xl border border-amber-400/35 p-6 space-y-4 shadow-2xl text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-bold font-cinzel text-slate-100">
-              REASSIGN ROLE — {roleEditAccount.username}
-            </h3>
-            <select
-              value={targetAccountRole}
-              onChange={(e) => setTargetAccountRole(e.target.value)}
-              className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
-            >
-              {roles.map((r) => (
-                <option key={r.id} value={r.name} className="bg-slate-900">
-                  {r.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setRoleEditAccount(null)}
-                className="hy-btn-glass px-3 py-1.5 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const target = roleEditAccount;
-                  const nextRole = targetAccountRole;
-                  setRoleEditAccount(null);
-                  openGuard({
-                    title: 'Authorize Role Reassignment',
-                    description: `Reassigns ${target.username} from "${target.role}" to "${nextRole}".`,
-                    severity: 'CRITICAL',
-                    actionLabel: 'Apply Role Change',
-                    targetSummary: `${target.username}: ${target.role} -> ${nextRole}`,
-                    requireKeyword: 'CONFIRM',
-                    onExecute: async (rationale) => {
-                      await updateAdminAccountRole(target, nextRole, rationale);
-                      showToast(`Updated role for "${target.username}" to ${nextRole}.`);
-                    },
-                  });
-                }}
-                className="hy-btn-gold px-4 py-1.5 rounded-lg font-bold text-slate-950"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* RESET ACCOUNT PASSWORD MODAL */}
-      {resetPwdAccount && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => !resetPwdSubmitting && setResetPwdAccount(null)}
-        >
-          <div
-            className="hy-glass w-full max-w-md rounded-2xl border border-amber-400/35 p-6 space-y-4 shadow-2xl text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-bold font-cinzel text-slate-100">
-              ADMIN PASSWORD RESET — {resetPwdAccount.username}
-            </h3>
-            {resetPwdError && (
-              <div className="rounded-xl bg-rose-950/60 border border-rose-500/40 px-3 py-2 text-rose-200">
-                {resetPwdError}
-              </div>
-            )}
-            <form onSubmit={handleResetPasswordSubmit} className="space-y-3">
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  New Temporary Passcode (&ge; 8 chars) *
-                </label>
-                <input
-                  type="password"
-                  value={resetPwdValue}
-                  onChange={(e) => setResetPwdValue(e.target.value)}
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 font-mono outline-none"
+                  variant="primary"
+                  label="Continue to Authorization"
                 />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  Audit Rationale *
-                </label>
-                <input
-                  type="text"
-                  value={resetPwdRationale}
-                  onChange={(e) => setResetPwdRationale(e.target.value)}
-                  placeholder="Reason for administrative password reset"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
+              </HStack>
+            </VStack>
+          </form>
+        </VStack>
+      </Dialog>
+
+      {/* DIALOG: Change Account Role */}
+      <Dialog
+        isOpen={roleEditAccount !== null}
+        onOpenChange={(open) => {
+          if (!open) setRoleEditAccount(null);
+        }}
+        purpose="form"
+        width={440}
+      >
+        <VStack gap={4}>
+          <DialogHeader
+            title="Reassign Operator Role"
+            subtitle={roleEditAccount ? `Account: ${roleEditAccount.username}` : undefined}
+            startContent={<Shield className="w-5 h-5 text-amber-500" />}
+            onOpenChange={(open) => {
+              if (!open) setRoleEditAccount(null);
+            }}
+          />
+
+          <form onSubmit={handleAssignRoleSubmit}>
+            <VStack gap={3}>
+              <Selector
+                label="Target RBAC Role"
+                options={availableRoleOptions}
+                value={roleEditNextRole}
+                onChange={(val) => setRoleEditNextRole(String(val))}
+              />
+              <HStack justify="end" gap={2} paddingBlockStart={2}>
+                <Button
+                  variant="secondary"
+                  label="Cancel"
+                  onClick={() => setRoleEditAccount(null)}
                 />
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-                <button
-                  type="button"
+                <Button
+                  type="submit"
+                  variant="primary"
+                  label="Continue to Authorization"
+                />
+              </HStack>
+            </VStack>
+          </form>
+        </VStack>
+      </Dialog>
+
+      {/* DIALOG: Reset Account Password */}
+      <Dialog
+        isOpen={resetPwdAccount !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPwdAccount(null);
+            setResetPwdError(null);
+          }
+        }}
+        purpose="form"
+        width={460}
+      >
+        <VStack gap={4}>
+          <DialogHeader
+            title="Reset Staff Password"
+            subtitle={resetPwdAccount ? `Operator: ${resetPwdAccount.username}` : undefined}
+            startContent={<Key className="w-5 h-5 text-amber-500" />}
+            onOpenChange={(open) => {
+              if (!open) setResetPwdAccount(null);
+            }}
+          />
+
+          {resetPwdError && (
+            <Banner
+              status="error"
+              title="Invalid Password"
+              description={resetPwdError}
+              collapsible={false}
+            />
+          )}
+
+          <form onSubmit={handleResetPasswordSubmit}>
+            <VStack gap={3}>
+              <TextInput
+                label="New Temporary Password"
+                type="password"
+                value={resetPwdValue}
+                onChange={setResetPwdValue}
+                placeholder="Minimum 8 characters"
+                isRequired
+              />
+              <TextInput
+                label="Confirm New Password"
+                type="password"
+                value={resetPwdConfirm}
+                onChange={setResetPwdConfirm}
+                placeholder="Repeat temporary password"
+                isRequired
+              />
+              <HStack justify="end" gap={2} paddingBlockStart={2}>
+                <Button
+                  variant="secondary"
+                  label="Cancel"
                   onClick={() => setResetPwdAccount(null)}
-                  className="hy-btn-glass px-3.5 py-2 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
+                />
+                <Button
                   type="submit"
-                  disabled={resetPwdSubmitting}
-                  className="hy-btn-gold px-4 py-2 rounded-xl font-bold text-slate-950 disabled:opacity-50"
-                >
-                  {resetPwdSubmitting ? 'Resetting...' : 'Reset Passcode'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                  variant="destructive"
+                  label="Continue to Reset"
+                />
+              </HStack>
+            </VStack>
+          </form>
+        </VStack>
+      </Dialog>
 
-      {/* CREATE CUSTOM ROLE MODAL */}
-      {isCreateRoleOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => !createRoleSubmitting && setIsCreateRoleOpen(false)}
-        >
-          <div
-            className="hy-glass w-full max-w-md rounded-2xl border border-amber-400/35 p-6 space-y-4 shadow-2xl text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-bold font-cinzel text-slate-100">CREATE COUNSEL ROLE</h3>
-            {createRoleError && (
-              <div className="rounded-xl bg-rose-950/60 border border-rose-500/40 px-3 py-2 text-rose-200">
-                {createRoleError}
-              </div>
-            )}
-            <form onSubmit={handleCreateRoleSubmit} className="space-y-3">
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Role Name *</label>
-                <input
-                  type="text"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="e.g. Finance Auditor"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={newRoleDesc}
-                  onChange={(e) => setNewRoleDesc(e.target.value)}
-                  placeholder="Scope & duties"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Audit Rationale *</label>
-                <input
-                  type="text"
-                  value={newRoleRationale}
-                  onChange={(e) => setNewRoleRationale(e.target.value)}
-                  placeholder="e.g. Least-privilege role for payment review"
-                  className="w-full bg-[#090d1a] border border-white/15 rounded-xl px-3 py-2 text-slate-100 outline-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-                <button
-                  type="button"
+      {/* DIALOG: Create Custom Role */}
+      <Dialog
+        isOpen={isCreateRoleOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateRoleOpen(false);
+            setNewRoleError(null);
+          }
+        }}
+        purpose="form"
+        width={620}
+      >
+        <VStack gap={4}>
+          <DialogHeader
+            title="Create Custom RBAC Role"
+            subtitle="Define a named security role and initial permission capabilities."
+            startContent={<ShieldAlert className="w-5 h-5 text-amber-500" />}
+            onOpenChange={(open) => {
+              if (!open) setIsCreateRoleOpen(false);
+            }}
+          />
+
+          {newRoleError && (
+            <Banner
+              status="error"
+              title="Role Definition Incomplete"
+              description={newRoleError}
+              collapsible={false}
+            />
+          )}
+
+          <form onSubmit={handleCreateRoleSubmit}>
+            <VStack gap={3}>
+              <TextInput
+                label="Role Name"
+                value={newRoleName}
+                onChange={setNewRoleName}
+                placeholder="e.g. Economy Auditor"
+                isRequired
+              />
+              <TextArea
+                label="Description"
+                value={newRoleDescription}
+                onChange={setNewRoleDescription}
+                rows={2}
+                placeholder="Describe scope of responsibility and escalation boundaries..."
+              />
+
+              <VStack gap={2}>
+                <Text size="sm" weight="semibold" color="primary">
+                  Select Initial Capabilities ({newRolePermissions.length} selected)
+                </Text>
+                <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
+                  {PERMISSION_CATALOG.map((perm) => (
+                    <Card key={perm.key} variant="muted" padding={2}>
+                      <HStack justify="between" vAlign="center" gap={2}>
+                        <CheckboxInput
+                          label={perm.label}
+                          description={perm.key}
+                          value={newRolePermissions.includes(perm.key)}
+                          onChange={(checked) => {
+                            setNewRolePermissions((prev) =>
+                              checked
+                                ? prev.includes(perm.key)
+                                  ? prev
+                                  : [...prev, perm.key]
+                                : prev.filter((k) => k !== perm.key)
+                            );
+                          }}
+                        />
+                        <Badge variant={SEVERITY_BADGE_MAP[perm.risk]} label={perm.risk} />
+                      </HStack>
+                    </Card>
+                  ))}
+                </div>
+              </VStack>
+
+              <HStack justify="end" gap={2} paddingBlockStart={2}>
+                <Button
+                  variant="secondary"
+                  label="Cancel"
                   onClick={() => setIsCreateRoleOpen(false)}
-                  className="hy-btn-glass px-3.5 py-2 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
+                />
+                <Button
                   type="submit"
-                  disabled={createRoleSubmitting}
-                  className="hy-btn-gold px-4 py-2 rounded-xl font-bold text-slate-950 disabled:opacity-50"
-                >
-                  {createRoleSubmitting ? 'Creating...' : 'Create Role'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                  variant="primary"
+                  label="Continue to Authorization"
+                />
+              </HStack>
+            </VStack>
+          </form>
+        </VStack>
+      </Dialog>
 
-      {/* AUDIT ENTRY INSPECT MODAL */}
-      {inspectingAudit && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setInspectingAudit(null)}
-        >
-          <div
-            className="hy-glass w-full max-w-lg rounded-2xl border border-amber-400/35 p-6 space-y-4 shadow-2xl text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between border-b border-white/10 pb-3">
-              <div>
-                <span
-                  className={`inline-block text-[10px] font-mono px-2 py-0.5 rounded-full border ${severityBadgeClass(
-                    inspectingAudit.severity
-                  )}`}
-                >
-                  {inspectingAudit.severity} · {inspectingAudit.category}
-                </span>
-                <h3 className="text-base font-bold font-mono text-slate-100 mt-1">
-                  {inspectingAudit.action}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectingAudit(null)}
-                className="text-slate-400 hover:text-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* DIALOG: Forensic Audit Event Inspector */}
+      <Dialog
+        isOpen={inspectingAudit !== null}
+        onOpenChange={(open) => {
+          if (!open) setInspectingAudit(null);
+        }}
+        purpose="info"
+        width={620}
+      >
+        {inspectingAudit && (
+          <VStack gap={4}>
+            <DialogHeader
+              title={inspectingAudit.action}
+              subtitle={`Audit Record ${inspectingAudit.id} • ${formatDateTime(inspectingAudit.timestamp)}`}
+              startContent={<FileClock className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setInspectingAudit(null);
+              }}
+            />
 
-            <div className="space-y-2">
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400">Audit ID:</span>
-                <span className="font-mono text-slate-200">{inspectingAudit.id}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400">Timestamp:</span>
-                <span className="text-slate-200">{formatIsoTime(inspectingAudit.timestamp)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400">Actor:</span>
-                <span className="font-mono text-amber-300">
-                  {inspectingAudit.actorUsername} ({inspectingAudit.actorRole})
-                </span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400">Target:</span>
-                <span className="font-mono text-slate-200">
-                  {inspectingAudit.targetType || 'System'}:{' '}
-                  {inspectingAudit.targetLabel || inspectingAudit.targetId || 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400">Status:</span>
-                <span
-                  className={
-                    inspectingAudit.status === 'SUCCESS'
-                      ? 'text-emerald-300 font-bold'
-                      : 'text-rose-300 font-bold'
-                  }
-                >
-                  {inspectingAudit.status}
-                </span>
-              </div>
-            </div>
+            <HStack gap={2} wrap="wrap">
+              <Badge
+                variant={SEVERITY_BADGE_MAP[inspectingAudit.severity]}
+                label={inspectingAudit.severity}
+              />
+              <Badge variant="neutral" label={inspectingAudit.category} />
+              <Badge
+                variant={inspectingAudit.status === 'FAILED' ? 'error' : 'success'}
+                label={inspectingAudit.status}
+              />
+              <Badge
+                variant={inspectingAudit.source === 'BACKEND_API' ? 'info' : 'yellow'}
+                label={inspectingAudit.source}
+              />
+            </HStack>
+
+            <Grid columns={{ minWidth: 220, max: 2, repeat: 'fit' }} gap={3}>
+              <Card variant="muted" padding={3}>
+                <VStack gap={0.5}>
+                  <Text type="supporting" size="xsm" color="secondary">
+                    Actor
+                  </Text>
+                  <Text size="sm" weight="semibold" color="primary">
+                    {inspectingAudit.actorUsername} ({inspectingAudit.actorRole})
+                  </Text>
+                </VStack>
+              </Card>
+              <Card variant="muted" padding={3}>
+                <VStack gap={0.5}>
+                  <Text type="supporting" size="xsm" color="secondary">
+                    Target
+                  </Text>
+                  <Text size="sm" weight="semibold" color="primary">
+                    {[inspectingAudit.targetType, inspectingAudit.targetLabel, inspectingAudit.targetId]
+                      .filter(Boolean)
+                      .join(' / ') || '—'}
+                  </Text>
+                </VStack>
+              </Card>
+            </Grid>
 
             {inspectingAudit.rationale && (
-              <div className="rounded-xl bg-slate-950/70 border border-white/10 p-3">
-                <div className="text-[11px] font-semibold text-amber-300 mb-1">
-                  Operator Rationale
-                </div>
-                <p className="text-slate-200">{inspectingAudit.rationale}</p>
-              </div>
+              <Card variant="muted" padding={3}>
+                <VStack gap={1}>
+                  <Text type="supporting" size="xsm" color="secondary">
+                    Operator Rationale
+                  </Text>
+                  <Text size="sm" color="primary">
+                    {inspectingAudit.rationale}
+                  </Text>
+                </VStack>
+              </Card>
             )}
 
             {inspectingAudit.errorMessage && (
-              <div className="rounded-xl bg-rose-950/50 border border-rose-500/35 p-3 text-rose-200">
-                <div className="font-semibold mb-1">Error</div>
-                <p>{inspectingAudit.errorMessage}</p>
-              </div>
+              <Banner
+                status="error"
+                title="Failure Diagnostic"
+                description={inspectingAudit.errorMessage}
+                collapsible={false}
+              />
             )}
 
             {(inspectingAudit.beforeState || inspectingAudit.afterState) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Grid columns={{ minWidth: 240, max: 2, repeat: 'fit' }} gap={3}>
                 {inspectingAudit.beforeState && (
-                  <div className="rounded-xl bg-slate-950/80 border border-white/10 p-3">
-                    <div className="text-[10px] font-mono uppercase text-slate-400 mb-1">
-                      Before State
-                    </div>
-                    <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap break-all">
-                      {JSON.stringify(inspectingAudit.beforeState, null, 2)}
-                    </pre>
-                  </div>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={1}>
+                      <Text type="supporting" size="xsm" color="secondary">
+                        Before State
+                      </Text>
+                      <pre className="text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all">
+                        {JSON.stringify(inspectingAudit.beforeState, null, 2)}
+                      </pre>
+                    </VStack>
+                  </Card>
                 )}
                 {inspectingAudit.afterState && (
-                  <div className="rounded-xl bg-slate-950/80 border border-emerald-500/20 p-3">
-                    <div className="text-[10px] font-mono uppercase text-emerald-300 mb-1">
-                      After State
-                    </div>
-                    <pre className="text-[11px] font-mono text-emerald-100 whitespace-pre-wrap break-all">
-                      {JSON.stringify(inspectingAudit.afterState, null, 2)}
-                    </pre>
-                  </div>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={1}>
+                      <Text type="supporting" size="xsm" color="secondary">
+                        After State
+                      </Text>
+                      <pre className="text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all">
+                        {JSON.stringify(inspectingAudit.afterState, null, 2)}
+                      </pre>
+                    </VStack>
+                  </Card>
                 )}
-              </div>
+              </Grid>
             )}
 
-            <div className="flex justify-end pt-2 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setInspectingAudit(null)}
-                className="hy-btn-glass px-4 py-1.5 rounded-lg"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <HStack justify="end">
+              <Button variant="primary" label="Close" onClick={() => setInspectingAudit(null)} />
+            </HStack>
+          </VStack>
+        )}
+      </Dialog>
 
-      {/* SENSITIVE ACTION RATIONALE GUARD MODAL */}
+      {/* Sensitive Action Authorization Modal */}
       <SensitiveActionModal
-        isOpen={sensitiveGuard !== null}
-        title={sensitiveGuard?.title || ''}
-        description={sensitiveGuard?.description || ''}
-        severity={sensitiveGuard?.severity || 'HIGH'}
-        actionLabel={sensitiveGuard?.actionLabel || 'Confirm'}
-        targetSummary={sensitiveGuard?.targetSummary}
-        requireKeyword={sensitiveGuard?.requireKeyword}
-        loading={guardLoading}
-        error={guardError}
-        onCancel={() => {
-          setSensitiveGuard(null);
-          setGuardError(null);
+        isOpen={pendingAction !== null}
+        title={pendingAction?.title || 'Authorize Security Action'}
+        description={pendingAction?.description || ''}
+        targetLabel={pendingAction?.targetLabel}
+        targetSummary={pendingAction?.targetSummary}
+        severity={pendingAction?.severity || 'HIGH'}
+        actionLabel={pendingAction?.actionLabel || 'Confirm Action'}
+        requireKeyword={pendingAction?.requireKeyword}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={async (rationale) => {
+          if (!pendingAction) return;
+          await pendingAction.execute(rationale);
+          setPendingAction(null);
         }}
-        onConfirm={handleConfirmGuard}
       />
-    </div>
+    </VStack>
   );
 };

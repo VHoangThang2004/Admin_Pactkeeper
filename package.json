@@ -7,10 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs"
   },
   "dependencies": {
+    "@astryxdesign/core": "^0.7.16",
+    "@astryxdesign/theme-neutral": "^0.7.16",
     "@microsoft/signalr": "^10.0.11",
+    "@stylexjs/stylex": "^0.19.2",
     "axios": "^1.19.0",
     "lucide-react": "^1.33.0",
     "react": "^19.2.8",
@@ -20,6 +24,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@astryxdesign/cli": "^0.7.16",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",

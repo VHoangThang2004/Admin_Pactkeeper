@@ -1,241 +1,229 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import {
-  Gem,
-  Shield,
-  Sparkles,
-  Scroll,
-  Coins,
-  LogOut,
-  Crown,
-  Activity,
-  Swords,
-  MessageSquare,
-  Radio,
+  SideNav,
+  SideNavItem,
+  SideNavSection,
+} from '@astryxdesign/core/SideNav';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Icon } from '@astryxdesign/core/Icon';
+import { StatusDot } from '@astryxdesign/core/StatusDot';
+import { Text } from '@astryxdesign/core/Text';
+import { VStack } from '@astryxdesign/core/VStack';
+import {
+  CreditCard,
+  Database,
   ExternalLink,
-  ShieldAlert
+  LayoutDashboard,
+  LifeBuoy,
+  LogOut,
+  ShieldAlert,
+  Sparkles,
+  Swords,
+  Users,
 } from 'lucide-react';
 import { WEB_TOPUP_URL } from '../constants/links';
+import type { AdminPermissionKey } from '../types';
 import { hasPermission } from '../utils/permissions';
-import type { AdminPermissionKey, CounselRole } from '../types';
 
 interface SidebarProps {
-  role: CounselRole;
-  permissions?: AdminPermissionKey[];
+  role: string;
+  permissions: AdminPermissionKey[];
   onLogout: () => void;
 }
 
-/**
- * Sidebar Navigation Component for PactKeeper High Counsel
- * 
- * Remade to HoYoverse Game Launcher & Portal Standards:
- * - Luxury cosmic obsidian navigation with fine 1px golden borders
- * - Active route items with celestial gold indicator, ambient glow, and tags
- * - Real-time Server Cluster telemetry beacon
- * - Direct shortcut link to Player Web Top-Up portal
- */
-export const Sidebar: React.FC<SidebarProps> = ({ role, permissions = [], onLogout }) => {
-  const isTechSupport = role === 'Technical Support' || role === 'Support';
+interface NavItemDef {
+  path: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  permission: AdminPermissionKey;
+  group: 'operations' | 'liveops' | 'governance';
+}
 
-  // Navigation matrix backed by granular RBAC permissions
-  const allNavItems: Array<{
-    path: string;
-    label: string;
-    icon: React.ElementType;
-    tag: string;
-    requiredPermissions: AdminPermissionKey[];
-  }> = [
-    {
-      path: '/',
-      label: isTechSupport ? 'System Status & Monitor' : 'Command Dashboard',
-      icon: isTechSupport ? Activity : Gem,
-      tag: isTechSupport ? 'TELEMETRY' : 'OVERVIEW',
-      requiredPermissions: ['dashboard.view'],
-    },
-    {
-      path: '/players',
-      label: role === 'Moderator' ? 'User Directory' : 'Manage User Accounts',
-      icon: Shield,
-      tag: role === 'Moderator' ? 'PLAYERS' : 'ACCOUNTS',
-      requiredPermissions: ['players.view'],
-    },
-    {
-      path: '/matches',
-      label: 'Match Supervision',
-      icon: Swords,
-      tag: isTechSupport ? 'DIAGNOSTICS' : 'SPECTATOR',
-      requiredPermissions: ['matches.view'],
-    },
-    {
-      path: '/gacha',
-      label: 'Gacha / Story Banner',
-      icon: Sparkles,
-      tag: 'BANNERS',
-      requiredPermissions: ['gacha.manage'],
-    },
-    {
-      path: '/content',
-      label: 'Item & Reward Config',
-      icon: Scroll,
-      tag: 'ARMORY',
-      requiredPermissions: ['content.manage'],
-    },
-    {
-      path: '/payments',
-      label: 'PayOS Revenue Ledger',
-      icon: Coins,
-      tag: 'LEDGER',
-      requiredPermissions: ['payments.view'],
-    },
-    {
-      path: '/support',
-      label: 'Player Support Desk',
-      icon: MessageSquare,
-      tag: 'LIVE CHAT',
-      requiredPermissions: ['support.chat'],
-    },
-    {
-      path: '/security',
-      label: 'Security & Audit',
-      icon: ShieldAlert,
-      tag: 'GOVERNANCE',
-      requiredPermissions: ['security.accounts', 'security.roles', 'security.audit'],
-    },
-  ];
+const NAV_ITEMS: NavItemDef[] = [
+  {
+    path: '/',
+    label: 'Dashboard Overview',
+    icon: LayoutDashboard,
+    permission: 'dashboard.view',
+    group: 'operations',
+  },
+  {
+    path: '/players',
+    label: 'Player Management',
+    icon: Users,
+    permission: 'players.view',
+    group: 'operations',
+  },
+  {
+    path: '/matches',
+    label: 'Match Supervision',
+    icon: Swords,
+    permission: 'matches.view',
+    group: 'operations',
+  },
+  {
+    path: '/support',
+    label: 'Live Support Desk',
+    icon: LifeBuoy,
+    permission: 'support.chat',
+    group: 'operations',
+  },
+  {
+    path: '/gacha',
+    label: 'Gacha & Banners',
+    icon: Sparkles,
+    permission: 'gacha.manage',
+    group: 'liveops',
+  },
+  {
+    path: '/content',
+    label: 'Game Content Codex',
+    icon: Database,
+    permission: 'content.manage',
+    group: 'liveops',
+  },
+  {
+    path: '/payments',
+    label: 'PayOS & Top-Up Vault',
+    icon: CreditCard,
+    permission: 'payments.view',
+    group: 'liveops',
+  },
+  {
+    path: '/security',
+    label: 'Security & RBAC',
+    icon: ShieldAlert,
+    permission: 'security.accounts',
+    group: 'governance',
+  },
+];
 
-  // Filter modules strictly using RBAC role/JWT permission resolution
-  const visibleNavItems = allNavItems.filter((item) =>
-    item.requiredPermissions.some((perm) => hasPermission(role, perm, permissions))
-  );
+function getRoleDeskLabel(role: string): string {
+  const normalized = role.toLowerCase();
+  if (normalized.includes('mod')) return 'Moderator Desk';
+  if (normalized.includes('tech') || normalized.includes('support')) return 'Technical Support';
+  if (normalized.includes('finance') || normalized.includes('auditor')) return 'Finance Counsel';
+  return 'High Counsel';
+}
 
-  // Dynamic module section header based on role privileges
-  const getSectionTitle = () => {
-    switch (role) {
-      case 'Technical Support':
-      case 'Support':
-        return 'TECHNICAL OPERATIONS';
-      case 'Moderator':
-        return 'MODERATOR JURISDICTION';
-      default:
-        return 'HIGH COUNSEL SANCTUM';
-    }
-  };
+function getRoleBadgeVariant(role: string): 'yellow' | 'cyan' | 'purple' | 'blue' {
+  const normalized = role.toLowerCase();
+  if (normalized.includes('mod')) return 'cyan';
+  if (normalized.includes('tech') || normalized.includes('support')) return 'purple';
+  if (normalized.includes('finance')) return 'blue';
+  return 'yellow';
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ role, permissions, onLogout }) => {
+  const location = useLocation();
+
+  const visibleItems = NAV_ITEMS.filter((item) => hasPermission(role, item.permission, permissions));
+  const opItems = visibleItems.filter((item) => item.group === 'operations');
+  const liveOpsItems = visibleItems.filter((item) => item.group === 'liveops');
+  const govItems = visibleItems.filter((item) => item.group === 'governance');
+
+  const isRouteActive = (path: string) =>
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
   return (
-    <aside className="w-68 bg-[#070a14]/95 backdrop-blur-2xl border-r border-white/[0.08] flex flex-col h-screen sticky top-0 z-30 shadow-[4px_0_35px_rgba(0,0,0,0.75)] text-[#f8fafc] select-none">
-      {/* Brand Launcher Header */}
-      <div className="p-5 border-b border-white/[0.08] flex items-center gap-3.5 bg-gradient-to-b from-white/[0.04] to-transparent">
-        <div className="relative group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 p-0.5 shadow-[0_0_20px_rgba(242,191,78,0.3)] shrink-0 transition-transform duration-300 group-hover:scale-105">
-            <div className="w-full h-full bg-[#0c1022] rounded-[10px] flex items-center justify-center">
-              <Crown className="w-5 h-5 text-amber-300 drop-shadow-[0_0_8px_rgba(242,191,78,0.6)]" />
-            </div>
-          </div>
-          {/* Subtle Online Pulse Ring */}
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-[#070a14]" />
-          </span>
-        </div>
+    <SideNav
+      aria-label="Admin Portal Navigation"
+      topContent={
+        <HStack vAlign="center" justify="between" gap={2}>
+          <Text type="supporting" size="xsm" weight="semibold" color="secondary">
+            COUNCIL TIER
+          </Text>
+          <Badge variant={getRoleBadgeVariant(role)} label={getRoleDeskLabel(role)} />
+        </HStack>
+      }
+      footer={
+        <VStack gap={3}>
+          <Card variant="muted" padding={3}>
+            <VStack gap={1.5}>
+              <HStack gap={2} vAlign="center" justify="between">
+                <HStack gap={1.5} vAlign="center">
+                  <StatusDot variant="success" label="Realm cluster live" isPulsing />
+                  <Text type="supporting" size="sm" weight="semibold" color="primary">
+                    Realm Cluster Live
+                  </Text>
+                </HStack>
+                <Badge variant="green" label="NGO :7777" />
+              </HStack>
+              <Text type="supporting" size="xsm" color="secondary">
+                Role: {role || 'Admin'}
+              </Text>
+            </VStack>
+          </Card>
 
-        <div className="min-w-0">
-          <h1 className="font-extrabold tracking-wider text-base uppercase font-cinzel leading-none hy-gold-text">
-            PACTKEEPER
-          </h1>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="text-[10px] font-mono tracking-wider px-1.5 py-0.5 rounded bg-white/[0.06] text-amber-200 border border-white/[0.08]">
-              v2.4.0
-            </span>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wide font-sans truncate">
-              High Counsel
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Modules */}
-      <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-        <div className="px-3 mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 font-cinzel">
-          <span>{getSectionTitle()}</span>
-          <span className="text-amber-400/80 text-xs">❖</span>
-        </div>
-
-        {visibleNavItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                `group relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 tracking-wide ${
-                  isActive
-                    ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent text-amber-300 font-semibold border-l-2 border-amber-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
-                    : 'text-slate-300 hover:text-white hover:bg-white/[0.04] border-l-2 border-transparent'
-                }`
-              }
-            >
-              <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4 text-slate-400 group-hover:text-amber-300 transition-colors group-hover:scale-110 duration-200" />
-                <span className="truncate">{item.label}</span>
-              </div>
-              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-black/40 text-slate-400 border border-white/[0.06] group-hover:border-amber-400/30 group-hover:text-amber-300 transition-colors">
-                {item.tag}
-              </span>
-            </NavLink>
-          );
-        })}
-
-        {/* External Web Top-Up Shortcut */}
-        <div className="pt-2 mt-2 border-t border-white/[0.06]">
-          <a
+          <Button
+            variant="secondary"
+            size="sm"
+            width="100%"
+            label="Web Top-Up Portal"
             href={WEB_TOPUP_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium text-amber-200/80 hover:text-amber-200 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all tracking-wide"
-          >
-            <div className="flex items-center gap-3">
-              <Gem className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-              <span>Web Top-Up Center</span>
-            </div>
-            <ExternalLink className="w-3.5 h-3.5 text-amber-400/80" />
-          </a>
-        </div>
-      </nav>
+            icon={<Icon icon={ExternalLink} />}
+          />
 
-      {/* Dedicated Server Cluster Status Card */}
-      <div className="p-3.5 mx-3 mb-3 rounded-xl bg-[#12182e]/80 border border-white/[0.08] shadow-inner text-xs space-y-2">
-        <div className="flex items-center justify-between font-semibold">
-          <span className="text-[11px] uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>REALM CLUSTER</span>
-          </span>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 font-bold">
-            ONLINE
-          </span>
-        </div>
-        
-        <div className="text-[11px] text-slate-400 space-y-1 font-mono pt-1 border-t border-white/[0.06]">
-          <div className="flex justify-between items-center">
-            <span className="text-slate-400 font-sans">NGO Instance:</span>
-            <span className="text-slate-200">Port 7777</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-slate-400 font-sans">Active Role:</span>
-            <span className="text-amber-300 uppercase font-bold">{role}</span>
-          </div>
-        </div>
-      </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            width="100%"
+            label="Exit Counsel"
+            icon={<Icon icon={LogOut} />}
+            onClick={onLogout}
+          />
+        </VStack>
+      }
+    >
+      {opItems.length > 0 && (
+        <SideNavSection title="Command Operations">
+          {opItems.map((item) => (
+            <SideNavItem
+              key={item.path}
+              label={item.label}
+              icon={item.icon}
+              href={item.path}
+              isSelected={isRouteActive(item.path)}
+            />
+          ))}
+        </SideNavSection>
+      )}
 
-      {/* Logout Action */}
-      <div className="p-3.5 border-t border-white/[0.08] bg-black/40">
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-rose-950/40 text-slate-300 hover:text-rose-200 border border-white/[0.08] hover:border-rose-500/40 text-xs font-semibold tracking-wider transition-all duration-200 shadow active:scale-[0.98]"
-        >
-          <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-300" />
-          <span>EXIT COUNSEL</span>
-        </button>
-      </div>
-    </aside>
+      {liveOpsItems.length > 0 && (
+        <SideNavSection title="LiveOps & Economy">
+          {liveOpsItems.map((item) => (
+            <SideNavItem
+              key={item.path}
+              label={item.label}
+              icon={item.icon}
+              href={item.path}
+              isSelected={isRouteActive(item.path)}
+            />
+          ))}
+        </SideNavSection>
+      )}
+
+      {govItems.length > 0 && (
+        <SideNavSection title="Governance">
+          {govItems.map((item) => (
+            <SideNavItem
+              key={item.path}
+              label={item.label}
+              icon={item.icon}
+              href={item.path}
+              isSelected={isRouteActive(item.path)}
+            />
+          ))}
+        </SideNavSection>
+      )}
+    </SideNav>
   );
 };
+
+export default Sidebar;

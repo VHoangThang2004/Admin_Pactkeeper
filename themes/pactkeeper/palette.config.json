@@ -1,0 +1,120 @@
+{
+  "modeStrategy": "light-and-dark",
+  "families": [
+    {
+      "id": "accent",
+      "name": "Accent",
+      "seed": "#c88a12",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 65,
+          "color": "#c88a12",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 65,
+          "color": "#c88a12",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "neutral",
+      "name": "Neutral",
+      "seed": "#78716c",
+      "kind": "neutral",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 50,
+          "color": "#78716c",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 50,
+          "color": "#78716c",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "success",
+      "name": "Success",
+      "seed": "#16a34a",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 55,
+          "color": "#16a34a",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 55,
+          "color": "#16a34a",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "warning",
+      "name": "Warning",
+      "seed": "#d97706",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 60,
+          "color": "#d97706",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 60,
+          "color": "#d97706",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "danger",
+      "name": "Danger",
+      "seed": "#e11d48",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 50,
+          "color": "#e11d48",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 50,
+          "color": "#e11d48",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "info",
+      "name": "Info",
+      "seed": "#0891b2",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 55,
+          "color": "#0891b2",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 55,
+          "color": "#0891b2",
+          "policy": "exact"
+        }
+      ]
+    }
+  ]
+}

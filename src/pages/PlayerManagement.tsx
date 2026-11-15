@@ -1,50 +1,91 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import type { PlayerProfile, CounselRole } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Coins,
+  Copy,
+  Edit3,
+  Gem,
+  Inbox,
+  RefreshCw,
+  Search,
+  Shield,
+  Swords,
+  Terminal,
+  UserCheck,
+  UserPlus,
+  UserX,
+} from 'lucide-react';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Divider } from '@astryxdesign/core/Divider';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { Heading } from '@astryxdesign/core/Heading';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Icon } from '@astryxdesign/core/Icon';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { InputGroup } from '@astryxdesign/core/InputGroup';
+import { NumberInput } from '@astryxdesign/core/NumberInput';
+import { Section } from '@astryxdesign/core/Section';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { Selector } from '@astryxdesign/core/Selector';
+import { StackItem } from '@astryxdesign/core/Stack';
+import { StatusDot } from '@astryxdesign/core/StatusDot';
+import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
+import { Text } from '@astryxdesign/core/Text';
+import { TextArea } from '@astryxdesign/core/TextArea';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { VStack } from '@astryxdesign/core/VStack';
 import { adminClient } from '../api/adminClient';
-import { Search, UserCheck, UserX, Coins, Gem, Shield, Edit3, CheckCircle2, Inbox, RefreshCw, UserPlus, Info, Copy, Swords, Terminal } from 'lucide-react';
+import { recordAuditEvent } from '../services/adminSecurityService';
 import {
   fetchUnifiedPlayerData,
   subscribeToUnifiedPresence,
 } from '../services/playerPresenceService';
-import { recordAuditEvent } from '../services/adminSecurityService';
+import type { CounselRole, PlayerProfile } from '../types';
+import {
+  getPresenceBadgeVariant,
+  getPresenceDisplayLabel,
+  getPresenceStatusDotVariant,
+} from '../utils/presenceAstryx';
 
 interface PlayerManagementProps {
   role?: CounselRole;
 }
 
-/**
- * Player Management & Live-Ops Moderation Page (Screen 29 & 30)
- * 
- * Re-architected to HoYoverse AAA Gaming Standards:
- * 1. Multi-source Player Aggregation: Combines Google OAuth / Steam sessions,
- *    live support chat tickets (/api/Support/admin/players), and PayOS purchase history (/api/Payment/history).
- * 2. Role-Based Permissions (RBAC):
- *    - Support: Read-only inspection mode.
- *    - Moderator: Disciplinary authority (Account Ban / Unban actions).
- *    - Admin: Full authority including direct treasury balance adjustments with audit logging.
- * 3. Modern Dark Fantasy Glassmorphism Roster with live presence badges and high-contrast modals.
- */
+type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE';
+type BanDuration = 'TEMPORARY_24H' | 'TEMPORARY_7D' | 'PERMANENT';
+type PlayerTableRow = PlayerProfile & Record<string, unknown>;
+
+const BAN_DURATION_OPTIONS = [
+  { value: 'TEMPORARY_24H', label: 'Temporary Suspension (24 Hours)' },
+  { value: 'TEMPORARY_7D', label: 'Extended Suspension (7 Days)' },
+  { value: 'PERMANENT', label: 'Permanent Account Ban' },
+];
+
 export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admin' }) => {
   const [players, setPlayers] = useState<PlayerProfile[]>([]);
-  const [presenceFilter, setPresenceFilter] = useState<'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE'>('ALL');
+  const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [newPlayerIdInput, setNewPlayerIdInput] = useState('');
+
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerProfile | null>(null);
   const [adjustGems, setAdjustGems] = useState<number>(0);
   const [adjustGold, setAdjustGold] = useState<number>(0);
   const [compensationReason, setCompensationReason] = useState<string>('');
+
   const [banTargetPlayer, setBanTargetPlayer] = useState<PlayerProfile | null>(null);
   const [banReason, setBanReason] = useState<string>('');
-  const [banDuration, setBanDuration] = useState<'TEMPORARY_24H' | 'TEMPORARY_7D' | 'PERMANENT'>('PERMANENT');
+  const [banDuration, setBanDuration] = useState<BanDuration>('PERMANENT');
+
   const [unbanTargetPlayer, setUnbanTargetPlayer] = useState<PlayerProfile | null>(null);
+
   const [notification, setNotification] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  /**
-   * Fetches and aggregates active player profiles from unified presence engine
-   * synchronized with Unity_Pactkeeper client architecture.
-   */
   const fetchPlayers = async () => {
     setLoading(true);
     try {
@@ -70,7 +111,6 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         if (active) setLoading(false);
       });
 
-    // Subscribe to real-time player presence updates (SignalR LobbyHub & auto-polling)
     const unsubscribe = subscribeToUnifiedPresence((data) => {
       if (active) setPlayers(data.players);
     });
@@ -129,6 +169,8 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     if (!selectedPlayer) return;
     const finalReason = compensationReason.trim() || 'Admin Manual Treasury Adjustment';
     const isLargeDelta = Math.abs(adjustGems) >= 10000 || Math.abs(adjustGold) >= 100000;
+    setModalError(null);
+    setSubmitting(true);
     try {
       await adminClient.post(`/player/adjust-currencies`, {
         playerId: selectedPlayer.playerId,
@@ -147,7 +189,9 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         beforeState: { gems: selectedPlayer.gems ?? 0, gold: selectedPlayer.gold ?? 0 },
         afterState: { deltaGems: adjustGems, deltaGold: adjustGold },
       });
-      setNotification(`Successfully adjusted currencies for ${selectedPlayer.username} (${adjustGems >= 0 ? '+' : ''}${adjustGems} Gems, ${adjustGold >= 0 ? '+' : ''}${adjustGold} Gold).`);
+      setNotification(
+        `Successfully adjusted currencies for ${selectedPlayer.username} (${adjustGems >= 0 ? '+' : ''}${adjustGems} Gems, ${adjustGold >= 0 ? '+' : ''}${adjustGold} Gold).`
+      );
       setSelectedPlayer(null);
       setAdjustGems(0);
       setAdjustGold(0);
@@ -166,16 +210,22 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         status: 'FAILED',
         errorMessage: msg,
       });
-      alert(msg);
+      setModalError(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleConfirmBan = async () => {
     if (!banTargetPlayer) return;
     if (!banReason.trim()) {
-      alert('Violation rationale is required to enforce an authoritative disciplinary sanction.');
+      setModalError(
+        'Violation rationale is required to enforce an authoritative disciplinary sanction.'
+      );
       return;
     }
+    setModalError(null);
+    setSubmitting(true);
     try {
       await adminClient.post(`/player/ban`, {
         playerId: banTargetPlayer.playerId,
@@ -193,17 +243,23 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         beforeState: { isBanned: Boolean(banTargetPlayer.isBanned) },
         afterState: { isBanned: true, duration: banDuration },
       });
-      setNotification(`Account sanction enforced against ${banTargetPlayer.username} (${banDuration}) for: "${banReason.trim()}".`);
+      setNotification(
+        `Account sanction enforced against ${banTargetPlayer.username} (${banDuration}) for: "${banReason.trim()}".`
+      );
       setBanTargetPlayer(null);
       setBanReason('');
       fetchPlayers();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to enforce disciplinary ban.');
+      setModalError(err.response?.data?.message || 'Failed to enforce disciplinary ban.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleConfirmUnban = async () => {
     if (!unbanTargetPlayer) return;
+    setModalError(null);
+    setSubmitting(true);
     try {
       await adminClient.post(`/player/unban`, {
         playerId: unbanTargetPlayer.playerId,
@@ -223,497 +279,544 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       setUnbanTargetPlayer(null);
       fetchPlayers();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to restore player account.');
+      setModalError(err.response?.data?.message || 'Failed to restore player account.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const filteredPlayers = players.filter((p) => {
-    const matchesSearch =
-      p.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.playerId.toLowerCase().includes(searchTerm.toLowerCase());
+  const presenceCounts = useMemo(() => {
+    let online = 0;
+    let battle = 0;
+    let offline = 0;
+    for (const p of players) {
+      if (p.presence === 'Online') online += 1;
+      else if (p.presence === 'InBattle') battle += 1;
+      else offline += 1;
+    }
+    return { online, battle, offline };
+  }, [players]);
 
-    if (!matchesSearch) return false;
-    if (presenceFilter === 'ONLINE') return p.presence === 'Online';
-    if (presenceFilter === 'BATTLE') return p.presence === 'InBattle';
-    if (presenceFilter === 'OFFLINE') return p.presence === 'Offline';
-    return true;
-  });
+  const filteredPlayers = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return players.filter((p) => {
+      const matchesSearch =
+        p.username.toLowerCase().includes(q) || p.playerId.toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+      if (presenceFilter === 'ONLINE') return p.presence === 'Online';
+      if (presenceFilter === 'BATTLE') return p.presence === 'InBattle';
+      if (presenceFilter === 'OFFLINE') return p.presence === 'Offline';
+      return true;
+    });
+  }, [players, searchTerm, presenceFilter]);
+
+  const isSupport = role === 'Technical Support' || role === 'Support';
+  const isAdmin = role === 'Admin' || role === 'Server';
+
+  const columns: TableColumn<PlayerTableRow>[] = [
+    {
+      key: 'account',
+      header: 'Player Account',
+      width: proportional(2),
+      renderCell: (player) => (
+        <HStack gap={3} vAlign="center">
+          <div className="w-10 h-10 rounded-lg bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
+            <Text weight="bold" size="xsm" color="accent" className="font-cinzel">
+              {player.username.slice(0, 2).toUpperCase()}
+            </Text>
+          </div>
+          <VStack gap={0.5}>
+            <HStack gap={2} vAlign="center">
+              <Text weight="semibold" size="sm">
+                {player.username}
+              </Text>
+              <StatusDot
+                variant={getPresenceStatusDotVariant(player.presence || 'Offline', player.isBanned)}
+                isPulsing={player.presence !== 'Offline' && !player.isBanned}
+                label={player.presence || 'Offline'}
+              />
+            </HStack>
+            <HStack gap={1} vAlign="center">
+              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                Ref: #{player.playerId.slice(-6).toUpperCase()}
+              </Text>
+              <IconButton
+                label={`Copy Player ID for ${player.username}`}
+                tooltip={`Copy: ${player.playerId}`}
+                variant="ghost"
+                size="sm"
+                icon={<Icon icon={Copy} />}
+                onClick={() => {
+                  navigator.clipboard.writeText(player.playerId);
+                  setNotification(`Copied Player ID ${player.playerId} to clipboard.`);
+                }}
+              />
+            </HStack>
+          </VStack>
+        </HStack>
+      ),
+    },
+    {
+      key: 'level',
+      header: 'Level & EXP',
+      width: pixel(130),
+      renderCell: (player) => (
+        <VStack gap={1}>
+          <Badge label={`LV. ${player.level}`} variant="yellow" />
+          <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+            {player.experience.toLocaleString()} EXP
+          </Text>
+        </VStack>
+      ),
+    },
+    {
+      key: 'currencies',
+      header: 'Currencies',
+      width: proportional(1.4),
+      renderCell: (player) => (
+        <HStack gap={3} vAlign="center" wrap="wrap">
+          <HStack gap={1} vAlign="center">
+            <Icon icon={Coins} size="sm" color="accent" />
+            <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
+              {(player.gold ?? 0).toLocaleString()}
+            </Text>
+          </HStack>
+          <HStack gap={1} vAlign="center">
+            <Icon icon={Gem} size="sm" color="info" />
+            <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
+              {(player.gems ?? 0).toLocaleString()}
+            </Text>
+          </HStack>
+        </HStack>
+      ),
+    },
+    {
+      key: 'presence',
+      header: 'Live Presence',
+      width: proportional(1.6),
+      renderCell: (player) => (
+        <VStack gap={1}>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Badge
+              label={getPresenceDisplayLabel(player.presence || 'Offline')}
+              variant={getPresenceBadgeVariant(player.presence || 'Offline')}
+              icon={player.presence === 'InBattle' ? <Icon icon={Swords} /> : undefined}
+            />
+            {player.presence === 'InBattle' && (
+              <Button
+                href="/matches"
+                variant="ghost"
+                size="sm"
+                icon={<Icon icon={Terminal} />}
+                label="LOGS"
+                tooltip="Inspect Combat Logs for this Battle"
+              />
+            )}
+          </HStack>
+          <Text type="code" size="xsm" color="secondary" maxLines={1}>
+            {player.presenceDetails ||
+              (player.presence === 'InBattle'
+                ? 'In Active Match'
+                : player.presence === 'Online'
+                  ? 'Lobby & Realm Sanctuary'
+                  : 'Inactive')}
+          </Text>
+        </VStack>
+      ),
+    },
+    {
+      key: 'standing',
+      header: 'Standing',
+      width: pixel(120),
+      renderCell: (player) =>
+        player.isBanned ? (
+          <Badge label="EXILED" variant="error" icon={<Icon icon={UserX} />} />
+        ) : (
+          <Badge label="NORMAL" variant="success" icon={<Icon icon={UserCheck} />} />
+        ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      width: pixel(180),
+      align: 'end',
+      renderCell: (player) =>
+        isSupport ? (
+          <Badge label="Read-Only" variant="neutral" />
+        ) : (
+          <HStack gap={2} hAlign="end" vAlign="center">
+            {isAdmin && (
+              <IconButton
+                label={`Adjust currencies for ${player.username}`}
+                tooltip="Adjust Currencies"
+                variant="secondary"
+                size="sm"
+                icon={<Icon icon={Edit3} />}
+                onClick={() => {
+                  setModalError(null);
+                  setSelectedPlayer(player);
+                }}
+              />
+            )}
+            <Button
+              variant={player.isBanned ? 'secondary' : 'destructive'}
+              size="sm"
+              label={player.isBanned ? 'Unban' : 'Ban'}
+              onClick={() => {
+                setModalError(null);
+                if (player.isBanned) {
+                  setUnbanTargetPlayer(player);
+                } else {
+                  setBanTargetPlayer(player);
+                }
+              }}
+            />
+          </HStack>
+        ),
+    },
+  ];
 
   return (
-    <div className="space-y-6 select-none font-sans">
-      {/* Top Banner Astral Panel */}
-      <div className="hy-glass p-6 md:p-8 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
-        {/* Ornate Corner Marks */}
-        <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
-        <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+    <VStack gap={5}>
+      {/* Hero Banner */}
+      <Section padding={5}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+          <VStack gap={1.5}>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Badge label="SCREEN 29 & 30 • PLAYER CARE & DISCIPLINE" variant="yellow" />
+              <Text type="code" size="xsm" color="secondary">
+                {role === 'Moderator' ? 'User Directory' : 'Accounts Management'}
+              </Text>
+            </HStack>
+            <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
+              {role === 'Moderator'
+                ? 'USER DIRECTORY & DISCIPLINARY LOGS'
+                : 'MANAGE USER ACCOUNTS & TREASURY'}
+            </Heading>
+            <Text type="supporting" size="sm">
+              Authoritative aggregation across Google OAuth sessions, Live Support Tickets, and
+              In-Match Combatants.
+            </Text>
+          </VStack>
 
-        <div 
-          className="absolute -top-16 -right-16 w-80 h-80 bg-amber-500/[0.08] rounded-full blur-3xl pointer-events-none" 
-          aria-hidden="true" 
-        />
-        <div 
-          className="absolute -bottom-16 -left-16 w-72 h-72 bg-cyan-500/[0.05] rounded-full blur-3xl pointer-events-none" 
-          aria-hidden="true" 
-        />
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 uppercase font-bold tracking-wider shadow-[0_0_12px_rgba(242,191,78,0.15)]">
-                SCREEN 29 & 30 • PLAYER CARE & DISCIPLINE
-              </span>
-              <span className="text-slate-500 text-xs">•</span>
-              <span className="text-xs text-slate-400 font-mono">{role === 'Moderator' ? 'User Directory' : 'Accounts Management'}</span>
-            </div>
-            <h2 className="text-xl md:text-3xl font-extrabold tracking-wide font-cinzel uppercase hy-gold-text">
-              {role === 'Moderator' ? 'USER DIRECTORY & DISCIPLINARY LOGS' : 'MANAGE USER ACCOUNTS & TREASURY'}
-            </h2>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl font-sans">
-              Authoritative aggregation across Google OAuth sessions, Live Support Tickets, and In-Match Combatants.
-            </p>
-          </div>
-
-          <button
-            onClick={fetchPlayers}
-            disabled={loading}
-            className="hy-btn-gold px-4 py-2 text-xs font-bold flex items-center gap-2 self-start md:self-auto shadow-lg disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-slate-950 ${loading ? 'animate-spin' : ''}`} />
-            <span>SYNC PLAYERS</span>
-          </button>
-        </div>
-      </div>
+          <StackItem size="static">
+            <Button
+              variant="primary"
+              size="md"
+              isLoading={loading}
+              icon={<Icon icon={RefreshCw} />}
+              label="Sync Players"
+              onClick={fetchPlayers}
+            />
+          </StackItem>
+        </HStack>
+      </Section>
 
       {/* Role Notice */}
       {role === 'Moderator' && (
-        <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/35 text-cyan-200 text-xs flex items-center gap-2.5 backdrop-blur-md shadow-sm">
-          <Info className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span>
-            <strong>Realm Moderator Inspection Mode:</strong> Live presence tracking and match inspection enabled. Account balance adjustments are reserved for High Counsel Administrators.
-          </span>
-        </div>
+        <Banner
+          status="info"
+          title="Realm Moderator Inspection Mode"
+          description="Live presence tracking and match inspection enabled. Account balance adjustments are reserved for High Counsel Administrators."
+        />
       )}
 
       {notification && (
-        <div className="p-4 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-lg backdrop-blur-md animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>{notification}</span>
-          </div>
-          <button onClick={() => setNotification(null)} className="text-xs font-mono underline hover:text-white">
-            DISMISS
-          </button>
-        </div>
+        <Banner
+          status="success"
+          title="Player Directory Updated"
+          description={notification}
+          isDismissable
+          onDismiss={() => setNotification(null)}
+        />
       )}
 
-      {/* Search & Add Player Controls */}
-      <div className="hy-glass p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border border-white/[0.08]">
-        <div className="flex items-center gap-3 w-full md:w-96 bg-[#090d1a] border border-white/[0.1] focus-within:border-amber-400 rounded-xl px-3.5 py-2 text-sm text-slate-100 transition-colors">
-          <Search className="w-4 h-4 text-slate-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search by Player ID or Username..."
+      {/* Search & Load Player ID Controls */}
+      <Section padding={4}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+          <TextInput
+            label="Search by Player ID or Username"
+            isLabelHidden
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-transparent border-none outline-none w-full text-slate-100 placeholder-slate-500 text-xs font-sans"
+            onChange={setSearchTerm}
+            startIcon={Search}
+            placeholder="Search by Player ID or Username..."
+            hasClear
+            width={340}
           />
-        </div>
 
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
-          <input
-            type="text"
-            placeholder="Enter Player ID from DB (e.g. Google ID)..."
-            value={newPlayerIdInput}
-            onChange={(e) => setNewPlayerIdInput(e.target.value)}
-            className="bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono flex-1 md:w-80 transition-colors"
-          />
-          <button
-            onClick={handleAddPlayerById}
-            className="hy-btn-gold px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 shrink-0"
-          >
-            <UserPlus className="w-3.5 h-3.5 text-slate-950" /> LOAD ID
-          </button>
-        </div>
-      </div>
+          <InputGroup label="Load Player ID from database" isLabelHidden>
+            <TextInput
+              label="Player ID"
+              isLabelHidden
+              value={newPlayerIdInput}
+              onChange={setNewPlayerIdInput}
+              placeholder="Enter Player ID from DB (e.g. Google ID)..."
+              onEnter={handleAddPlayerById}
+              width={280}
+            />
+            <Button
+              variant="primary"
+              icon={<Icon icon={UserPlus} />}
+              label="Load ID"
+              isDisabled={!newPlayerIdInput.trim()}
+              onClick={handleAddPlayerById}
+            />
+          </InputGroup>
+        </HStack>
+      </Section>
 
-      {/* Presence Filter Tabs */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setPresenceFilter('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              presenceFilter === 'ALL'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                : 'bg-white/[0.04] text-slate-300 hover:text-white border border-white/[0.08]'
-            }`}
-          >
-            ALL PLAYERS ({players.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setPresenceFilter('ONLINE')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-              presenceFilter === 'ONLINE'
-                ? 'bg-emerald-500 text-slate-950 font-bold shadow'
-                : 'bg-white/[0.04] text-emerald-300 hover:text-white border border-emerald-500/30'
-            }`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-            ONLINE ({players.filter((p) => p.presence === 'Online').length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setPresenceFilter('BATTLE')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-              presenceFilter === 'BATTLE'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                : 'bg-white/[0.04] text-amber-300 hover:text-white border border-amber-500/30'
-            }`}
-          >
-            <Swords className="w-3.5 h-3.5 text-amber-400" />
-            IN BATTLE ({players.filter((p) => p.presence === 'InBattle').length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setPresenceFilter('OFFLINE')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              presenceFilter === 'OFFLINE'
-                ? 'bg-slate-700 text-white font-bold shadow'
-                : 'bg-white/[0.04] text-slate-400 hover:text-white border border-white/[0.08]'
-            }`}
-          >
-            OFFLINE ({players.filter((p) => p.presence === 'Offline').length})
-          </button>
-        </div>
-        <span className="text-xs font-mono text-slate-400">
+      {/* Presence Filter Controls */}
+      <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+        <SegmentedControl
+          label="Filter players by presence"
+          value={presenceFilter}
+          onChange={(val) => setPresenceFilter(val as PresenceFilter)}
+          size="sm"
+        >
+          <SegmentedControlItem value="ALL" label={`All Players (${players.length})`} />
+          <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
+          <SegmentedControlItem value="BATTLE" label={`In Battle (${presenceCounts.battle})`} />
+          <SegmentedControlItem value="OFFLINE" label={`Offline (${presenceCounts.offline})`} />
+        </SegmentedControl>
+
+        <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
           Showing {filteredPlayers.length} of {players.length} Heroes
-        </span>
-      </div>
+        </Text>
+      </HStack>
 
-      {/* Roster Table */}
-      <div className="hy-glass rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
+      {/* Player Table */}
+      <Section padding={4}>
         {filteredPlayers.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 space-y-2">
-            <Inbox className="w-8 h-8 mx-auto text-amber-400/60" />
-            <p className="text-sm font-bold font-cinzel text-slate-200">No player accounts match current search & presence filters.</p>
-            <p className="text-xs text-slate-500 font-sans">Type a Player ID into "LOAD ID" to query details.</p>
-          </div>
+          <EmptyState
+            icon={<Icon icon={Inbox} size="lg" color="accent" />}
+            title="No player accounts match current search and presence filters"
+            description="Type a Player ID into 'Load ID' above to query details directly."
+          />
         ) : (
-          <table className="w-full text-left text-xs font-sans">
-            <thead className="bg-slate-950/80 text-slate-400 font-cinzel font-bold text-[11px] border-b border-white/[0.08] uppercase tracking-wider">
-              <tr>
-                <th className="py-3.5 px-5">Player Account</th>
-                <th className="py-3.5 px-5">Level & EXP</th>
-                <th className="py-3.5 px-5">Currencies</th>
-                <th className="py-3.5 px-5">Live Presence</th>
-                <th className="py-3.5 px-5">Standing</th>
-                <th className="py-3.5 px-5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.04] text-slate-200">
-              {filteredPlayers.map((player) => (
-                <tr key={player.playerId} className="hover:bg-white/[0.03] transition-colors">
-                  <td className="py-4 px-5">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/[0.1] flex items-center justify-center text-amber-400 font-bold text-xs font-cinzel shrink-0 shadow">
-                          {player.username.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span
-                          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080a0f] ${
-                            player.presence === 'InBattle'
-                              ? 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]'
-                              : player.presence === 'Online'
-                              ? 'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]'
-                              : 'bg-slate-600'
-                          }`}
-                          title={player.presence || 'Offline'}
-                        />
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-100 text-xs block">
-                          {player.username}
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[11px] font-mono text-slate-400">
-                            Ref: #{player.playerId.slice(-6).toUpperCase()}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(player.playerId);
-                              setNotification(`Copied Player ID ${player.playerId} to clipboard.`);
-                            }}
-                            className="text-amber-400 hover:text-amber-300 transition-colors p-0.5"
-                            title={`Copy: ${player.playerId}`}
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-4 px-5">
-                    <span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-amber-300 border border-white/[0.08] font-mono font-bold text-[11px]">
-                      LV. {player.level}
-                    </span>
-                    <span className="text-[11px] text-slate-400 block font-mono mt-1">
-                      {player.experience.toLocaleString()} EXP
-                    </span>
-                  </td>
-
-                  <td className="py-4 px-5">
-                    <div className="flex items-center gap-3 font-mono text-xs">
-                      <span className="flex items-center gap-1 text-amber-300 font-semibold">
-                        <Coins className="w-3.5 h-3.5 text-amber-400" />
-                        {(player.gold ?? 0).toLocaleString()}
-                      </span>
-                      <span className="flex items-center gap-1 text-cyan-300 font-semibold">
-                        <Gem className="w-3.5 h-3.5 text-cyan-400" />
-                        {(player.gems ?? 0).toLocaleString()}
-                      </span>
-                    </div>
-                  </td>
-
-                  <td className="py-4 px-5">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1.5 border shadow-sm ${
-                            player.presence === 'InBattle'
-                              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-                              : player.presence === 'Online'
-                              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                              : 'bg-white/[0.04] border-white/[0.06] text-slate-400'
-                          }`}
-                        >
-                          {player.presence === 'InBattle' && <Swords className="w-3 h-3 text-amber-400 animate-bounce" />}
-                          {player.presence === 'Online' && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          )}
-                          {player.presence === 'Offline' && <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
-                          {player.presence === 'InBattle' ? 'IN BATTLE' : player.presence === 'Online' ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                        {player.presence === 'InBattle' && (
-                          <Link
-                            to="/matches"
-                            className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all shadow-sm"
-                            title="Inspect Combat Logs for this Battle"
-                          >
-                            <Terminal className="w-3 h-3" /> LOGS
-                          </Link>
-                        )}
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-400 truncate max-w-[200px]" title={player.presenceDetails}>
-                        {player.presenceDetails || (player.presence === 'InBattle' ? 'In Active Match' : player.presence === 'Online' ? 'Lobby & Realm Sanctuary' : 'Inactive')}
-                      </span>
-                    </div>
-                  </td>
-
-                  <td className="py-4 px-5">
-                    {player.isBanned ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-bold inline-flex items-center gap-1">
-                        <UserX className="w-3 h-3" /> EXILED
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold inline-flex items-center gap-1">
-                        <UserCheck className="w-3 h-3" /> NORMAL
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="py-4 px-5 text-right space-x-2">
-                    {(role === 'Technical Support' || role === 'Support') ? (
-                      <span className="text-xs font-mono text-slate-500 italic px-2.5 py-1 rounded bg-black/40 border border-white/[0.06] inline-block">
-                        Read-Only
-                      </span>
-                    ) : (
-                      <>
-                        {(role === 'Admin' || role === 'Server') && (
-                          <button
-                            onClick={() => setSelectedPlayer(player)}
-                            className="btn-glass p-1.5 text-amber-400"
-                            title="Adjust Currencies"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            if (player.isBanned) {
-                              setUnbanTargetPlayer(player);
-                            } else {
-                              setBanTargetPlayer(player);
-                            }
-                          }}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                            player.isBanned 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30' 
-                              : 'bg-rose-950/60 text-rose-300 border border-rose-500/40 hover:bg-rose-900/60'
-                          }`}
-                        >
-                          {player.isBanned ? 'Unban' : 'Ban'}
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            data={filteredPlayers as PlayerTableRow[]}
+            columns={columns}
+            idKey="playerId"
+            density="balanced"
+            dividers="rows"
+            hasHover
+          />
         )}
-      </div>
+      </Section>
 
-      {/* Adjust Currency Modal (Screen 30: Currency Grant with Audit Log) */}
-      {selectedPlayer && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="hy-glass p-6 md:p-7 rounded-2xl border border-amber-400/35 w-full max-w-md space-y-4 text-xs shadow-[0_20px_60px_rgba(0,0,0,0.9)] relative animate-in fade-in zoom-in-95 duration-200">
-            <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
-            <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
+      {/* Adjust Treasury Dialog */}
+      <Dialog
+        isOpen={selectedPlayer !== null}
+        onOpenChange={(open) => {
+          if (!open && !submitting) {
+            setSelectedPlayer(null);
+            setModalError(null);
+          }
+        }}
+        purpose="form"
+        width={480}
+        padding={5}
+      >
+        <DialogHeader
+          title={`ADJUST TREASURY — ${selectedPlayer?.username ?? ''}`}
+          subtitle={
+            selectedPlayer
+              ? `Ref #${selectedPlayer.playerId.slice(-6).toUpperCase()}`
+              : undefined
+          }
+          startContent={<Icon icon={Shield} size="md" color="accent" />}
+          onOpenChange={(open) => {
+            if (!open && !submitting) {
+              setSelectedPlayer(null);
+              setModalError(null);
+            }
+          }}
+        />
+        <VStack gap={4}>
+          {modalError && <Banner status="error" title="Adjustment Failed" description={modalError} />}
 
-            <h3 className="text-base font-bold font-cinzel text-slate-100 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-amber-300" />
-              ADJUST TREASURY — {selectedPlayer.username}
-            </h3>
-            <p className="text-xs text-slate-400">
-              Target Account: <strong className="text-amber-300">{selectedPlayer.username}</strong>
-              <span className="font-mono text-slate-400 ml-1.5">(Ref #{selectedPlayer.playerId.slice(-6).toUpperCase()})</span>
-            </p>
-            <div className="space-y-3.5">
-              <div>
-                <label className="font-semibold text-slate-300 block mb-1">Add / Deduct Gems (+/-)</label>
-                <input
-                  type="number"
-                  value={adjustGems}
-                  onChange={(e) => setAdjustGems(Number(e.target.value))}
-                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
-                />
-              </div>
-              <div>
-                <label className="font-semibold text-slate-300 block mb-1">Add / Deduct Gold (+/-)</label>
-                <input
-                  type="number"
-                  value={adjustGold}
-                  onChange={(e) => setAdjustGold(Number(e.target.value))}
-                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-mono"
-                />
-              </div>
-              <div>
-                <label className="font-semibold text-slate-300 block mb-1">Audit Rationale / Compensation Reason</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Server rollback compensation, test credit"
-                  value={compensationReason}
-                  onChange={(e) => setCompensationReason(e.target.value)}
-                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
-              <button onClick={() => setSelectedPlayer(null)} className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold">
-                Cancel
-              </button>
-              <button onClick={handleSaveAdjustment} className="hy-btn-gold px-4 py-1.5 text-xs font-bold shadow">
-                Apply Adjustments
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          <NumberInput
+            label="Add / Deduct Gems (+/-)"
+            value={adjustGems}
+            onChange={(val) => setAdjustGems(val)}
+            step={10}
+            isIntegerOnly
+            hasNumberSteppers
+            units="Gems"
+            width="100%"
+          />
 
-      {/* Disciplinary Ban Sanction Modal (Screen 30: Enforce Ban with Violation Reason) */}
-      {banTargetPlayer && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="hy-glass p-6 md:p-7 rounded-2xl border border-rose-500/40 w-full max-w-md space-y-4 text-xs shadow-[0_20px_60px_rgba(0,0,0,0.9)] relative animate-in fade-in zoom-in-95 duration-200">
-            <span className="absolute top-3 left-3 text-rose-400/40 text-xs">❖</span>
-            <span className="absolute top-3 right-3 text-rose-400/40 text-xs">❖</span>
+          <NumberInput
+            label="Add / Deduct Gold (+/-)"
+            value={adjustGold}
+            onChange={(val) => setAdjustGold(val)}
+            step={100}
+            isIntegerOnly
+            hasNumberSteppers
+            units="Gold"
+            width="100%"
+          />
 
-            <h3 className="text-base font-bold font-cinzel text-rose-300 flex items-center gap-2">
-              <UserX className="w-5 h-5 text-rose-400" />
-              ENFORCE DISCIPLINARY SANCTION
-            </h3>
-            <p className="text-xs text-slate-400">
-              Target Account: <strong className="text-slate-100">{banTargetPlayer.username}</strong>
-              <span className="font-mono text-slate-400 ml-1.5">(ID: {banTargetPlayer.playerId})</span>
-            </p>
-            <div className="space-y-3.5">
-              <div>
-                <label className="font-semibold text-slate-300 block mb-1">Sanction Duration</label>
-                <select
-                  value={banDuration}
-                  onChange={(e) => setBanDuration(e.target.value as any)}
-                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none font-sans"
-                >
-                  <option value="TEMPORARY_24H" className="bg-[#090d1a] text-slate-100">Temporary Suspension (24 Hours)</option>
-                  <option value="TEMPORARY_7D" className="bg-[#090d1a] text-slate-100">Extended Suspension (7 Days)</option>
-                  <option value="PERMANENT" className="bg-[#090d1a] text-slate-100">Permanent Account Ban</option>
-                </select>
-              </div>
-              <div>
-                <label className="font-semibold text-slate-300 block mb-1">
-                  Violation Rationale <span className="text-rose-400">*</span>
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Specify violation rationale (e.g. Speed hack in combat timeline, malicious desync, harassment)..."
-                  value={banReason}
-                  onChange={(e) => setBanReason(e.target.value)}
-                  className="w-full bg-[#090d1a] border border-white/[0.1] focus:border-rose-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none resize-none"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
-              <button
-                onClick={() => {
-                  setBanTargetPlayer(null);
-                  setBanReason('');
-                }}
-                className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmBan}
-                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-200 transition-all shadow-[0_0_14px_rgba(244,63,94,0.3)]"
-              >
-                Confirm Ban Sanction
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          <TextInput
+            label="Audit Rationale / Compensation Reason"
+            value={compensationReason}
+            onChange={setCompensationReason}
+            placeholder="e.g. Server rollback compensation, test credit"
+            width="100%"
+          />
 
-      {/* Lift Sanction Unban Modal */}
-      {unbanTargetPlayer && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="hy-glass p-6 md:p-7 rounded-2xl border border-emerald-500/40 w-full max-w-md space-y-4 text-xs shadow-[0_20px_60px_rgba(0,0,0,0.9)] relative animate-in fade-in zoom-in-95 duration-200">
-            <span className="absolute top-3 left-3 text-emerald-400/40 text-xs">❖</span>
-            <span className="absolute top-3 right-3 text-emerald-400/40 text-xs">❖</span>
+          <Divider />
 
-            <h3 className="text-base font-bold font-cinzel text-emerald-300 flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-emerald-400" />
-              LIFT ACCOUNT SANCTION
-            </h3>
-            <p className="text-xs text-slate-400">
+          <HStack gap={2} hAlign="end">
+            <Button
+              variant="secondary"
+              label="Cancel"
+              isDisabled={submitting}
+              onClick={() => {
+                setSelectedPlayer(null);
+                setModalError(null);
+              }}
+            />
+            <Button
+              variant="primary"
+              label="Apply Adjustments"
+              isLoading={submitting}
+              onClick={handleSaveAdjustment}
+            />
+          </HStack>
+        </VStack>
+      </Dialog>
+
+      {/* Disciplinary Ban Sanction Dialog */}
+      <Dialog
+        isOpen={banTargetPlayer !== null}
+        onOpenChange={(open) => {
+          if (!open && !submitting) {
+            setBanTargetPlayer(null);
+            setBanReason('');
+            setModalError(null);
+          }
+        }}
+        purpose="form"
+        width={480}
+        padding={5}
+      >
+        <DialogHeader
+          title="ENFORCE DISCIPLINARY SANCTION"
+          subtitle={
+            banTargetPlayer
+              ? `Target: ${banTargetPlayer.username} (ID: ${banTargetPlayer.playerId})`
+              : undefined
+          }
+          startContent={<Icon icon={UserX} size="md" color="error" />}
+          onOpenChange={(open) => {
+            if (!open && !submitting) {
+              setBanTargetPlayer(null);
+              setBanReason('');
+              setModalError(null);
+            }
+          }}
+        />
+        <VStack gap={4}>
+          {modalError && <Banner status="error" title="Sanction Error" description={modalError} />}
+
+          <Selector
+            label="Sanction Duration"
+            options={BAN_DURATION_OPTIONS}
+            value={banDuration}
+            onChange={(val) => setBanDuration(val as BanDuration)}
+            width="100%"
+          />
+
+          <TextArea
+            label="Violation Rationale"
+            isRequired
+            rows={3}
+            value={banReason}
+            onChange={setBanReason}
+            placeholder="Specify violation rationale (e.g. Speed hack in combat timeline, malicious desync, harassment)..."
+            width="100%"
+          />
+
+          <Divider />
+
+          <HStack gap={2} hAlign="end">
+            <Button
+              variant="secondary"
+              label="Cancel"
+              isDisabled={submitting}
+              onClick={() => {
+                setBanTargetPlayer(null);
+                setBanReason('');
+                setModalError(null);
+              }}
+            />
+            <Button
+              variant="destructive"
+              label="Confirm Ban Sanction"
+              isLoading={submitting}
+              onClick={handleConfirmBan}
+            />
+          </HStack>
+        </VStack>
+      </Dialog>
+
+      {/* Lift Sanction Dialog */}
+      <Dialog
+        isOpen={unbanTargetPlayer !== null}
+        onOpenChange={(open) => {
+          if (!open && !submitting) {
+            setUnbanTargetPlayer(null);
+            setModalError(null);
+          }
+        }}
+        purpose="form"
+        width={440}
+        padding={5}
+      >
+        <DialogHeader
+          title="LIFT ACCOUNT SANCTION"
+          subtitle="Restore game access and matchmaking eligibility"
+          startContent={<Icon icon={UserCheck} size="md" color="success" />}
+          onOpenChange={(open) => {
+            if (!open && !submitting) {
+              setUnbanTargetPlayer(null);
+              setModalError(null);
+            }
+          }}
+        />
+        <VStack gap={4}>
+          {modalError && <Banner status="error" title="Restore Failed" description={modalError} />}
+
+          <Card variant="muted" padding={3}>
+            <Text size="sm">
               Restore normal game access and matchmaking eligibility for wanderer{' '}
-              <strong className="text-slate-100">{unbanTargetPlayer.username}</strong>?
-            </p>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
-              <button onClick={() => setUnbanTargetPlayer(null)} className="hy-btn-glass px-3.5 py-1.5 text-xs font-semibold">
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmUnban}
-                className="px-4 py-1.5 rounded-xl font-bold font-cinzel bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-200 transition-all shadow-[0_0_14px_rgba(16,185,129,0.3)]"
-              >
-                Restore Account
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+              <strong>{unbanTargetPlayer?.username}</strong>?
+            </Text>
+          </Card>
+
+          <Divider />
+
+          <HStack gap={2} hAlign="end">
+            <Button
+              variant="secondary"
+              label="Cancel"
+              isDisabled={submitting}
+              onClick={() => {
+                setUnbanTargetPlayer(null);
+                setModalError(null);
+              }}
+            />
+            <Button
+              variant="primary"
+              label="Restore Account"
+              isLoading={submitting}
+              onClick={handleConfirmUnban}
+            />
+          </HStack>
+        </VStack>
+      </Dialog>
+    </VStack>
   );
 };

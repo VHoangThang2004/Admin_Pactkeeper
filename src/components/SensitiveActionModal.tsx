@@ -1,200 +1,194 @@
 import React, { useState } from 'react';
-import { AlertTriangle, FileText, ShieldAlert, X } from 'lucide-react';
-import type { AuditLogSeverity } from '../types';
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Text } from '@astryxdesign/core/Text';
+import { TextArea } from '@astryxdesign/core/TextArea';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { VStack } from '@astryxdesign/core/VStack';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
-interface SensitiveActionModalProps {
+export interface SensitiveActionModalProps {
   isOpen: boolean;
+  onClose?: () => void;
+  onCancel?: () => void;
+  onConfirm: (rationale: string) => Promise<void> | void;
   title: string;
   description: string;
-  severity: Extract<AuditLogSeverity, 'HIGH' | 'CRITICAL'>;
-  actionLabel: string;
   targetSummary?: string;
+  targetLabel?: string;
+  targetValue?: string;
+  actionLabel?: string;
+  severity?: 'HIGH' | 'CRITICAL';
   requireKeyword?: string;
-  minReasonLength?: number;
   loading?: boolean;
   error?: string | null;
-  onCancel: () => void;
-  onConfirm: (rationale: string) => void | Promise<void>;
+  externalError?: string | null;
 }
 
-/**
- * Confirmation and mandatory rationale dialog for sensitive High Counsel actions.
- */
 export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
   isOpen,
-  title,
-  description,
-  severity,
-  actionLabel,
-  targetSummary,
-  requireKeyword,
-  minReasonLength = 5,
-  loading = false,
-  error = null,
+  onClose,
   onCancel,
   onConfirm,
+  title,
+  description,
+  targetSummary,
+  targetLabel = 'Target',
+  targetValue,
+  actionLabel = 'Confirm Action',
+  severity = 'HIGH',
+  requireKeyword,
+  loading: externalLoading = false,
+  error: propError,
+  externalError,
 }) => {
   const [rationale, setRationale] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
+  const [internalLoading, setInternalLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
+  const minReasonLength = 5;
   const isCritical = severity === 'CRITICAL';
+  const busy = externalLoading || internalLoading;
 
-  const handleClose = () => {
+  const closeHandler = () => {
+    if (busy) return;
     setRationale('');
     setKeywordInput('');
     setValidationError(null);
-    onCancel();
+    onCancel?.();
+    onClose?.();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedReason = rationale.trim();
     if (trimmedReason.length < minReasonLength) {
-      setValidationError(
-        `Please enter an audit rationale of at least ${minReasonLength} characters.`
-      );
+      setValidationError(`Audit reason must be at least ${minReasonLength} characters.`);
       return;
     }
     if (requireKeyword && keywordInput.trim().toUpperCase() !== requireKeyword.toUpperCase()) {
-      setValidationError(`Type "${requireKeyword}" to confirm this critical operation.`);
+      setValidationError(`Please type "${requireKeyword}" to confirm this critical action.`);
       return;
     }
 
     setValidationError(null);
-    await onConfirm(trimmedReason);
-    setRationale('');
-    setKeywordInput('');
+    setInternalLoading(true);
+    try {
+      await onConfirm(trimmedReason);
+      setRationale('');
+      setKeywordInput('');
+    } catch (err: unknown) {
+      const errObj = err as { response?: { data?: { message?: string } }; message?: string };
+      setValidationError(
+        errObj?.response?.data?.message || errObj?.message || 'Action execution failed.'
+      );
+    } finally {
+      setInternalLoading(false);
+    }
   };
 
+  const activeError = validationError || propError || externalError;
+  const displayTarget = targetSummary || targetValue;
+
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-      onClick={handleClose}
+    <Dialog
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open) closeHandler();
+      }}
+      purpose="form"
+      width={500}
     >
-      <div
-        className={`hy-glass w-full max-w-md rounded-2xl border p-6 space-y-4 shadow-2xl relative ${
-          isCritical ? 'border-rose-500/45' : 'border-amber-400/40'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3.5">
-          <div className="flex items-start gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 ${
-                isCritical
-                  ? 'bg-rose-500/15 border-rose-500/35 text-rose-400'
-                  : 'bg-amber-500/15 border-amber-400/35 text-amber-300'
-              }`}
-            >
-              {isCritical ? (
-                <ShieldAlert className="w-5 h-5" />
-              ) : (
-                <AlertTriangle className="w-5 h-5" />
-              )}
-            </div>
-            <div>
-              <span
-                className={`inline-block text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full border ${
-                  isCritical
-                    ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                    : 'bg-amber-500/15 text-amber-300 border-amber-400/30'
-                }`}
-              >
-                {severity} SENSITIVE ACTION
-              </span>
-              <h3 className="text-base font-bold font-cinzel text-slate-100 mt-1">{title}</h3>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={loading}
-            className="text-slate-400 hover:text-slate-100 p-1 rounded-lg hover:bg-white/10"
-            aria-label="Close confirmation dialog"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      <VStack gap={4}>
+        <DialogHeader
+          title={title}
+          subtitle={isCritical ? 'CRITICAL GOVERNANCE ACTION' : 'HIGH SENSITIVITY ACTION'}
+          startContent={
+            isCritical ? (
+              <ShieldAlert className="w-5 h-5 text-[var(--color-icon-error)]" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-[var(--color-icon-warning)]" />
+            )
+          }
+          onOpenChange={(open) => {
+            if (!open) closeHandler();
+          }}
+        />
 
-        <p className="text-xs text-slate-300 leading-relaxed">{description}</p>
+        <Banner
+          status={isCritical ? 'error' : 'warning'}
+          title={isCritical ? 'Irreversible / Realm-Wide Impact' : 'Audit Logged Operation'}
+          description={description}
+          collapsible={false}
+        />
 
-        {targetSummary && (
-          <div className="rounded-xl bg-slate-950/70 border border-white/10 px-3.5 py-2.5 text-xs">
-            <span className="text-slate-400">Target: </span>
-            <span className="font-mono font-semibold text-amber-200">{targetSummary}</span>
-          </div>
+        {displayTarget && (
+          <Card variant="muted" padding={3}>
+            <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
+              <Text type="supporting" size="sm" color="secondary">
+                {targetLabel}
+              </Text>
+              <Text type="code" size="sm" weight="bold" color="primary">
+                {displayTarget}
+              </Text>
+            </HStack>
+          </Card>
         )}
 
-        {(validationError || error) && (
-          <div className="rounded-xl bg-rose-950/60 border border-rose-500/40 px-3.5 py-2.5 text-xs text-rose-200">
-            {validationError || error}
-          </div>
+        {activeError && (
+          <Banner status="error" title="Authorization Blocked" description={activeError} collapsible={false} />
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
-          <div>
-            <label className="font-semibold text-slate-200 flex items-center gap-1.5 mb-1.5">
-              <FileText className="w-3.5 h-3.5 text-amber-400" />
-              <span>
-                Audit Rationale <span className="text-rose-400">*</span>
-              </span>
-            </label>
-            <textarea
-              rows={3}
+        <form onSubmit={handleSubmit}>
+          <VStack gap={3}>
+            <TextArea
+              label="Mandatory Audit Reason (min 5 chars)"
               value={rationale}
-              onChange={(e) => {
-                setRationale(e.target.value);
+              onChange={(val) => {
+                setRationale(val);
                 if (validationError) setValidationError(null);
               }}
+              rows={3}
+              isRequired
               placeholder="Explain why this sensitive action is being executed (recorded to Security Audit Log)..."
-              className="w-full bg-[#090d1a] border border-white/15 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none resize-none"
             />
-          </div>
 
-          {requireKeyword && (
-            <div>
-              <label className="font-semibold text-slate-200 block mb-1.5">
-                Type <code className="text-rose-300 font-mono">{requireKeyword}</code> to authorize
-              </label>
-              <input
-                type="text"
+            {requireKeyword && (
+              <TextInput
+                label={`Type "${requireKeyword}" to authorize`}
                 value={keywordInput}
-                onChange={(e) => {
-                  setKeywordInput(e.target.value);
+                onChange={(val) => {
+                  setKeywordInput(val);
                   if (validationError) setValidationError(null);
                 }}
                 placeholder={requireKeyword}
-                className="w-full bg-[#090d1a] border border-rose-500/35 focus:border-rose-400 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 outline-none"
+                isRequired
               />
-            </div>
-          )}
+            )}
 
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={loading}
-              className="hy-btn-glass px-3.5 py-2 rounded-xl text-xs font-semibold"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`px-4 py-2 rounded-xl text-xs font-bold shadow transition-all disabled:opacity-50 ${
-                isCritical
-                  ? 'bg-rose-600 hover:bg-rose-500 text-white'
-                  : 'hy-btn-gold text-slate-950'
-              }`}
-            >
-              {loading ? 'Executing...' : actionLabel}
-            </button>
-          </div>
+            <HStack gap={2} justify="end" paddingBlockStart={2}>
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={closeHandler}
+                isDisabled={busy}
+              />
+              <Button
+                type="submit"
+                variant={isCritical ? 'destructive' : 'primary'}
+                label={busy ? 'Executing...' : actionLabel}
+                isLoading={busy}
+              />
+            </HStack>
+          </VStack>
         </form>
-      </div>
-    </div>
+      </VStack>
+    </Dialog>
   );
 };
+
+export default SensitiveActionModal;

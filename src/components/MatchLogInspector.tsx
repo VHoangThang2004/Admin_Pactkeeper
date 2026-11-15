@@ -1,26 +1,43 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Terminal,
-  Search,
-  RefreshCw,
-  Copy,
-  Download,
-  AlertTriangle,
+  Calendar,
   CheckCircle2,
-  FileText,
-  ArrowDownCircle,
-  Radio,
-  AlertCircle,
-  FolderOpen,
-  Clock,
   ChevronDown,
   ChevronUp,
+  Clock,
+  Copy,
+  Download,
+  FileText,
   Filter,
-  Calendar,
-  SlidersHorizontal
+  FolderOpen,
+  Radio,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  Terminal,
 } from 'lucide-react';
-import { fetchMatchLogs, fetchAvailableLogFiles } from '../api/matchLogApi';
-import type { MatchLogResponse, MatchLogLevel, LogFileInfo } from '../types';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { Divider } from '@astryxdesign/core/Divider';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { Heading } from '@astryxdesign/core/Heading';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Icon } from '@astryxdesign/core/Icon';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { InputGroup } from '@astryxdesign/core/InputGroup';
+import { Section } from '@astryxdesign/core/Section';
+import { Selector } from '@astryxdesign/core/Selector';
+import { StatusDot } from '@astryxdesign/core/StatusDot';
+import { Switch } from '@astryxdesign/core/Switch';
+import { Text } from '@astryxdesign/core/Text';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { VStack } from '@astryxdesign/core/VStack';
+import { fetchAvailableLogFiles, fetchMatchLogs } from '../api/matchLogApi';
+import type { LogFileInfo, MatchLogLevel, MatchLogResponse } from '../types';
+import { downloadLogText, formatLogDateTime } from '../utils/logFormat';
+import { LogTerminalView } from './LogTerminalView';
 
 interface MatchLogInspectorProps {
   initialMatchId?: string;
@@ -54,7 +71,6 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     selectedMatchIdRef.current = selectedMatchId;
   }, [selectedMatchId]);
 
-  // Synchronize initialMatchId when changed from parent
   if (initialMatchId !== prevInitialMatchId) {
     setPrevInitialMatchId(initialMatchId);
     if (initialMatchId && initialMatchId !== selectedMatchId) {
@@ -63,31 +79,9 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     }
   }
 
-  const loading = manualLoading || (Boolean(selectedMatchId) && resolvedMatchId !== selectedMatchId);
+  const loading =
+    manualLoading || (Boolean(selectedMatchId) && resolvedMatchId !== selectedMatchId);
 
-  // Helper to format full date (DD/MM/YYYY) and time (HH:mm:ss)
-  const formatDateTime = useCallback((dateStr?: string) => {
-    if (!dateStr) return { date: 'N/A', time: '', full: 'N/A' };
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return { date: 'N/A', time: '', full: 'N/A' };
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      const hours = String(d.getHours()).padStart(2, '0');
-      const minutes = String(d.getMinutes()).padStart(2, '0');
-      const seconds = String(d.getSeconds()).padStart(2, '0');
-      return {
-        date: `${day}/${month}/${year}`,
-        time: `${hours}:${minutes}:${seconds}`,
-        full: `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
-      };
-    } catch {
-      return { date: 'N/A', time: '', full: 'N/A' };
-    }
-  }, []);
-
-  // Strict date descending sorting (newest first from top to bottom)
   const sortedLogFiles = useMemo(() => {
     return [...availableLogFiles].sort((a, b) => {
       const timeA = a.lastModifiedUtc ? new Date(a.lastModifiedUtc).getTime() : 0;
@@ -96,27 +90,21 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     });
   }, [availableLogFiles]);
 
-  // Current active total count
   const currentTotal = sortedLogFiles.length;
 
-  // Dynamic limit options based on total logs available: 50, 100, 150, 200,...
   const limitOptions = useMemo(() => {
-    const total = currentTotal;
     const opts: number[] = [];
-    const step = 50;
-    for (let i = step; i < total; i += step) {
+    for (let i = 50; i < currentTotal; i += 50) {
       opts.push(i);
     }
     return opts;
   }, [currentTotal]);
 
-  // Sliced items for Main Select Dropdown according to displayLimit
   const selectLogFiles = useMemo(() => {
     if (displayLimit === 'ALL') return sortedLogFiles;
     return sortedLogFiles.slice(0, displayLimit);
   }, [sortedLogFiles, displayLimit]);
 
-  // Fetch lists on mount
   const applyAvailableFiles = useCallback((files: LogFileInfo[]) => {
     setAvailableLogFiles(files);
     if (!selectedMatchIdRef.current && files.length > 0) {
@@ -153,7 +141,6 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     };
   }, [applyAvailableFiles]);
 
-  // Manual log loader (Sync button & Tail -f)
   const loadLogs = useCallback(async (matchIdToLoad: string) => {
     if (!matchIdToLoad) return;
     setManualLoading(true);
@@ -201,39 +188,19 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     };
   }, [selectedMatchId]);
 
-  // Live Auto-Refresh polling (tail -f)
   useEffect(() => {
-    let interval: any = null;
-    if (autoRefresh && selectedMatchId) {
-      interval = setInterval(() => {
-        loadLogs(selectedMatchId);
-      }, 3000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    if (!autoRefresh || !selectedMatchId) return;
+    const interval = setInterval(() => {
+      void loadLogs(selectedMatchId);
+    }, 3000);
+    return () => clearInterval(interval);
   }, [autoRefresh, selectedMatchId, loadLogs]);
 
-  // Auto scroll to bottom ONLY within terminal container when enabled (never scrolling whole window)
   useEffect(() => {
     if (autoScroll && terminalBodyRef.current) {
       terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
     }
   }, [logData, autoScroll]);
-
-  // Filtered log lines
-  const filteredLines = useMemo(() => {
-    if (!logData) return [];
-    return logData.lines.filter((line) => {
-      if (filterLevel !== 'ALL' && line.level !== filterLevel) {
-        return false;
-      }
-      if (searchQuery.trim()) {
-        return line.raw.toLowerCase().includes(searchQuery.toLowerCase());
-      }
-      return true;
-    });
-  }, [logData, filterLevel, searchQuery]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,553 +218,344 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
 
   const handleDownloadLog = () => {
     if (!logData) return;
-    const blob = new Blob([logData.rawText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedMatchId}.log`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadLogText(selectedMatchId, logData.rawText);
   };
 
-  const errorCount = useMemo(() => {
-    return logData?.lines.filter((l) => l.level === 'ERROR').length || 0;
-  }, [logData]);
+  const fileSelectOptions = useMemo(() => {
+    return selectLogFiles.map((file, idx) => {
+      const dt = formatLogDateTime(file.lastModifiedUtc || file.createdAtUtc);
+      const kb = (file.fileSizeBytes / 1024).toFixed(1);
+      return {
+        value: file.matchId,
+        label: `${idx === 0 ? '★ [LATEST] ' : `[#${idx + 1}] `}[${dt.date} ${dt.time}] - ${file.fileName} (${kb} KB)`,
+      };
+    });
+  }, [selectLogFiles]);
 
-  const warnCount = useMemo(() => {
-    return logData?.lines.filter((l) => l.level === 'WARN').length || 0;
-  }, [logData]);
+  const limitSelectOptions = useMemo(() => {
+    const base = limitOptions.map((opt) => ({ value: String(opt), label: `${opt} logs` }));
+    base.push({ value: 'ALL', label: `All (${currentTotal} logs)` });
+    return base;
+  }, [limitOptions, currentTotal]);
+
+  const filteredDirectoryFiles = useMemo(() => {
+    const q = browseSearch.trim().toLowerCase();
+    const filtered = sortedLogFiles.filter((f) => {
+      if (!q) return true;
+      const dt = formatLogDateTime(f.lastModifiedUtc || f.createdAtUtc);
+      return (
+        f.matchId.toLowerCase().includes(q) ||
+        f.fileName.toLowerCase().includes(q) ||
+        dt.full.toLowerCase().includes(q)
+      );
+    });
+    return displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
+  }, [sortedLogFiles, browseSearch, displayLimit]);
 
   return (
-    <div className="space-y-4 font-sans text-slate-100">
-      {/* Top Banner & Quick Controls */}
-      <div className="glass-panel p-5 rounded-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-slate-900/80 border border-white/[0.1] flex items-center justify-center text-amber-400 shadow-inner">
-            <Terminal className="w-5 h-5 text-amber-400" />
-          </div>
-          <div>
-            <h2 className="text-base font-bold font-cinzel tracking-wider uppercase flex items-center gap-2 gold-gradient-text">
-              MATCH SERVER LOG INSPECTOR
-              {logData && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono normal-case flex items-center gap-1 font-bold">
-                  <Radio className="w-3 h-3 animate-pulse" /> LIVE VPS LOG
-                </span>
-              )}
-            </h2>
-            <p className="text-xs text-slate-400">
-              Streaming real-time stdout/stderr from Dedicated Game Server instance (<code className="text-amber-300 font-mono">logs/match_*.log</code>)
-            </p>
-          </div>
-        </div>
+    <VStack gap={4}>
+      {/* Header & Streaming Actions */}
+      <Section padding={4}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+          <HStack gap={3} vAlign="center">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
+              <Icon icon={Terminal} size="md" color="accent" />
+            </div>
+            <VStack gap={0.5}>
+              <HStack gap={2} vAlign="center" wrap="wrap">
+                <Heading level={2} className="font-cinzel pk-gold-text">
+                  MATCH SERVER LOG INSPECTOR
+                </Heading>
+                {logData && (
+                  <Badge
+                    label="LIVE VPS LOG"
+                    variant="success"
+                    icon={<Icon icon={Radio} />}
+                  />
+                )}
+              </HStack>
+              <Text type="supporting" size="xsm">
+                Streaming real-time stdout/stderr from Dedicated Game Server instance (
+                <code>logs/match_*.log</code>)
+              </Text>
+            </VStack>
+          </HStack>
 
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Auto Refresh Tail -f Toggle */}
-          <button
-            type="button"
-            disabled={!selectedMatchId}
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed ${
-              autoRefresh
-                ? 'bg-emerald-500 text-slate-950 font-bold border border-emerald-400 animate-pulse'
-                : 'btn-glass text-slate-300'
-            }`}
-            title="Automatically poll and stream latest log additions every 3 seconds"
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>TAIL -F {autoRefresh ? '(STREAMING)' : ''}</span>
-          </button>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Switch
+              label={autoRefresh ? 'TAIL -F (Streaming)' : 'TAIL -F'}
+              value={autoRefresh}
+              isDisabled={!selectedMatchId}
+              size="sm"
+              onChange={(checked) => setAutoRefresh(checked)}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={!selectedMatchId}
+              isLoading={loading}
+              icon={<Icon icon={RefreshCw} />}
+              label="Sync"
+              onClick={() => loadLogs(selectedMatchId)}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={!logData}
+              icon={<Icon icon={copied ? CheckCircle2 : Copy} />}
+              label={copied ? 'Copied!' : 'Copy'}
+              onClick={handleCopyLogs}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={!logData}
+              icon={<Icon icon={Download} />}
+              label="Export .log"
+              tooltip="Download full .log file"
+              onClick={handleDownloadLog}
+            />
+          </HStack>
+        </HStack>
+      </Section>
 
-          {/* Manual Refresh */}
-          <button
-            type="button"
-            onClick={() => loadLogs(selectedMatchId)}
-            disabled={loading || !selectedMatchId}
-            className="btn-glass px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shadow disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
-            <span>SYNC</span>
-          </button>
+      {/* Log Source, Dropdown, Manual GUID & Chronological Directory */}
+      <Section padding={4}>
+        <VStack gap={3}>
+          <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+            <Badge
+              label={`Dedicated VPS Log Files (${availableLogFiles.length})`}
+              variant="info"
+              icon={<Icon icon={FolderOpen} />}
+            />
+            <HStack gap={2} vAlign="center">
+              <Text type="code" size="xsm" color="secondary">
+                Selected Target:
+              </Text>
+              <Text type="code" size="xsm" weight="bold" color="accent">
+                {selectedMatchId ? `#${selectedMatchId.slice(0, 8)}` : 'None'}
+              </Text>
+            </HStack>
+          </HStack>
 
-          {/* Copy Logs */}
-          <button
-            type="button"
-            onClick={handleCopyLogs}
-            disabled={!logData}
-            className="btn-glass px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shadow transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
-            <span>{copied ? 'COPIED!' : 'COPY'}</span>
-          </button>
+          <Divider />
 
-          {/* Download Log File */}
-          <button
-            type="button"
-            onClick={handleDownloadLog}
-            disabled={!logData}
-            className="btn-glass px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shadow transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Download full .log file"
-          >
-            <Download className="w-3.5 h-3.5 text-cyan-400" />
-            <span>EXPORT .LOG</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Compact Log Selector & Search Bar */}
-      <div className="glass-panel p-3.5 rounded-2xl border border-white/[0.08] space-y-3">
-        {/* Log Source Indicator & Quick Target */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] pb-2.5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold font-mono text-cyan-300 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30">
-              <FolderOpen className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Dedicated VPS Log Files ({availableLogFiles.length})</span>
-            </span>
-          </div>
-
-          {/* Quick Stats / Active Match indicator */}
-          <div className="text-[11px] font-mono text-slate-400 flex items-center gap-2">
-            <span>Selected Target:</span>
-            <span className="text-amber-300 font-bold">
-              {selectedMatchId ? `#${selectedMatchId.slice(0, 8)}` : 'None'}
-            </span>
-          </div>
-        </div>
-
-        {/* Primary Controls Row: Dropdown, Manual Search, Load, and Browse Drawer Toggle */}
-        <div className="flex flex-col lg:flex-row items-center gap-2">
-          {/* Main Dropdown */}
-          <div className="flex-1 w-full relative">
-            <select
-              value={selectedMatchId}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setInputMatchId(e.target.value);
-                  setSelectedMatchId(e.target.value);
-                }
-              }}
-              className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 outline-none transition-all cursor-pointer shadow-inner"
-            >
-              <option value="" disabled>-- Select Server Log File ({selectLogFiles.length} of {sortedLogFiles.length} files - Newest First) --</option>
-              {selectLogFiles.map((file, idx) => {
-                const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
-                const kb = (file.fileSizeBytes / 1024).toFixed(1);
-                return (
-                  <option key={file.fileName} value={file.matchId} className="bg-slate-900 text-slate-100">
-                    {idx === 0 ? '★ [LATEST] ' : `[#${idx + 1}] `}[{dt.date} {dt.time}] - {file.fileName} ({kb} KB)
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          {/* Manual Input + Action */}
-          <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-            <div className="relative flex-1 lg:w-48">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={inputMatchId}
-                onChange={(e) => setInputMatchId(e.target.value)}
-                placeholder="Or paste custom GUID..."
-                className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-amber-400 rounded-xl pl-8 pr-2 py-2 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none transition-all shadow-inner"
+          <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+            <div className="flex-1 min-w-[260px]">
+              <Selector
+                label="Select Server Log File"
+                isLabelHidden
+                options={fileSelectOptions}
+                value={selectedMatchId}
+                hasSearch
+                placeholder={`Select Server Log File (${selectLogFiles.length} of ${sortedLogFiles.length} files - Newest First)`}
+                onChange={(val) => {
+                  if (val) {
+                    setInputMatchId(val);
+                    setSelectedMatchId(val);
+                  }
+                }}
+                width="100%"
               />
             </div>
-            <button
-              type="submit"
-              className="btn-primary-gold px-3.5 py-2 text-xs font-bold flex items-center justify-center gap-1 shadow shrink-0"
-            >
-              <span>LOAD</span>
-            </button>
-            <button
-              type="button"
-              onClick={refreshFiles}
-              title="Rescan server files on VPS"
-              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-amber-400 transition-all shrink-0"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
 
-            {/* Display Limit Dropdown in Primary Row */}
-            <div className="flex items-center gap-1.5 shrink-0 bg-slate-950/80 border border-white/[0.1] rounded-xl px-2.5 py-1.5 shadow-inner">
-              <SlidersHorizontal className="w-3 h-3 text-amber-400" />
-              <span className="text-[11px] font-mono text-slate-400">Max:</span>
-              <select
-                value={displayLimit}
-                onChange={(e) => setDisplayLimit(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                className="bg-transparent text-xs font-mono text-amber-300 font-bold outline-none cursor-pointer"
-                title="Select maximum logs to display (50, 100, 150, 200, ... or All)"
-              >
-                {limitOptions.map((opt) => (
-                  <option key={opt} value={opt} className="bg-slate-900 text-slate-100">
-                    {opt}
-                  </option>
-                ))}
-                <option value="ALL" className="bg-slate-900 text-slate-100">
-                  All ({currentTotal})
-                </option>
-              </select>
-            </div>
+            <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-center gap-2">
+              <InputGroup label="Load custom Match GUID" isLabelHidden>
+                <TextInput
+                  label="Custom Match GUID"
+                  isLabelHidden
+                  value={inputMatchId}
+                  onChange={setInputMatchId}
+                  startIcon={Search}
+                  placeholder="Or paste custom GUID..."
+                  width={200}
+                />
+                <Button type="submit" variant="primary" label="Load" />
+              </InputGroup>
 
-            {/* Toggle Drawer Button */}
-            <button
-              type="button"
-              onClick={() => setBrowseExpanded(!browseExpanded)}
-              className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
-                browseExpanded
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow'
-                  : 'bg-white/[0.04] border-white/[0.08] text-slate-300 hover:border-amber-400/40'
-              }`}
-              title="Toggle log list sorted by date descending"
-            >
-              <Calendar className="w-3.5 h-3.5 text-amber-400" />
-              <span>Directory ({sortedLogFiles.length})</span>
-              {browseExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-          </form>
-        </div>
+              <IconButton
+                label="Rescan server files on VPS"
+                tooltip="Rescan server files on VPS"
+                variant="secondary"
+                icon={<Icon icon={RefreshCw} />}
+                onClick={refreshFiles}
+              />
 
-        {/* Clean Info Header / Sorting Indicator */}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 px-1 text-slate-400">
-          <div className="flex items-center gap-1.5 font-mono">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <span>
-              Order: <strong className="text-amber-300">Newest first (Top to Bottom) ↓</strong> • Showing up to <span className="text-amber-300 font-bold">{displayLimit === 'ALL' ? currentTotal : displayLimit}</span> of {currentTotal} logs
-            </span>
-          </div>
-          {selectedMatchId && (
-            <div className="text-[11px] font-mono text-slate-400">
-              Selected: <span className="text-amber-300 font-bold">{selectedMatchId}</span>
-            </div>
-          )}
-        </div>
+              <Selector
+                label="Max logs to display"
+                isLabelHidden
+                startIcon={SlidersHorizontal}
+                options={limitSelectOptions}
+                value={String(displayLimit)}
+                onChange={(val) => setDisplayLimit(val === 'ALL' ? 'ALL' : Number(val))}
+                variant="secondary"
+                width={140}
+              />
 
-        {/* Vertical Ordered Log List */}
-        {browseExpanded && (
-          <div className="pt-2 border-t border-white/[0.08] space-y-2">
-            {/* Filter toolbar inside drawer */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-950/60 p-2.5 rounded-xl border border-white/[0.08]">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                  CHRONOLOGICAL DIRECTORY
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold">
-                  {sortedLogFiles.length} files
-                </span>
-              </div>
+              <Button
+                variant={browseExpanded ? 'primary' : 'secondary'}
+                icon={<Icon icon={Calendar} />}
+                endContent={<Icon icon={browseExpanded ? ChevronUp : ChevronDown} />}
+                label={`Directory (${sortedLogFiles.length})`}
+                onClick={() => setBrowseExpanded((prev) => !prev)}
+              />
+            </form>
+          </HStack>
 
-              {/* Toolbar right controls: Search input + Display Limit selector */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-full sm:w-60">
-                  <Filter className="w-3 h-3 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={browseSearch}
-                    onChange={(e) => setBrowseSearch(e.target.value)}
-                    placeholder="Filter by date, ID, file..."
-                    className="w-full bg-slate-950 border border-white/[0.1] focus:border-amber-400 rounded-lg pl-8 pr-2 py-1 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none"
+          <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+            <HStack gap={1.5} vAlign="center">
+              <Icon icon={Clock} size="xsm" color="accent" />
+              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                Order: <strong>Newest first (Top to Bottom)</strong> • Showing up to{' '}
+                <strong>{displayLimit === 'ALL' ? currentTotal : displayLimit}</strong> of{' '}
+                {currentTotal} logs
+              </Text>
+            </HStack>
+            {selectedMatchId && (
+              <Text type="code" size="xsm" color="secondary">
+                Selected: <strong>{selectedMatchId}</strong>
+              </Text>
+            )}
+          </HStack>
+
+          {browseExpanded && (
+            <>
+              <Divider />
+              <Card variant="muted" padding={3}>
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <HStack gap={2} vAlign="center">
+                    <Icon icon={Calendar} size="sm" color="accent" />
+                    <Text weight="semibold" size="xsm" className="font-cinzel">
+                      CHRONOLOGICAL DIRECTORY
+                    </Text>
+                    <Badge label={`${sortedLogFiles.length} files`} variant="yellow" />
+                  </HStack>
+
+                  <HStack gap={2} vAlign="center" wrap="wrap">
+                    <TextInput
+                      label="Filter directory files"
+                      isLabelHidden
+                      value={browseSearch}
+                      onChange={setBrowseSearch}
+                      startIcon={Filter}
+                      placeholder="Filter by date, ID, file..."
+                      hasClear
+                      size="sm"
+                      width={240}
+                    />
+                    <Selector
+                      label="Directory display limit"
+                      isLabelHidden
+                      startIcon={SlidersHorizontal}
+                      options={limitSelectOptions}
+                      value={String(displayLimit)}
+                      onChange={(val) => setDisplayLimit(val === 'ALL' ? 'ALL' : Number(val))}
+                      size="sm"
+                      variant="secondary"
+                      width={130}
+                    />
+                  </HStack>
+                </HStack>
+              </Card>
+
+              <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                {filteredDirectoryFiles.length === 0 ? (
+                  <EmptyState
+                    isCompact
+                    title={`No server log files found matching "${browseSearch}"`}
+                    description="Clear the directory filter or rescan VPS log files."
                   />
-                </div>
+                ) : (
+                  filteredDirectoryFiles.map((file, idx) => {
+                    const isSelected = selectedMatchId === file.matchId;
+                    const dt = formatLogDateTime(file.lastModifiedUtc || file.createdAtUtc);
+                    const kb = (file.fileSizeBytes / 1024).toFixed(1);
 
-                <div className="flex items-center gap-1.5 bg-slate-950 px-2 py-1 rounded-lg border border-white/[0.1]">
-                  <SlidersHorizontal className="w-3 h-3 text-amber-400" />
-                  <span className="text-[11px] font-mono text-slate-400">Show:</span>
-                  <select
-                    value={displayLimit}
-                    onChange={(e) => setDisplayLimit(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                    className="bg-transparent text-xs font-mono text-amber-300 font-bold outline-none cursor-pointer"
-                  >
-                    {limitOptions.map((opt) => (
-                      <option key={opt} value={opt} className="bg-slate-900 text-slate-100">
-                        {opt} logs
-                      </option>
-                    ))}
-                    <option value="ALL" className="bg-slate-900 text-slate-100">
-                      All ({currentTotal} logs)
-                    </option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Strictly Vertical List Container (Top to Bottom) */}
-            <div className="max-h-80 overflow-y-auto rounded-xl bg-slate-950/80 border border-white/[0.08] divide-y divide-white/[0.04] shadow-inner">
-              {(() => {
-                const filtered = sortedLogFiles.filter((f) => {
-                  if (!browseSearch) return true;
-                  const q = browseSearch.toLowerCase();
-                  const dt = formatDateTime(f.lastModifiedUtc || f.createdAtUtc);
-                  return (
-                    f.matchId.toLowerCase().includes(q) ||
-                    f.fileName.toLowerCase().includes(q) ||
-                    dt.full.toLowerCase().includes(q)
-                  );
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <div className="p-6 text-center text-xs text-slate-500 font-mono">
-                      No server log files found matching filter &quot;{browseSearch}&quot;
-                    </div>
-                  );
-                }
-
-                const displayed = displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
-
-                return (
-                  <>
-                    {displayed.map((file, idx) => {
-                      const isSelected = selectedMatchId === file.matchId;
-                      const dt = formatDateTime(file.lastModifiedUtc || file.createdAtUtc);
-                      const kb = (file.fileSizeBytes / 1024).toFixed(1);
-
-                      return (
-                        <div
-                          key={file.fileName}
-                          onClick={() => {
-                            setInputMatchId(file.matchId);
-                            setSelectedMatchId(file.matchId);
-                          }}
-                          className={`w-full p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left transition-all cursor-pointer select-none ${
-                            isSelected
-                              ? 'bg-amber-500/15 border-l-4 border-l-amber-400 shadow'
-                              : 'hover:bg-white/[0.04] border-l-4 border-l-transparent'
-                          }`}
-                        >
-                          {/* 1. Date & Time */}
-                          <div className="flex items-center gap-2.5 shrink-0">
-                            <span
-                              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                                idx === 0
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-white/[0.04] text-slate-400 border border-white/[0.06]'
-                              }`}
-                            >
-                              {idx === 0 ? '★ LATEST' : `#${idx + 1}`}
-                            </span>
-                            <div className="flex items-center gap-1.5 text-xs font-mono">
-                              <span className="flex items-center gap-1 text-slate-200 font-semibold bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.06]">
-                                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    return (
+                      <Card
+                        key={file.fileName}
+                        variant={isSelected ? 'yellow' : 'default'}
+                        padding={3}
+                      >
+                        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+                          <HStack gap={2} vAlign="center" wrap="wrap">
+                            <Badge
+                              label={idx === 0 ? 'LATEST' : `#${idx + 1}`}
+                              variant={idx === 0 ? 'success' : 'neutral'}
+                            />
+                            <HStack gap={1} vAlign="center">
+                              <Icon icon={Calendar} size="xsm" color="accent" />
+                              <Text type="code" size="xsm" weight="semibold" hasTabularNumbers>
                                 {dt.date}
-                              </span>
-                              <span className="flex items-center gap-1 text-slate-400 bg-white/[0.02] px-2 py-0.5 rounded border border-white/[0.04]">
-                                <Clock className="w-3 h-3 text-slate-500" />
+                              </Text>
+                            </HStack>
+                            <HStack gap={1} vAlign="center">
+                              <Icon icon={Clock} size="xsm" color="secondary" />
+                              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
                                 {dt.time}
-                              </span>
-                            </div>
-                          </div>
+                              </Text>
+                            </HStack>
+                          </HStack>
 
-                          {/* 2. File Name & Match GUID */}
-                          <div className="flex-1 min-w-0 font-mono">
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                              <span className="text-xs font-bold text-slate-200 truncate">
+                          <div className="flex-1 min-w-[200px]">
+                            <HStack gap={2} vAlign="center">
+                              <Icon icon={FileText} size="xsm" color="info" />
+                              <Text type="code" size="xsm" weight="semibold" maxLines={1}>
                                 {file.fileName}
-                              </span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-slate-300">
-                                {kb} KB
-                              </span>
-                            </div>
-                            <span className="text-[11px] text-slate-500 block truncate">
+                              </Text>
+                              <Badge label={`${kb} KB`} variant="neutral" />
+                            </HStack>
+                            <Text type="code" size="2xs" color="secondary" maxLines={1}>
                               GUID: {file.matchId}
-                            </span>
+                            </Text>
                           </div>
 
-                          {/* 3. Status Action */}
-                          <div className="flex items-center justify-end shrink-0">
+                          <HStack gap={2} vAlign="center">
                             {isSelected ? (
-                              <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                STREAMING
-                              </span>
+                              <HStack gap={1.5} vAlign="center">
+                                <StatusDot variant="success" isPulsing label="Streaming" />
+                                <Badge label="STREAMING" variant="success" />
+                              </HStack>
                             ) : (
-                              <span className="text-xs font-medium text-slate-400 group-hover:text-amber-300 px-2.5 py-1 rounded bg-white/[0.04] border border-white/[0.06]">
-                                SELECT →
-                              </span>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                label="Select →"
+                                onClick={() => {
+                                  setInputMatchId(file.matchId);
+                                  setSelectedMatchId(file.matchId);
+                                }}
+                              />
                             )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        )}
-      </div>
+                          </HStack>
+                        </HStack>
+                      </Card>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
+        </VStack>
+      </Section>
 
-      {/* Real Error Notification Banner */}
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-3 shadow-lg">
-          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-          <div className="flex-1 font-mono">
-            <strong>Server Response:</strong> {errorMessage}
-          </div>
-        </div>
+        <Banner status="error" title="Server Response" description={errorMessage} />
       )}
 
-      {/* Terminal View Container (Deep Carbon Dark Console) */}
-      <div className="bg-[#05070c] border border-white/[0.1] rounded-2xl overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.8)] flex flex-col">
-        {/* Terminal Header Bar */}
-        <div className="bg-slate-950/90 px-4 py-3 border-b border-white/[0.08] flex flex-wrap items-center justify-between gap-2 select-none text-xs">
-          {/* File location path */}
-          <div className="flex items-center gap-2 font-mono text-slate-400 text-[11px]">
-            <span className="w-3 h-3 rounded-full bg-[#ef4444]/80 shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
-            <span className="w-3 h-3 rounded-full bg-[#f59e0b]/80 shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
-            <span className="w-3 h-3 rounded-full bg-[#10b981]/80 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
-            <span className="ml-2 text-slate-500">Target Log Stream:</span>
-            <span className="text-amber-300 font-semibold break-all">
-              {selectedMatchId ? (logData?.logPath || `match_${selectedMatchId}.log`) : 'No Match Selected'}
-            </span>
-          </div>
-
-          {/* Log Filters & Stats */}
-          {logData && (
-            <div className="flex flex-wrap items-center gap-2">
-              {errorCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-[10px] font-bold flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> {errorCount} ERRORS
-                </span>
-              )}
-              {warnCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-[10px] font-bold flex items-center gap-1">
-                  {warnCount} WARN
-                </span>
-              )}
-
-              {/* Filter by level */}
-              <div className="flex items-center bg-black/60 rounded-lg border border-white/[0.1] p-0.5">
-                {(['ALL', 'ERROR', 'WARN', 'SYSTEM', 'INFO'] as const).map((lvl) => (
-                  <button
-                    key={lvl}
-                    type="button"
-                    onClick={() => setFilterLevel(lvl)}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold transition-all ${
-                      filterLevel === lvl
-                        ? 'bg-amber-500 text-slate-950 font-bold'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {lvl}
-                  </button>
-                ))}
-              </div>
-
-              {/* In-Log Search Input */}
-              <div className="relative">
-                <Search className="w-3 h-3 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Find in log..."
-                  className="bg-black/60 border border-white/[0.1] rounded-lg pl-6 pr-2 py-0.5 text-[11px] font-mono text-slate-100 placeholder-slate-500 outline-none w-28 focus:w-36 transition-all"
-                />
-              </div>
-
-              {/* Auto scroll toggle */}
-              <button
-                type="button"
-                onClick={() => setAutoScroll(!autoScroll)}
-                className={`p-1 rounded-lg border text-[11px] ${
-                  autoScroll
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    : 'bg-black/60 text-slate-500 border-white/[0.1]'
-                }`}
-                title={autoScroll ? 'Auto-scroll enabled' : 'Auto-scroll disabled'}
-              >
-                <ArrowDownCircle className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Terminal Content Body */}
-        <div ref={terminalBodyRef} className="p-4 max-h-[580px] min-h-[380px] overflow-y-auto font-mono text-xs leading-relaxed space-y-1 select-text scrollbar-thin bg-[#04060a]">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500 space-y-2">
-              <RefreshCw className="w-6 h-6 animate-spin text-amber-400" />
-              <p className="font-mono text-xs text-amber-300">Fetching VPS logs via /api/Match/{selectedMatchId}/logs...</p>
-            </div>
-          ) : !selectedMatchId ? (
-            <div className="text-center py-16 text-slate-500 space-y-2">
-              <Terminal className="w-8 h-8 mx-auto text-slate-600" />
-              <p className="text-sm font-semibold text-slate-300">Please select or enter a Match GUID.</p>
-              <p className="text-xs text-slate-500">Provide a valid match identifier to inspect dedicated server log output.</p>
-            </div>
-          ) : errorMessage ? (
-            <div className="text-center py-16 text-slate-500 space-y-2">
-              <AlertCircle className="w-8 h-8 mx-auto text-rose-500" />
-              <p className="text-sm font-semibold text-rose-300">No log output available for this session.</p>
-              <p className="text-xs text-slate-400 font-mono">{errorMessage}</p>
-            </div>
-          ) : filteredLines.length === 0 ? (
-            <div className="text-center py-16 text-slate-500 space-y-2">
-              <FileText className="w-8 h-8 mx-auto text-slate-600" />
-              <p className="text-sm font-semibold text-slate-300">
-                {logData ? 'No log lines matched the active filter.' : 'Log file is empty.'}
-              </p>
-              <p className="text-xs text-slate-500">Try clearing your search query or level filters.</p>
-            </div>
-          ) : (
-            filteredLines.map((line) => {
-              let rowColor = 'text-slate-300';
-              let badgeColor = 'text-slate-400 bg-slate-800/40';
-
-              if (line.level === 'ERROR') {
-                rowColor = 'text-rose-200 bg-rose-950/20 border-l-2 border-rose-500 pl-2 -ml-2';
-                badgeColor = 'text-rose-300 bg-rose-500/20 font-bold';
-              } else if (line.level === 'WARN') {
-                rowColor = 'text-amber-200 bg-amber-950/20 border-l-2 border-amber-500 pl-2 -ml-2';
-                badgeColor = 'text-amber-300 bg-amber-500/20 font-bold';
-              } else if (line.level === 'SYSTEM') {
-                rowColor = 'text-emerald-200';
-                badgeColor = 'text-emerald-300 bg-emerald-500/20 font-semibold';
-              }
-
-              return (
-                <div key={line.lineNumber} className={`flex items-start gap-3 hover:bg-white/[0.03] py-0.5 rounded px-1 transition-colors ${rowColor}`}>
-                  <span className="text-slate-600 select-none text-right shrink-0 w-8 font-mono text-[10px]">
-                    {line.lineNumber}
-                  </span>
-                  <span className={`text-[9px] px-1.5 py-0.2 rounded shrink-0 uppercase select-none font-mono ${badgeColor}`}>
-                    {line.level}
-                  </span>
-                  <span className="break-all whitespace-pre-wrap flex-1">
-                    {line.raw}
-                  </span>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Terminal Footer Bar */}
-        <div className="bg-slate-950/90 px-4 py-2.5 border-t border-white/[0.08] flex flex-wrap items-center justify-between text-[11px] text-slate-400 font-mono">
-          <div className="flex items-center gap-4">
-            <span>
-              Total Lines: <strong className="text-amber-300">{logData?.lines.length || 0}</strong>
-            </span>
-            <span>
-              Filtered: <strong className="text-amber-300">{filteredLines.length}</strong>
-            </span>
-            <span>
-              Retrieved: <span className="text-slate-300">{logData?.retrievedAt || '--:--'}</span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 text-slate-500">
-            <span>Unity NGO Headless Engine</span>
-            <span>❖</span>
-            <span>PactKeeper High Counsel</span>
-          </div>
-        </div>
-      </div>
-    </div>
+      <LogTerminalView
+        logData={logData}
+        loading={loading}
+        errorMessage={errorMessage}
+        selectedMatchId={selectedMatchId}
+        filterLevel={filterLevel}
+        onFilterLevelChange={setFilterLevel}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        autoScroll={autoScroll}
+        onToggleAutoScroll={() => setAutoScroll((prev) => !prev)}
+        terminalBodyRef={terminalBodyRef}
+      />
+    </VStack>
   );
 };

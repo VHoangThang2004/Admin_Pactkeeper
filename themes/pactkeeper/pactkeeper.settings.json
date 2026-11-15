@@ -1,0 +1,67 @@
+{
+  "name": "pactkeeper",
+  "like": "neutral",
+  "mode": "both",
+  "settings": [
+    {
+      "thing": "accent",
+      "value": "#c88a12",
+      "source": "dial"
+    },
+    {
+      "thing": "neutral",
+      "value": "#78716c",
+      "source": "dial"
+    },
+    {
+      "thing": "success",
+      "value": "#16a34a",
+      "source": "dial"
+    },
+    {
+      "thing": "warning",
+      "value": "#d97706",
+      "source": "dial"
+    },
+    {
+      "thing": "danger",
+      "value": "#e11d48",
+      "source": "dial"
+    },
+    {
+      "thing": "info",
+      "value": "#0891b2",
+      "source": "dial"
+    },
+    {
+      "thing": "corners",
+      "value": "large",
+      "source": "dial"
+    },
+    {
+      "thing": "surfaces",
+      "value": "outlined",
+      "source": "dial"
+    },
+    {
+      "thing": "font",
+      "value": "Cinzel, Georgia, serif",
+      "source": "dial",
+      "on": "heading"
+    },
+    {
+      "thing": "font",
+      "value": "JetBrains Mono, ui-monospace, Consolas, monospace",
+      "source": "dial",
+      "on": "code"
+    },
+    {
+      "thing": "headings",
+      "value": "semibold",
+      "source": "dial",
+      "axis": "weight"
+    }
+  ],
+  "lifted": [],
+  "palette": "4199e42cf8923b3778d21c84f3daee32aff66ad763d75402c0571967f30a71ca"
+}

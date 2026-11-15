@@ -1,39 +1,89 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
-import { adminClient } from '../api/adminClient';
-import {
-  MessageSquare,
-  Send,
-  User,
-  ShieldCheck,
-  Clock,
-  RefreshCw,
-  Inbox,
-  Copy,
-  Swords
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as signalR from '@microsoft/signalr';
+import {
+  Check,
+  Clock,
+  Copy,
+  Headphones,
+  Inbox,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Swords,
+  User,
+} from 'lucide-react';
+import { Avatar, AvatarStatusDot } from '@astryxdesign/core/Avatar';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Button } from '@astryxdesign/core/Button';
+import {
+  ChatComposer,
+  ChatLayout,
+  ChatMessage,
+  ChatMessageBubble,
+  ChatMessageList,
+} from '@astryxdesign/core/Chat';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { Icon } from '@astryxdesign/core/Icon';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { Section } from '@astryxdesign/core/Section';
+import { HStack, StackItem, VStack } from '@astryxdesign/core/Stack';
+import { StatusDot } from '@astryxdesign/core/StatusDot';
+import { Heading, Text } from '@astryxdesign/core/Text';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { adminClient } from '../api/adminClient';
+import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { getPlayerPresence } from '../utils/presence';
+import { getPresenceBadgeVariant } from '../utils/presenceAstryx';
+
+interface ActiveMatchSummary {
+  matchId: string;
+  mode?: string;
+}
+
+interface RawSupportPlayerRecord {
+  playerId?: string;
+  playerName?: string;
+  username?: string;
+  latestMessageText?: string;
+  lastMessage?: string;
+  latestMessageTime?: string;
+  lastMessageAt?: string;
+}
+
+interface RawMatchHistoryRecord {
+  matchId?: string;
+  id?: string;
+  status?: string | number;
+  mode?: string;
+  player1Id?: string;
+  player2Id?: string;
+}
+
+function getAvatarDotVariant(state: string): 'success' | 'neutral' | 'error' {
+  if (state === 'InBattle' || state === 'Online') return 'success';
+  return 'neutral';
+}
 
 /**
- * Player Support Desk & Live Chat Room (Screen 45 & 46)
- * 
- * Re-architected to HoYoverse AAA Gaming Standards:
- * - Two-way real-time WebSocket messaging with players via Microsoft SignalR (/hubs/support)
- * - Modern Discord / Intercom style dark gaming live support hub
- * - Quick inspection deep-link to /matches for combat-related tickets
- * - Presence detection and message timestamps
+ * Player Support Desk & Live Chat Room (Screen 45 & 46).
+ * Preserves SignalR /hubs/support real-time updates, HTTP endpoints, and battle inspection deep links.
  */
 export const LiveSupport: React.FC = () => {
-  // Support Chat states
   const [players, setPlayers] = useState<ActiveChatPlayerDto[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [messages, setMessages] = useState<SupportMessageDto[]>([]);
   const [replyText, setReplyText] = useState('');
+  const [queueFilter, setQueueFilter] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [activeMatchesMap, setActiveMatchesMap] = useState<Map<string, { matchId: string; mode?: string }>>(new Map());
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [activeMatchesMap, setActiveMatchesMap] = useState<Map<string, ActiveMatchSummary>>(
+    () => new Map(),
+  );
 
   const selectedPlayerIdRef = useRef(selectedPlayerId);
   useEffect(() => {
@@ -43,7 +93,15 @@ export const LiveSupport: React.FC = () => {
   const activePlayer = players.find((p) => p.playerId === selectedPlayerId);
   const activePlayerRealName =
     (activePlayer?.playerName || activePlayer?.username || '').trim() ||
-    messages.find((m) => m.sender !== 'admin' && m.sender !== 'Admin' && m.senderName && m.senderName.trim())?.senderName?.trim() ||
+    messages
+      .find(
+        (m) =>
+          m.sender !== 'admin' &&
+          m.sender !== 'Admin' &&
+          m.senderName &&
+          m.senderName.trim(),
+      )
+      ?.senderName?.trim() ||
     (selectedPlayerId ? `Traveler #${selectedPlayerId.slice(-4).toUpperCase()}` : 'Traveler');
 
   const loadSupportQueueData = useCallback(async () => {
@@ -52,11 +110,16 @@ export const LiveSupport: React.FC = () => {
       adminClient.get('/Match/history'),
     ]);
 
-    const matchMap = new Map<string, { matchId: string; mode?: string }>();
+    const matchMap = new Map<string, ActiveMatchSummary>();
     if (matchRes.status === 'fulfilled' && Array.isArray(matchRes.value.data)) {
-      matchRes.value.data.forEach((m: any) => {
-        const s = (m.status || '').toLowerCase();
-        const isLive = s === 'inprogress' || s === 'active' || s === 'playing' || s === 'running' || m.status === 1;
+      (matchRes.value.data as RawMatchHistoryRecord[]).forEach((m) => {
+        const s = String(m.status ?? '').toLowerCase();
+        const isLive =
+          s === 'inprogress' ||
+          s === 'active' ||
+          s === 'playing' ||
+          s === 'running' ||
+          m.status === 1;
         if (isLive) {
           const mId = m.matchId || m.id || '';
           if (m.player1Id) matchMap.set(m.player1Id, { matchId: mId, mode: m.mode });
@@ -67,14 +130,17 @@ export const LiveSupport: React.FC = () => {
 
     let mappedPlayers: ActiveChatPlayerDto[] = [];
     if (supportRes.status === 'fulfilled' && Array.isArray(supportRes.value.data)) {
-      mappedPlayers = supportRes.value.data.map((p: any) => {
+      mappedPlayers = (supportRes.value.data as RawSupportPlayerRecord[]).map((p) => {
         const resolvedName = (p.playerName || p.username || '').trim();
         const messageSnippet = p.latestMessageText || p.lastMessage || '';
         const timeSnippet = p.latestMessageTime
-          ? new Date(p.latestMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : (p.lastMessageAt || '');
+          ? new Date(p.latestMessageTime).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : p.lastMessageAt || '';
         return {
-          playerId: p.playerId,
+          playerId: p.playerId || '',
           playerName: resolvedName,
           username: resolvedName,
           latestMessageText: messageSnippet,
@@ -85,16 +151,30 @@ export const LiveSupport: React.FC = () => {
       });
     }
 
-    return { matchMap, mappedPlayers };
+    return {
+      matchMap,
+      mappedPlayers,
+      supportFailed: supportRes.status === 'rejected',
+    };
   }, []);
 
-  const applySupportQueue = useCallback((result: { matchMap: Map<string, { matchId: string; mode?: string }>; mappedPlayers: ActiveChatPlayerDto[] }) => {
-    setActiveMatchesMap(result.matchMap);
-    setPlayers(result.mappedPlayers);
-    if (result.mappedPlayers.length > 0 && !selectedPlayerIdRef.current) {
-      setSelectedPlayerId(result.mappedPlayers[0].playerId);
-    }
-  }, []);
+  const applySupportQueue = useCallback(
+    (result: {
+      matchMap: Map<string, ActiveMatchSummary>;
+      mappedPlayers: ActiveChatPlayerDto[];
+      supportFailed: boolean;
+    }) => {
+      setActiveMatchesMap(result.matchMap);
+      setPlayers(result.mappedPlayers);
+      setQueueError(
+        result.supportFailed ? 'Unable to sync support queue from backend.' : null,
+      );
+      if (result.mappedPlayers.length > 0 && !selectedPlayerIdRef.current) {
+        setSelectedPlayerId(result.mappedPlayers[0].playerId);
+      }
+    },
+    [],
+  );
 
   const fetchPlayers = useCallback(async () => {
     setLoading(true);
@@ -102,7 +182,7 @@ export const LiveSupport: React.FC = () => {
       const result = await loadSupportQueueData();
       applySupportQueue(result);
     } catch {
-      // Graceful fallback
+      setQueueError('Failed to refresh active support inquiries.');
     } finally {
       setLoading(false);
     }
@@ -115,7 +195,7 @@ export const LiveSupport: React.FC = () => {
         if (active) applySupportQueue(result);
       })
       .catch(() => {
-        // Graceful fallback
+        if (active) setQueueError('Unable to reach support queue endpoint.');
       });
     return () => {
       active = false;
@@ -130,6 +210,7 @@ export const LiveSupport: React.FC = () => {
       .then((res) => {
         if (!active) return;
         setMessages(Array.isArray(res.data) ? res.data : []);
+        setSendError(null);
       })
       .catch(() => {
         if (active) setMessages([]);
@@ -152,6 +233,10 @@ export const LiveSupport: React.FC = () => {
       .then(() => setIsConnected(true))
       .catch(() => setIsConnected(false));
 
+    connection.onreconnecting(() => setIsConnected(false));
+    connection.onreconnected(() => setIsConnected(true));
+    connection.onclose(() => setIsConnected(false));
+
     connection.on('ReceiveMessage', (senderPlayerId: string, messageData: SupportMessageDto) => {
       if (senderPlayerId === selectedPlayerIdRef.current) {
         setMessages((prev) => [...prev, messageData]);
@@ -166,289 +251,454 @@ export const LiveSupport: React.FC = () => {
     };
   }, [loadSupportQueueData, applySupportQueue]);
 
-  const handleSendMessage = async () => {
-    if (!replyText.trim() || !selectedPlayerId) return;
+  const handleSendMessage = async (submittedText: string) => {
+    const trimmed = submittedText.trim();
+    if (!trimmed || !selectedPlayerId) return;
 
-    const textToSend = replyText;
+    setSendError(null);
     setReplyText('');
 
     try {
-      const res = await adminClient.post(`/support/admin/chat/${selectedPlayerId}`, { text: textToSend });
+      const res = await adminClient.post(`/support/admin/chat/${selectedPlayerId}`, {
+        text: trimmed,
+      });
       if (res.data) {
         setMessages((prev) => [...prev, res.data]);
       }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to send reply to player.');
+    } catch (err: unknown) {
+      const responseMsg = (
+        err as { response?: { data?: { message?: string } } }
+      )?.response?.data?.message;
+      setSendError(responseMsg || 'Failed to send reply to player.');
+      setReplyText(trimmed);
     }
   };
 
+  const handleCopyPlayerId = async (playerId: string) => {
+    try {
+      await navigator.clipboard.writeText(playerId);
+      setCopiedId(playerId);
+      window.setTimeout(() => {
+        setCopiedId((prev) => (prev === playerId ? null : prev));
+      }, 1500);
+    } catch {
+      // Ignore clipboard permission denials
+    }
+  };
+
+  const filteredPlayers = useMemo(() => {
+    const q = queueFilter.trim().toLowerCase();
+    if (!q) return players;
+    return players.filter((p) => {
+      const name = (p.playerName || p.username || '').toLowerCase();
+      const id = p.playerId.toLowerCase();
+      const snippet = (p.latestMessageText || p.lastMessage || '').toLowerCase();
+      return name.includes(q) || id.includes(q) || snippet.includes(q);
+    });
+  }, [players, queueFilter]);
+
+  const activePresence = selectedPlayerId
+    ? getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime)
+    : null;
+  const activeMatchInfo = selectedPlayerId ? activeMatchesMap.get(selectedPlayerId) : undefined;
+
   return (
-    <div className="space-y-6 pb-8 font-sans select-none">
-      {/* Astral Header Banner */}
-      <div className="hy-glass p-6 md:p-8 rounded-2xl relative overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
-        {/* Ornate Corner Marks */}
-        <span className="absolute top-3 left-3 text-amber-400/40 text-xs">❖</span>
-        <span className="absolute top-3 right-3 text-amber-400/40 text-xs">❖</span>
-
-        <div 
-          className="absolute -top-16 -right-16 w-80 h-80 bg-amber-500/[0.08] rounded-full blur-3xl pointer-events-none" 
-          aria-hidden="true" 
-        />
-        <div 
-          className="absolute -bottom-16 -left-16 w-72 h-72 bg-cyan-500/[0.05] rounded-full blur-3xl pointer-events-none" 
-          aria-hidden="true" 
-        />
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 uppercase font-bold tracking-wider shadow-[0_0_12px_rgba(242,191,78,0.15)]">
-                SCREEN 45 & 46 • LIVE SUPPORT DESK
-              </span>
-              <span className="text-slate-500 text-xs">•</span>
-              <span className="text-xs text-slate-400 font-mono">SignalR Real-Time WebSocket</span>
-            </div>
-            <h1 className="text-xl md:text-3xl font-extrabold tracking-wide font-cinzel uppercase hy-gold-text">
-              PLAYER SUPPORT DESK & LIVE DISPATCH
-            </h1>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl font-sans">
-              Authoritative player care, bug triage, and real-time bidirectional support messaging.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => fetchPlayers()}
-              disabled={loading}
-              className="hy-btn-glass px-3.5 py-2 text-xs font-semibold flex items-center gap-2 shadow transition-all disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
-              <span>SYNC QUEUE</span>
-            </button>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0c1022] border border-white/[0.1] text-xs font-mono shadow-inner">
-              <span className="flex h-2 w-2 relative">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-amber-400'} opacity-75`} />
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              </span>
-              <span className="text-slate-200 text-[11px] font-semibold">{isConnected ? 'SIGNALR LIVE' : 'HUB READY'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Support Chat Station (Screen 45 & 46) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[640px]">
-        {/* Player Inquiry List (Left Column) */}
-        <div className="hy-glass rounded-2xl flex flex-col overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
-          <div className="p-4 bg-white/[0.02] border-b border-white/[0.08] text-xs font-semibold flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-200 uppercase font-cinzel font-bold">
-              <MessageSquare className="w-4 h-4 text-amber-300" />
-              <span>ACTIVE INQUIRIES ({players.length})</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => fetchPlayers()}
-              className="text-slate-400 hover:text-amber-300 p-1 transition-colors"
-              title="Refresh list"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-
-          {players.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-6 space-y-2">
-              <Inbox className="w-8 h-8 text-amber-400/60" />
-              <p className="text-sm font-bold font-cinzel text-slate-200">No active missives recorded.</p>
-              <p className="text-xs text-slate-500">Waiting for player support inquiries.</p>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
-              {players.map((p) => {
-                const isSelected = selectedPlayerId === p.playerId;
-                const pName = (p.playerName || p.username || '').trim();
-                const displayName = pName
-                  ? pName
-                  : (isSelected && activePlayerRealName && !activePlayerRealName.startsWith('Traveler')
-                      ? activePlayerRealName
-                      : `Traveler #${p.playerId.slice(-4).toUpperCase()}`);
-                const presence = getPlayerPresence(p.playerId, activeMatchesMap, p.latestMessageTime || p.lastMessageAt);
-
-                return (
-                  <div
-                    key={p.playerId}
-                    onClick={() => setSelectedPlayerId(p.playerId)}
-                    className={`p-4 cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-amber-500/15 border-l-4 border-l-amber-400 shadow'
-                        : 'hover:bg-white/[0.03] border-l-4 border-l-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="relative">
-                          <div className="w-9 h-9 rounded-xl bg-slate-900 border border-white/[0.1] flex items-center justify-center text-amber-400 font-cinzel font-bold text-xs shrink-0 shadow">
-                            {displayName.slice(0, 2).toUpperCase()}
-                          </div>
-                          <span
-                            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080a0f] ${presence.dotColor}`}
-                            title={presence.label}
-                          />
-                        </div>
-                        <div>
-                          <span className="font-semibold text-xs text-slate-100 block leading-tight">
-                            {displayName}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            ID: #{p.playerId.slice(-4).toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
-                        <Clock className="w-3 h-3 text-slate-500" />
-                        {p.lastMessageAt || 'Recent'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 line-clamp-1 italic mt-1">
-                      &quot;{p.latestMessageText || 'No message snippet'}&quot;
-                    </p>
-                    {presence.state === 'InBattle' && (
-                      <div className="mt-1.5 flex items-center gap-1 text-[10px] text-amber-400 font-semibold font-mono">
-                        <Swords className="w-3 h-3 animate-bounce" />
-                        <span>In Combat Session</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Live Chat Window (Right 2 Columns) */}
-        <div className="md:col-span-2 hy-glass rounded-2xl flex flex-col overflow-hidden border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
-          {selectedPlayerId ? (
-            <>
-              {/* Chat Header */}
-              <div className="p-4 bg-white/[0.02] border-b border-white/[0.08] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-xl bg-[#090d1a] border border-white/[0.1] flex items-center justify-center text-amber-300 font-cinzel font-bold text-sm shadow">
-                      {activePlayerRealName.slice(0, 2).toUpperCase()}
-                    </div>
-                    <span
-                      className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#070a14] ${
-                        getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime).dotColor
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-100 leading-tight">
-                      {activePlayerRealName}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-mono text-slate-400">
-                        GUID: {selectedPlayerId}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(selectedPlayerId);
-                        }}
-                        className="text-amber-400 hover:text-amber-300 p-0.5"
-                        title="Copy ID"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  {activeMatchesMap.has(selectedPlayerId) && (
-                    <Link
-                      to={`/matches?matchId=${activeMatchesMap.get(selectedPlayerId)?.matchId || ''}`}
-                      className="px-3 py-1 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow"
-                      title="Inspect Live Battle in Match Supervision"
-                    >
-                      <Swords className="w-3.5 h-3.5 text-amber-400" />
-                      <span>INSPECT BATTLE</span>
-                    </Link>
-                  )}
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#0c1022] border border-white/[0.1] text-amber-300 font-mono font-semibold">
-                    {getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime).label}
-                  </span>
-                </div>
-              </div>
-
-              {/* Messages Body */}
-              <div className="flex-1 p-5 overflow-y-auto space-y-3.5 bg-[#070a14]/90">
-                {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-2">
-                    <MessageSquare className="w-8 h-8 text-amber-400/60" />
-                    <p className="text-sm font-semibold text-slate-300">No previous messages exchanged.</p>
-                    <p className="text-xs text-slate-400">Begin the player consultation by typing a message below.</p>
-                  </div>
-                ) : (
-                  messages.map((m, index) => {
-                    const isAdmin = m.sender === 'admin' || m.sender === 'Admin' || m.senderName === 'System Admin' || m.senderName === 'Support';
-                    const stableKey = m.id || `${m.sender}-${m.createdAt || ''}-${index}`;
-                    return (
-                      <div key={stableKey} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                          className={`max-w-[75%] rounded-2xl p-4 shadow-lg ${
-                            isAdmin
-                              ? 'bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-amber-600/15 border border-amber-400/35 text-amber-100 shadow-[0_4px_16px_rgba(242,191,78,0.15)]'
-                              : 'bg-[#12182e] border border-white/[0.08] text-slate-200 shadow-md'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-4 mb-1.5 text-[10px] opacity-80 border-b border-white/[0.08] pb-1 font-mono">
-                            <span className="font-bold flex items-center gap-1">
-                              {isAdmin ? <ShieldCheck className="w-3 h-3 text-amber-300" /> : <User className="w-3 h-3 text-slate-400" />}
-                              {isAdmin ? 'HIGH COUNSEL SUPPORT' : (m.senderName || activePlayerRealName)}
-                            </span>
-                            <span>
-                              {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                          </div>
-                          <p className="text-xs leading-relaxed whitespace-pre-wrap">
-                            {m.text}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Reply Input Bar */}
-              <div className="p-3.5 bg-[#090d1a] border-t border-white/[0.08] flex items-center gap-2.5">
-                <input
-                  type="text"
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder={`Compose support dispatch to ${activePlayerRealName}...`}
-                  className="flex-1 bg-[#0c1022] border border-white/[0.1] focus:border-amber-400 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
+    <VStack gap={5}>
+      {/* Hero Header */}
+      <Section padding={5}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+          <VStack gap={1.5}>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Badge label="LIVE SUPPORT DESK" variant="info" />
+              <HStack gap={1.5} vAlign="center">
+                <StatusDot
+                  variant={isConnected ? 'success' : 'warning'}
+                  label={isConnected ? 'SignalR WebSocket live' : 'SignalR Hub standby'}
                 />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!replyText.trim()}
-                  className="hy-btn-gold px-4 py-2.5 text-xs font-bold flex items-center gap-1.5 shadow disabled:opacity-40"
-                >
-                  <Send className="w-3.5 h-3.5 text-slate-950" />
-                  <span>SEND</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-2">
-              <MessageSquare className="w-12 h-12 text-amber-400/60" />
-              <p className="text-base font-bold font-cinzel text-slate-200">No Traveler Selected</p>
-              <p className="text-xs text-slate-400">Select an inquiry from the roster on the left to read and respond.</p>
+                <Text type="code" size="xsm" color="secondary">
+                  {isConnected ? 'SignalR Live' : 'Hub Standby'}
+                </Text>
+              </HStack>
+            </HStack>
+            <HStack gap={2} vAlign="center">
+              <Icon icon={Headphones} size="lg" color="accent" />
+              <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
+                PLAYER SUPPORT DESK &amp; LIVE DISPATCH
+              </Heading>
+            </HStack>
+            <Text type="supporting" size="sm">
+              Authoritative player care, bug triage, and real-time bidirectional support messaging.
+            </Text>
+          </VStack>
+
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Button
+              label="Sync Queue"
+              variant="secondary"
+              size="md"
+              icon={<RefreshCw size={15} className={loading ? 'animate-spin' : ''} />}
+              isLoading={loading}
+              onClick={() => void fetchPlayers()}
+            />
+          </HStack>
+        </HStack>
+      </Section>
+
+      {queueError && (
+        <Banner
+          status="warning"
+          title="Support Queue Sync Notice"
+          description={queueError}
+          isDismissable
+          onDismiss={() => setQueueError(null)}
+        />
+      )}
+
+      {/* Split Support Console */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left Column: Active Player Inquiries */}
+        <div>
+          <Section
+            padding={0}
+            className="flex flex-col h-[560px] lg:h-[660px] overflow-hidden"
+          >
+            <div className="p-4 border-b border-[var(--color-border-subtle)]">
+              <VStack gap={3}>
+                <HStack justify="between" vAlign="center">
+                  <HStack gap={2} vAlign="center">
+                    <Icon icon={MessageSquare} size="sm" color="accent" />
+                    <Heading level={2} className="font-cinzel">
+                      INQUIRIES ({players.length})
+                    </Heading>
+                  </HStack>
+                  <IconButton
+                    icon={<RefreshCw size={15} className={loading ? 'animate-spin' : ''} />}
+                    label="Refresh queue"
+                    size="sm"
+                    variant="ghost"
+                    isLoading={loading}
+                    onClick={() => void fetchPlayers()}
+                  />
+                </HStack>
+
+                <TextInput
+                  label="Filter support queue"
+                  isLabelHidden
+                  size="sm"
+                  placeholder="Search Traveler, GUID, or snippet..."
+                  value={queueFilter}
+                  onChange={setQueueFilter}
+                  hasClear
+                  startIcon={<Search size={14} />}
+                />
+              </VStack>
             </div>
-          )}
+
+            {filteredPlayers.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center p-6">
+                <EmptyState
+                  icon={<Inbox size={26} />}
+                  title={
+                    players.length === 0
+                      ? 'No Active Missives'
+                      : 'No Matching Inquiries'
+                  }
+                  description={
+                    players.length === 0
+                      ? 'Waiting for incoming player support requests.'
+                      : 'Clear or adjust your search query to inspect other inquiries.'
+                  }
+                  actions={
+                    queueFilter ? (
+                      <Button label="Clear Filter" variant="ghost" size="sm" onClick={() => setQueueFilter('')} />
+                    ) : undefined
+                  }
+                />
+              </div>
+            ) : (
+              <div
+                className="flex-1 min-h-0 overflow-y-auto divide-y divide-[var(--color-border-subtle)]"
+                role="listbox"
+                aria-label="Player support inquiries"
+              >
+                {filteredPlayers.map((p) => {
+                  const isSelected = selectedPlayerId === p.playerId;
+                  const pName = (p.playerName || p.username || '').trim();
+                  const displayName = pName
+                    ? pName
+                    : isSelected && activePlayerRealName && !activePlayerRealName.startsWith('Traveler')
+                      ? activePlayerRealName
+                      : `Traveler #${p.playerId.slice(-4).toUpperCase()}`;
+                  const presence = getPlayerPresence(
+                    p.playerId,
+                    activeMatchesMap,
+                    p.latestMessageTime || p.lastMessageAt,
+                  );
+
+                  return (
+                    <button
+                      key={p.playerId}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => setSelectedPlayerId(p.playerId)}
+                      className="w-full text-left p-3.5 transition-colors cursor-pointer hover:bg-[var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent-primary)]"
+                      style={{
+                        borderLeftWidth: 3,
+                        borderLeftStyle: 'solid',
+                        borderLeftColor: isSelected
+                          ? 'var(--color-accent-primary)'
+                          : 'transparent',
+                        backgroundColor: isSelected
+                          ? 'color-mix(in srgb, var(--color-accent-primary) 9%, transparent)'
+                          : 'transparent',
+                      }}
+                    >
+                      <VStack gap={1.5}>
+                        <HStack justify="between" vAlign="center" gap={2}>
+                          <HStack gap={2} vAlign="center" className="min-w-0">
+                            <Avatar
+                              name={displayName}
+                              shape="rounded"
+                              size="sm"
+                              tooltip={false}
+                              status={
+                                <AvatarStatusDot
+                                  variant={getAvatarDotVariant(presence.state)}
+                                  label={presence.label}
+                                />
+                              }
+                            />
+                            <VStack gap={0} className="min-w-0">
+                              <Text weight="semibold" size="sm" maxLines={1}>
+                                {displayName}
+                              </Text>
+                              <Text type="code" size="xsm" color="secondary">
+                                #{p.playerId.slice(-6).toUpperCase()}
+                              </Text>
+                            </VStack>
+                          </HStack>
+
+                          <StackItem size="static">
+                            <HStack gap={1} vAlign="center">
+                              <Icon icon={Clock} size="xsm" color="secondary" />
+                              <Text type="code" size="xsm" color="secondary">
+                                {p.lastMessageAt || 'Recent'}
+                              </Text>
+                            </HStack>
+                          </StackItem>
+                        </HStack>
+
+                        <Text type="supporting" size="xsm" maxLines={1}>
+                          “{p.latestMessageText || 'No message snippet'}”
+                        </Text>
+
+                        {presence.state === 'InBattle' && (
+                          <div>
+                            <Badge
+                              label="In Combat Session"
+                              variant="warning"
+                              icon={<Swords size={11} />}
+                            />
+                          </div>
+                        )}
+                      </VStack>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        </div>
+
+        {/* Right 2 Columns: Live Conversation & Astryx ChatLayout */}
+        <div className="lg:col-span-2">
+          <Section
+            padding={0}
+            className="flex flex-col h-[560px] lg:h-[660px] overflow-hidden"
+          >
+            {selectedPlayerId ? (
+              <>
+                {/* Conversation Header */}
+                <div className="p-4 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)]">
+                  <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+                    <HStack gap={3} vAlign="center" className="min-w-0">
+                      <Avatar
+                        name={activePlayerRealName}
+                        shape="rounded"
+                        size="md"
+                        tooltip={false}
+                        status={
+                          activePresence ? (
+                            <AvatarStatusDot
+                              variant={getAvatarDotVariant(activePresence.state)}
+                              label={activePresence.label}
+                            />
+                          ) : undefined
+                        }
+                      />
+                      <VStack gap={0.5} className="min-w-0">
+                        <Heading level={2}>
+                          {activePlayerRealName}
+                        </Heading>
+                        <HStack gap={1.5} vAlign="center">
+                          <Text type="code" size="xsm" color="secondary" maxLines={1}>
+                            GUID: {selectedPlayerId}
+                          </Text>
+                          <IconButton
+                            icon={
+                              copiedId === selectedPlayerId ? (
+                                <Check size={13} />
+                              ) : (
+                                <Copy size={13} />
+                              )
+                            }
+                            label={
+                              copiedId === selectedPlayerId
+                                ? 'GUID copied'
+                                : 'Copy Player GUID'
+                            }
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void handleCopyPlayerId(selectedPlayerId)}
+                          />
+                        </HStack>
+                      </VStack>
+                    </HStack>
+
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      {activeMatchInfo && (
+                        <Button
+                          label="Inspect Battle"
+                          variant="secondary"
+                          size="sm"
+                          icon={<Swords size={14} />}
+                          href={`/matches?matchId=${activeMatchInfo.matchId}`}
+                        />
+                      )}
+                      {activePresence && (
+                        <Badge
+                          label={activePresence.label}
+                          variant={getPresenceBadgeVariant(activePresence.state)}
+                        />
+                      )}
+                    </HStack>
+                  </HStack>
+                </div>
+
+                {/* Chat Transcript & Frosted Dock Composer */}
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <ChatLayout
+                    density="balanced"
+                    emptyState={
+                      <EmptyState
+                        icon={<MessageSquare size={26} />}
+                        title="No Previous Messages Exchanged"
+                        description={`Send a dispatch below to start assisting ${activePlayerRealName}.`}
+                      />
+                    }
+                    composer={
+                      <ChatComposer
+                        density="balanced"
+                        value={replyText}
+                        onChange={(val) => {
+                          setReplyText(val);
+                          if (sendError) setSendError(null);
+                        }}
+                        onSubmit={(val) => void handleSendMessage(val)}
+                        placeholder={`Compose support dispatch to ${activePlayerRealName}...`}
+                        status={
+                          sendError
+                            ? { type: 'error', message: sendError }
+                            : undefined
+                        }
+                      />
+                    }
+                  >
+                    {messages.length > 0 ? (
+                      <ChatMessageList density="balanced" align="bottom">
+                        {messages.map((m, index) => {
+                          const isAdmin =
+                            m.sender === 'admin' ||
+                            m.sender === 'Admin' ||
+                            m.senderName === 'System Admin' ||
+                            m.senderName === 'Support';
+                          const stableKey =
+                            m.id || `${m.sender}-${m.createdAt || ''}-${index}`;
+                          const senderLabel = isAdmin
+                            ? 'High Counsel Support'
+                            : m.senderName || activePlayerRealName;
+                          const timestampLabel = m.createdAt
+                            ? new Date(m.createdAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '';
+
+                          return (
+                            <ChatMessage
+                              key={stableKey}
+                              sender={isAdmin ? 'user' : 'assistant'}
+                              avatar={
+                                <Avatar
+                                  name={senderLabel}
+                                  size="sm"
+                                  shape="rounded"
+                                  tooltip={false}
+                                />
+                              }
+                            >
+                              <ChatMessageBubble
+                                variant="filled"
+                                name={
+                                  <HStack gap={1.5} vAlign="center">
+                                    <Icon
+                                      icon={isAdmin ? ShieldCheck : User}
+                                      size="xsm"
+                                      color={isAdmin ? 'accent' : 'secondary'}
+                                    />
+                                    <Text type="label" size="xsm" weight="semibold">
+                                      {senderLabel}
+                                    </Text>
+                                  </HStack>
+                                }
+                                metadata={
+                                  timestampLabel ? (
+                                    <Text type="code" size="xsm" color="secondary">
+                                      {timestampLabel}
+                                    </Text>
+                                  ) : undefined
+                                }
+                              >
+                                <Text
+                                  type="body"
+                                  size="sm"
+                                  display="block"
+                                  className="whitespace-pre-wrap"
+                                >
+                                  {m.text}
+                                </Text>
+                              </ChatMessageBubble>
+                            </ChatMessage>
+                          );
+                        })}
+                      </ChatMessageList>
+                    ) : null}
+                  </ChatLayout>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center p-6">
+                <EmptyState
+                  icon={<MessageSquare size={32} />}
+                  title="No Traveler Selected"
+                  description="Select an inquiry from the roster on the left to read and respond."
+                />
+              </div>
+            )}
+          </Section>
         </div>
       </div>
-    </div>
+    </VStack>
   );
 };

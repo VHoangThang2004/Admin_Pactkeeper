@@ -1,9 +1,40 @@
 import React, { useState } from 'react';
-import { Crown, Lock, User, ShieldCheck, XCircle, Eye, EyeOff, ArrowRight, Activity, ScrollText, KeyRound, Sparkles } from 'lucide-react';
+import {
+  Activity,
+  ArrowRight,
+  Crown,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Lock,
+  Moon,
+  ScrollText,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  User,
+} from 'lucide-react';
+import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Button } from '@astryxdesign/core/Button';
+import { Card, type CardVariant } from '@astryxdesign/core/Card';
+import { Divider } from '@astryxdesign/core/Divider';
+import { Grid } from '@astryxdesign/core/Grid';
+import { Heading } from '@astryxdesign/core/Heading';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Icon } from '@astryxdesign/core/Icon';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { InputGroup } from '@astryxdesign/core/InputGroup';
+import { StackItem } from '@astryxdesign/core/Stack';
+import { StatusDot } from '@astryxdesign/core/StatusDot';
+import { Text } from '@astryxdesign/core/Text';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { VStack } from '@astryxdesign/core/VStack';
 import { adminClient } from '../api/adminClient';
+import { useThemeMode } from '../hooks/useThemeMode';
 import { recordAuditEvent, recordLoginAttempt } from '../services/adminSecurityService';
-import { extractClaimsFromToken, normalizeCounselRole } from '../utils/authSession';
 import type { AdminPermissionKey, CounselRole } from '../types';
+import { extractClaimsFromToken, normalizeCounselRole } from '../utils/authSession';
 
 interface LoginProps {
   onLoginSuccess: (
@@ -20,14 +51,13 @@ interface RoleConfig {
   id: SelectableRole;
   label: string;
   roleSubtitle: string;
-  icon: React.ElementType;
+  icon: typeof Crown;
   badgeText: string;
   landingPath: string;
   defaultUsername: string;
   defaultPasswordHint: string;
-  themeColor: string;
-  activeBg: string;
-  activeBorder: string;
+  badgeVariant: BadgeVariant;
+  cardVariant: CardVariant;
   scopeSummary: string;
 }
 
@@ -41,10 +71,10 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     landingPath: 'Admin Dashboard (/)',
     defaultUsername: 'admin',
     defaultPasswordHint: 'admin123',
-    themeColor: '#ffd466',
-    activeBg: 'bg-amber-500/15',
-    activeBorder: 'border-amber-400',
-    scopeSummary: 'Authoritative responsibility for Manage User Accounts (Profiles, Bans, Balances) and View Realm Treasury.',
+    badgeVariant: 'yellow',
+    cardVariant: 'yellow',
+    scopeSummary:
+      'Authoritative responsibility for Manage User Accounts (Profiles, Bans, Balances) and View Realm Treasury.',
   },
   Moderator: {
     id: 'Moderator',
@@ -55,10 +85,10 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     landingPath: 'Match Supervision (/matches)',
     defaultUsername: 'moderator',
     defaultPasswordHint: 'mod123',
-    themeColor: '#38bdf8',
-    activeBg: 'bg-cyan-500/15',
-    activeBorder: 'border-cyan-400',
-    scopeSummary: 'Direct responsibility for Gacha/Story Config, Item/Combat Reward Config, and Inspect PvP Matches (Team Formation & Logs).',
+    badgeVariant: 'cyan',
+    cardVariant: 'cyan',
+    scopeSummary:
+      'Direct responsibility for Gacha/Story Config, Item/Combat Reward Config, and Inspect PvP Matches (Team Formation & Logs).',
   },
   'Technical Support': {
     id: 'Technical Support',
@@ -69,25 +99,16 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
     landingPath: 'System Monitor & Status (/)',
     defaultUsername: 'techsupport',
     defaultPasswordHint: 'tech123',
-    themeColor: '#34d399',
-    activeBg: 'bg-emerald-500/15',
-    activeBorder: 'border-emerald-400',
-    scopeSummary: 'Direct responsibility for Monitor System/Server Status, Configure System Overrides, Match Log Diagnostics, and Player Live Chat Desk.',
+    badgeVariant: 'green',
+    cardVariant: 'green',
+    scopeSummary:
+      'Direct responsibility for Monitor System/Server Status, Configure System Overrides, Match Log Diagnostics, and Player Live Chat Desk.',
   },
 };
 
-/**
- * Login Component - HoYoverse Game Portal Gateway
- * 
- * Remade to HoYoverse AAA Gaming Standards:
- * - Cosmic Dark Obsidian canvas with celestial nebulae and starlight particles
- * - Regal portal badge with gold gradient typography
- * - Role-based authority selector with dedicated privilege descriptions
- * - 1-Click Sample Credential Shortcuts for rapid verification
- * - Trust pillars & security verification footer
- */
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const isDevMode = import.meta.env.DEV;
+  const { mode, toggleMode } = useThemeMode();
   const [selectedRole, setSelectedRole] = useState<SelectableRole>('Admin');
   const [username, setUsername] = useState(isDevMode ? 'admin' : '');
   const [password, setPassword] = useState('');
@@ -97,7 +118,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Switch active role and clear password input to require manual entry
   const handleSelectRole = (role: SelectableRole) => {
     setSelectedRole(role);
     const config = ROLE_CONFIGS[role];
@@ -110,7 +130,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setPasswordError(null);
   };
 
-  // Quick fill both username & sample password for convenient local dev testing
   const handleQuickFill = (role: SelectableRole) => {
     if (!isDevMode) return;
     setSelectedRole(role);
@@ -151,21 +170,23 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     const attemptedUsername = username.trim();
 
     try {
-      // 1. Direct login invocation to live Swagger endpoint (/api/Auth/login)
       const response = await adminClient.post('/Auth/login', {
         username: attemptedUsername,
         password,
         attemptedRole: selectedRole,
       });
 
-      const { token, username: resUser, role: apiRole, permissions: apiPermissions } =
-        response.data || {};
+      const {
+        token,
+        username: resUser,
+        role: apiRole,
+        permissions: apiPermissions,
+      } = response.data || {};
       const resolvedUser = (typeof resUser === 'string' && resUser.trim()) || attemptedUsername;
       const claims = extractClaimsFromToken(token);
       const rawRoleString = String(claims?.role || apiRole || '').trim();
       const roleLower = rawRoleString.toLowerCase();
 
-      // 2. Reject non-privileged Player accounts
       if (roleLower === 'player') {
         const denyMsg =
           'Access Denied! Account holds a standard Player role. High Counsel privilege is required.';
@@ -192,7 +213,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // 3. Validate token presence in response
       if (!token) {
         const noTokenMsg =
           'Authentication succeeded but no authorization token was returned by the Gateway.';
@@ -210,7 +230,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         Array.isArray(apiPermissions) ? apiPermissions : claims?.permissions || []
       ) as AdminPermissionKey[];
 
-      // 4. Resolve authoritative portal role strictly from backend/JWT claim (allow view downgrade only in DEV when Admin)
       const serverRole = normalizeCounselRole(rawRoleString);
       if (!serverRole && explicitPermissions.length === 0) {
         const unauthorizedMsg =
@@ -226,8 +245,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      let normalizedRole: CounselRole =
-        serverRole || ((rawRoleString as CounselRole) || 'Moderator');
+      let normalizedRole: CounselRole = serverRole || ((rawRoleString as CounselRole) || 'Moderator');
       if (isDevMode && (serverRole === 'Admin' || serverRole === 'Server')) {
         if (selectedRole === 'Moderator' || resolvedUser.toLowerCase() === 'moderator') {
           normalizedRole = 'Moderator';
@@ -273,8 +291,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             apiMessage ||
             `Invalid credentials for ${selectedRole}! Please verify your username and passcode.`;
         } else if (status === 403) {
-          failureMsg =
-            apiMessage || 'Access Denied! Account lacks High Counsel authorization.';
+          failureMsg = apiMessage || 'Access Denied! Account lacks High Counsel authorization.';
         } else if (status === 500) {
           failureMsg = 'Internal Server Error on Realm Gateway (500). Please try again shortly.';
         } else {
@@ -296,270 +313,282 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const activeConfig = ROLE_CONFIGS[selectedRole];
 
   return (
-    <div className="min-h-screen bg-[#070a14] flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
-      {/* Background Celestial Mesh Orbs */}
-      <div 
-        className="fixed pointer-events-none -top-40 -left-40 w-[650px] h-[650px] bg-amber-500/[0.08] rounded-full blur-[150px]" 
-        aria-hidden="true" 
-      />
-      <div 
-        className="fixed pointer-events-none -bottom-40 -right-40 w-[750px] h-[750px] bg-cyan-500/[0.06] rounded-full blur-[170px]" 
-        aria-hidden="true" 
-      />
-      <div 
-        className="fixed pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-500/[0.03] rounded-full blur-[140px]" 
-        aria-hidden="true" 
-      />
+    <div className="min-h-screen bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)] flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-2xl">
+        <Card elevation="high" padding={6}>
+          <VStack gap={5}>
+            {/* Top Bar + Brand Crest */}
+            <VStack gap={3}>
+              <HStack justify="between" vAlign="center">
+                <Badge label="HIGH COUNSEL GATEWAY" variant="yellow" icon={<Icon icon={Crown} />} />
+                <IconButton
+                  label={mode === 'light' ? 'Switch to Dark mode' : 'Switch to Light mode'}
+                  tooltip={mode === 'light' ? 'Dark Mode' : 'Light Mode'}
+                  variant="secondary"
+                  size="sm"
+                  icon={<Icon icon={mode === 'light' ? Moon : Sun} />}
+                  onClick={toggleMode}
+                />
+              </HStack>
 
-      {/* Login Box (HoYoverse Dark Glassmorphic Portal) */}
-      <div className="w-full max-w-xl hy-glass border border-white/[0.1] rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.85)] p-6 md:p-8 relative z-10 space-y-6">
-        {/* Ornate Corner Accents */}
-        <span className="absolute top-4 left-4 text-amber-400/40 text-xs">❖</span>
-        <span className="absolute top-4 right-4 text-amber-400/40 text-xs">❖</span>
+              <VStack gap={1.5} hAlign="center">
+                <Heading level={1} type="display-2" className="font-cinzel pk-gold-text text-center">
+                  TACTICAL SRPG HIGH COUNSEL
+                </Heading>
+                <HStack gap={2} vAlign="center" hAlign="center" wrap="wrap">
+                  <Badge label="v2.4.0" variant="neutral" />
+                  <Text type="supporting" size="xsm" weight="medium">
+                    REALM GOVERNANCE &amp; OPERATIONS PORTAL
+                  </Text>
+                </HStack>
+              </VStack>
+            </VStack>
 
-        {/* Header Section */}
-        <div className="text-center space-y-2 border-b border-white/[0.08] pb-5">
-          <div className="inline-flex p-3 rounded-2xl bg-gradient-to-br from-[#0c1022] to-[#151d38] border border-amber-400/30 shadow-[0_0_24px_rgba(242,191,78,0.25)] mb-1">
-            <Crown className="w-8 h-8 text-amber-300 drop-shadow-[0_0_10px_rgba(242,191,78,0.6)]" />
-          </div>
-          <h1 className="text-2xl md:text-3xl font-black font-cinzel tracking-wider uppercase hy-gold-text">
-            TACTICAL SRPG HIGH COUNSEL
-          </h1>
-          <div className="flex items-center justify-center gap-2 mt-1">
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-amber-200 border border-white/[0.08]">
-              v2.4.0
-            </span>
-            <p className="text-[11px] text-slate-400 uppercase tracking-widest font-mono">
-              Realm Governance & Operations Portal
-            </p>
-          </div>
-        </div>
+            <Divider />
 
-        {/* Interactive Role Selector */}
-        <div className="space-y-2.5">
-          <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-            <span>Select Target Counsel Authority:</span>
-            <span className="text-[11px] font-mono font-normal text-slate-400">
-              Authority: <strong className="text-amber-300">{selectedRole}</strong>
-            </span>
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-            {(Object.keys(ROLE_CONFIGS) as SelectableRole[]).map((roleKey) => {
-              const cfg = ROLE_CONFIGS[roleKey];
-              const isSelected = selectedRole === roleKey;
-              const Icon = cfg.icon;
+            {/* Authority Tier Selector */}
+            <VStack gap={3}>
+              <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                <Text type="label" size="xsm">
+                  Select Target Counsel Authority
+                </Text>
+                <HStack gap={1.5} vAlign="center">
+                  <Text type="supporting" size="xsm">
+                    Active Authority:
+                  </Text>
+                  <Badge label={selectedRole} variant={activeConfig.badgeVariant} />
+                </HStack>
+              </HStack>
 
-              return (
-                <button
-                  key={roleKey}
-                  type="button"
-                  onClick={() => handleSelectRole(roleKey)}
-                  className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
-                    isSelected
-                      ? `${cfg.activeBg} ${cfg.activeBorder} shadow-[0_0_20px_rgba(242,191,78,0.2)] scale-[1.02] border-2`
-                      : 'bg-[#0a0e1c] border-white/[0.06] hover:border-white/[0.18] opacity-80 hover:opacity-100'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <Icon className="w-4 h-4" style={{ color: cfg.themeColor }} />
-                    {isSelected && (
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <Grid columns={{ minWidth: 165, max: 3 }} gap={3}>
+                {(Object.keys(ROLE_CONFIGS) as SelectableRole[]).map((roleKey) => {
+                  const cfg = ROLE_CONFIGS[roleKey];
+                  const isSelected = selectedRole === roleKey;
+
+                  return (
+                    <button
+                      key={roleKey}
+                      type="button"
+                      onClick={() => handleSelectRole(roleKey)}
+                      className="text-left rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent-primary)] transition-transform hover:-translate-y-0.5 cursor-pointer"
+                    >
+                      <Card
+                        variant={isSelected ? cfg.cardVariant : 'default'}
+                        elevation={isSelected ? 'med' : 'none'}
+                        padding={3}
+                      >
+                        <VStack gap={2}>
+                          <HStack justify="between" vAlign="center">
+                            <Icon icon={cfg.icon} size="sm" />
+                            {isSelected ? (
+                              <StatusDot variant="accent" isPulsing label="Active" />
+                            ) : (
+                              <Text type="supporting" size="2xs">
+                                Select
+                              </Text>
+                            )}
+                          </HStack>
+                          <VStack gap={0.5}>
+                            <Text weight="semibold" size="sm" className="font-cinzel">
+                              {cfg.label}
+                            </Text>
+                            <Text type="supporting" size="xsm" maxLines={2}>
+                              {cfg.roleSubtitle}
+                            </Text>
+                          </VStack>
+                        </VStack>
+                      </Card>
+                    </button>
+                  );
+                })}
+              </Grid>
+            </VStack>
+
+            {/* Selected Role Scope Card */}
+            <Card variant="muted" padding={4}>
+              <VStack gap={2}>
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <HStack gap={1.5} vAlign="center">
+                    <Icon icon={ScrollText} size="sm" color="accent" />
+                    <Text type="label" size="xsm" className="font-cinzel">
+                      AUTHORITY SCOPE
+                    </Text>
+                  </HStack>
+                  <Badge label={activeConfig.badgeText} variant={activeConfig.badgeVariant} />
+                </HStack>
+                <Text type="supporting" size="sm">
+                  {activeConfig.scopeSummary}
+                </Text>
+                <Divider />
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <Text type="supporting" size="xsm">
+                    Primary Destination
+                  </Text>
+                  <Text type="code" size="xsm" weight="semibold" color="accent">
+                    {activeConfig.landingPath}
+                  </Text>
+                </HStack>
+              </VStack>
+            </Card>
+
+            {/* Error Alert */}
+            {error && <Banner status="error" title="Authentication Failure" description={error} />}
+
+            {/* Login Credentials Form */}
+            <form onSubmit={handleSubmit}>
+              <VStack gap={4}>
+                <VStack gap={1}>
+                  <HStack justify="between" vAlign="center">
+                    <Text type="label" size="xsm">
+                      Counsel Username ({activeConfig.id})
+                    </Text>
+                    {isDevMode && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        label={`Reset: ${activeConfig.defaultUsername}`}
+                        onClick={() => {
+                          setUsername(activeConfig.defaultUsername);
+                          setPassword('');
+                        }}
+                      />
                     )}
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold font-cinzel text-slate-100 leading-tight">
-                      {cfg.label}
-                    </h3>
-                    <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">
-                      {cfg.roleSubtitle}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  </HStack>
+                  <TextInput
+                    label={`Counsel Username (${activeConfig.id})`}
+                    isLabelHidden
+                    value={username}
+                    onChange={(val) => {
+                      setUsername(val);
+                      if (usernameError) setUsernameError(null);
+                      if (error) setError(null);
+                    }}
+                    startIcon={User}
+                    placeholder={`Enter username (${activeConfig.defaultUsername})`}
+                    autoComplete="username"
+                    width="100%"
+                    status={
+                      usernameError
+                        ? { type: 'error', message: usernameError }
+                        : error
+                          ? { type: 'error' }
+                          : undefined
+                    }
+                    isRequired
+                  />
+                </VStack>
 
-        {/* Selected Role Authority Summary Banner */}
-        <div className="bg-[#0a0e1c]/90 border border-white/[0.08] rounded-xl p-3.5 space-y-1.5 text-xs">
-          <div className="flex items-center justify-between font-cinzel text-[11px]">
-            <span className="font-bold text-slate-200 flex items-center gap-1.5 uppercase">
-              <ScrollText className="w-3.5 h-3.5 text-amber-400" />
-              AUTHORITY SCOPE:
-            </span>
-            <span
-              className="px-2 py-0.5 rounded-full font-mono font-bold text-[10px]"
-              style={{ backgroundColor: `${activeConfig.themeColor}20`, color: activeConfig.themeColor }}
-            >
-              {activeConfig.badgeText}
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-            {activeConfig.scopeSummary}
-          </p>
-          <div className="text-[10px] text-slate-400 font-mono pt-1.5 border-t border-white/[0.06] flex items-center justify-between">
-            <span>Primary Destination:</span>
-            <span className="text-amber-300 font-semibold">{activeConfig.landingPath}</span>
-          </div>
-        </div>
-
-        {/* Error Alert Box */}
-        {error && (
-          <div className="bg-rose-950/60 border border-rose-500/40 rounded-xl p-3.5 text-xs text-rose-200 flex items-start gap-2.5 shadow font-sans backdrop-blur-md animate-in fade-in duration-200">
-            <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <span className="font-bold block text-rose-100 mb-0.5">Authentication Failure</span>
-              <p>{error}</p>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Username Field */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                Counsel Username ({activeConfig.id})
-              </label>
-              {isDevMode && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUsername(activeConfig.defaultUsername);
-                    setPassword('');
-                  }}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 underline font-mono"
+                <InputGroup
+                  label={`Secret Passcode (${activeConfig.id})`}
+                  isRequired
+                  status={
+                    passwordError
+                      ? { type: 'error', message: passwordError }
+                      : error
+                        ? { type: 'error' }
+                        : undefined
+                  }
                 >
-                  Reset: {activeConfig.defaultUsername}
-                </button>
-              )}
-            </div>
-            <div
-              className={`flex items-center gap-3 bg-[#090d1a] border rounded-xl px-3.5 py-2.5 text-sm text-slate-100 transition-colors ${
-                usernameError || error ? 'border-rose-500' : 'border-white/[0.1] focus-within:border-amber-400 focus-within:shadow-[0_0_12px_rgba(242,191,78,0.2)]'
-              }`}
-            >
-              <User className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
-                  if (usernameError) setUsernameError(null);
-                  if (error) setError(null);
-                }}
-                placeholder={`Enter username (${activeConfig.defaultUsername})`}
-                className="bg-transparent border-none outline-none w-full text-xs text-slate-100 placeholder-slate-500 font-mono"
-              />
-            </div>
-            {usernameError && <p className="text-xs text-rose-400 mt-1 font-sans">{usernameError}</p>}
-          </div>
+                  <TextInput
+                    label={`Secret Passcode (${activeConfig.id})`}
+                    isLabelHidden
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(val) => {
+                      setPassword(val);
+                      if (passwordError) setPasswordError(null);
+                      if (error) setError(null);
+                    }}
+                    startIcon={Lock}
+                    placeholder="Enter secret passcode..."
+                    autoComplete="current-password"
+                    width="100%"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    isIconOnly
+                    label={showPassword ? 'Hide passcode' : 'Show passcode'}
+                    tooltip={showPassword ? 'Hide passcode' : 'Show passcode'}
+                    icon={<Icon icon={showPassword ? EyeOff : Eye} />}
+                    onClick={() => setShowPassword((prev) => !prev)}
+                  />
+                </InputGroup>
 
-          {/* Password Field */}
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5 uppercase tracking-wide">
-              Secret Passcode ({activeConfig.id})
-            </label>
-            <div
-              className={`flex items-center gap-3 bg-[#090d1a] border rounded-xl px-3.5 py-2.5 text-sm text-slate-100 transition-colors ${
-                passwordError || error ? 'border-rose-500' : 'border-white/[0.1] focus-within:border-amber-400 focus-within:shadow-[0_0_12px_rgba(242,191,78,0.2)]'
-              }`}
-            >
-              <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (passwordError) setPasswordError(null);
-                  if (error) setError(null);
-                }}
-                placeholder="Enter secret passcode..."
-                className="bg-transparent border-none outline-none w-full text-xs text-slate-100 placeholder-slate-500 font-mono"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="text-slate-400 hover:text-slate-200 focus:outline-none transition-colors"
-                title={showPassword ? 'Hide passcode' : 'Show passcode'}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            {passwordError && <p className="text-xs text-rose-400 mt-1 font-sans">{passwordError}</p>}
-          </div>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  width="100%"
+                  isLoading={loading}
+                  icon={<Icon icon={ShieldCheck} />}
+                  endContent={<Icon icon={ArrowRight} />}
+                  label={
+                    loading
+                      ? 'Authenticating Credentials...'
+                      : `Enter High Counsel as ${selectedRole}`
+                  }
+                />
+              </VStack>
+            </form>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="hy-btn-gold w-full py-3 text-xs md:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 mt-2 font-bold cursor-pointer"
-          >
-            <ShieldCheck className="w-4 h-4 text-slate-950" />
-            <span>{loading ? 'Authenticating Credentials...' : `ENTER HIGH COUNSEL AS ${selectedRole.toUpperCase()}`}</span>
-            <ArrowRight className="w-4 h-4 text-slate-950" />
-          </button>
-        </form>
+            {/* Dev Fast-Fill Credentials */}
+            {isDevMode && (
+              <Card variant="muted" padding={4}>
+                <VStack gap={3}>
+                  <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                    <HStack gap={1.5} vAlign="center">
+                      <Icon icon={KeyRound} size="sm" color="accent" />
+                      <Text type="label" size="xsm">
+                        1-Click Fast Fill Test Accounts (Dev)
+                      </Text>
+                    </HStack>
+                    <Text type="code" size="2xs" color="secondary">
+                      Pre-populates Passcode
+                    </Text>
+                  </HStack>
 
-        {/* 1-Click Fast Fill Credentials Shortcuts (Development Only) */}
-        {isDevMode && (
-          <div className="bg-[#090d1a]/80 border border-white/[0.08] rounded-xl p-3.5 space-y-2 text-xs text-slate-400">
-            <p className="font-semibold text-slate-300 text-xs uppercase tracking-wider flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                1-Click Fast Fill Test Accounts (Dev):
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">Pre-populates Passcode</span>
-            </p>
-            <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('Admin')}
-                className={`p-2.5 rounded-xl border text-center transition-all ${
-                  selectedRole === 'Admin'
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold shadow'
-                    : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-amber-400/40 hover:text-white'
-                }`}
-              >
-                <div className="font-bold">👑 Admin</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">admin123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('Moderator')}
-                className={`p-2.5 rounded-xl border text-center transition-all ${
-                  selectedRole === 'Moderator'
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold shadow'
-                    : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-cyan-400/40 hover:text-white'
-                }`}
-              >
-                <div className="font-bold">🛡️ Moderator</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">mod123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('Technical Support')}
-                className={`p-2.5 rounded-xl border text-center transition-all ${
-                  selectedRole === 'Technical Support'
-                    ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold shadow'
-                    : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:border-emerald-400/40 hover:text-white'
-                }`}
-              >
-                <div className="font-bold">🎧 Support</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">tech123</div>
-              </button>
-            </div>
-          </div>
-        )}
+                  <Grid columns={{ minWidth: 140, max: 3 }} gap={2}>
+                    {(Object.keys(ROLE_CONFIGS) as SelectableRole[]).map((roleKey) => {
+                      const cfg = ROLE_CONFIGS[roleKey];
+                      const active = selectedRole === roleKey;
+                      return (
+                        <Button
+                          key={roleKey}
+                          type="button"
+                          variant={active ? 'primary' : 'secondary'}
+                          size="sm"
+                          width="100%"
+                          icon={<Icon icon={cfg.icon} />}
+                          label={`${roleKey === 'Technical Support' ? 'Support' : roleKey} (${cfg.defaultPasswordHint})`}
+                          onClick={() => handleQuickFill(roleKey)}
+                        />
+                      );
+                    })}
+                  </Grid>
+                </VStack>
+              </Card>
+            )}
 
-        {/* Trust & Security Verification Footer */}
-        <div className="text-center border-t border-white/[0.08] pt-3 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-          <span className="flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            .NET 9 + SignalR Hubs
-          </span>
-          <span>Security Protocol v2.4</span>
-        </div>
+            <Divider />
+
+            {/* Verification Footer */}
+            <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+              <HStack gap={1.5} vAlign="center">
+                <Icon icon={Sparkles} size="xsm" color="accent" />
+                <Text type="code" size="xsm" color="secondary">
+                  .NET 9 + SignalR Hubs
+                </Text>
+              </HStack>
+              <StackItem>
+                <Text type="code" size="xsm" color="secondary">
+                  Security Protocol v2.4
+                </Text>
+              </StackItem>
+            </HStack>
+          </VStack>
+        </Card>
       </div>
     </div>
   );
