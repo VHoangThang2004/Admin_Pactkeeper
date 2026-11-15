@@ -10,7 +10,6 @@ import { Grid } from '@astryxdesign/core/Grid';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Heading } from '@astryxdesign/core/Heading';
 import { IconButton } from '@astryxdesign/core/IconButton';
-import { Section } from '@astryxdesign/core/Section';
 import { Selector, type SelectorOptionData } from '@astryxdesign/core/Selector';
 import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
@@ -42,6 +41,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
+import { ConsolePage } from '../components/ConsolePage';
 import { SensitiveActionModal } from '../components/SensitiveActionModal';
 import {
   buildAuditLogsCsv,
@@ -1006,197 +1006,119 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
     return formatRemainingDuration(tokenExpiryMs - nowMs);
   }, [tokenExpiryMs, nowMs]);
 
-  return (
-    <VStack gap={5}>
-      {/* Page Header & Active Session Card */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" gap={3} wrap="wrap">
-            <HStack gap={3} vAlign="center">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-6 h-6 text-amber-500" />
-              </div>
-              <VStack gap={0.5}>
-                <Heading level={1} type="display-3">
-                  SECURITY &amp; GOVERNANCE
-                </Heading>
-                <Text size="sm" color="secondary">
-                  High Counsel RBAC access matrix, staff directory, immutable audit trail &amp; authentication telemetry
-                </Text>
-              </VStack>
-            </HStack>
+  const topBanner =
+    feedback || notices.length > 0 ? (
+      <VStack gap={2}>
+        {feedback && (
+          <Banner
+            status={feedback.status}
+            title={feedback.title}
+            description={feedback.detail}
+            isDismissable
+            onDismiss={() => setFeedback(null)}
+          />
+        )}
+        {notices.length > 0 && (
+          <Banner
+            status="info"
+            title="Security API Fallback / Notice"
+            description={notices.join(' | ')}
+            isDismissable
+            onDismiss={() => setNotices([])}
+          />
+        )}
+      </VStack>
+    ) : undefined;
 
-            <HStack gap={2} wrap="wrap" vAlign="center">
-              {lastSyncedAt && (
-                <HStack gap={1.5} vAlign="center">
-                  <StatusDot variant="success" label="Security snapshot synchronized" />
-                  <Text type="code" size="xsm" color="secondary">
-                    Synced {lastSyncedAt}
-                  </Text>
-                </HStack>
-              )}
-              <Button
-                variant="secondary"
-                size="sm"
-                label="Refresh"
-                icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
-                onClick={() => void loadSecuritySnapshot()}
-                isDisabled={loading}
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                label="Purge Local Buffers"
-                icon={<Trash2 className="w-4 h-4" />}
-                onClick={handleClearSessionBuffers}
-              />
-              <Button
-                variant="primary"
-                size="sm"
-                label="Create Staff"
-                icon={<UserPlus className="w-4 h-4" />}
-                onClick={() => {
-                  setCreateFormError(null);
-                  setIsCreateAccountOpen(true);
-                }}
-              />
-            </HStack>
+  return (
+    <ConsolePage
+      badge="GOVERNANCE & RBAC COUNCIL"
+      badgeVariant="purple"
+      icon={<ShieldCheck className="w-6 h-6 text-amber-500" />}
+      meta={
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <HStack gap={1.5} vAlign="center">
+            <UserCheck className="w-3.5 h-3.5 text-amber-500" />
+            <Text size="xsm" weight="bold" color="primary">
+              {currentUsername}
+            </Text>
+            <Badge
+              variant={getRoleBadgeVariant(String(currentRole))}
+              label={String(currentRole)}
+            />
           </HStack>
 
-          {/* Operator Session Bar */}
-          <Card variant="muted" padding={3}>
-            <HStack justify="between" vAlign="center" gap={3} wrap="wrap">
-              <HStack gap={3} vAlign="center" wrap="wrap">
-                <HStack gap={1.5} vAlign="center">
-                  <UserCheck className="w-4 h-4 text-amber-500" />
-                  <Text size="sm" color="secondary">
-                    Signed in as
-                  </Text>
-                  <Text size="sm" weight="bold" color="primary">
-                    {currentUsername}
-                  </Text>
-                </HStack>
-                <Badge variant={getRoleBadgeVariant(String(currentRole))} label={String(currentRole)} />
-              </HStack>
+          <HStack gap={1} vAlign="center">
+            <Clock className="w-3.5 h-3.5 text-sky-500" />
+            <Badge
+              variant={
+                tokenExpiryMs !== null && tokenExpiryMs - nowMs < 300_000
+                  ? 'warning'
+                  : 'info'
+              }
+              label={`TTL ${sessionRemainingLabel}`}
+            />
+          </HStack>
 
-              <HStack gap={2} vAlign="center">
-                <Clock className="w-4 h-4 text-sky-500" />
-                <Text size="sm" color="secondary">
-                  JWT Token TTL:
-                </Text>
-                <Badge
-                  variant={
-                    tokenExpiryMs !== null && tokenExpiryMs - nowMs < 300_000
-                      ? 'warning'
-                      : 'info'
-                  }
-                  label={sessionRemainingLabel}
-                />
-              </HStack>
+          <Badge
+            variant="neutral"
+            label={`${summaryStats.activeAccounts}/${accounts.length} Active Staff • ${summaryStats.criticalAudits} Critical`}
+          />
+
+          <Badge
+            variant={summaryStats.deniedOrFailedLogins > 0 ? 'warning' : 'success'}
+            icon={<Activity className="w-3 h-3" />}
+            label={`${summaryStats.deniedOrFailedLogins} Auth Alerts`}
+          />
+
+          {lastSyncedAt && (
+            <HStack gap={1} vAlign="center">
+              <StatusDot variant="success" label="Security snapshot synchronized" />
+              <Text type="code" size="xsm" color="secondary">
+                {lastSyncedAt}
+              </Text>
             </HStack>
-          </Card>
-
-          {feedback && (
-            <Banner
-              status={feedback.status}
-              title={feedback.title}
-              description={feedback.detail}
-              isDismissable
-              onDismiss={() => setFeedback(null)}
-            />
           )}
-
-          {notices.length > 0 && (
-            <Banner
-              status="info"
-              title="Security API Fallback / Notice"
-              description={notices.join(' | ')}
-              isDismissable
-              onDismiss={() => setNotices([])}
-            />
-          )}
-
-          {/* 4 KPI Summary Cards */}
-          <Grid columns={{ minWidth: 210, max: 4, repeat: 'fit' }} gap={3}>
-            <Card variant="default" padding={4}>
-              <VStack gap={1}>
-                <HStack justify="between" vAlign="center">
-                  <Text type="supporting" size="xsm" color="secondary">
-                    Counsel Accounts
-                  </Text>
-                  <Users className="w-4 h-4 text-amber-500" />
-                </HStack>
-                <Heading level={2} type="display-3">
-                  {accounts.length}
-                </Heading>
-                <Text type="supporting" size="xsm" color="secondary">
-                  {summaryStats.activeAccounts} active • {summaryStats.lockedAccounts} locked
-                </Text>
-              </VStack>
-            </Card>
-
-            <Card variant="default" padding={4}>
-              <VStack gap={1}>
-                <HStack justify="between" vAlign="center">
-                  <Text type="supporting" size="xsm" color="secondary">
-                    RBAC Roles
-                  </Text>
-                  <Shield className="w-4 h-4 text-indigo-500" />
-                </HStack>
-                <Heading level={2} type="display-3">
-                  {roles.length}
-                </Heading>
-                <Text type="supporting" size="xsm" color="secondary">
-                  {PERMISSION_CATALOG.length} governed capabilities
-                </Text>
-              </VStack>
-            </Card>
-
-            <Card variant="default" padding={4}>
-              <VStack gap={1}>
-                <HStack justify="between" vAlign="center">
-                  <Text type="supporting" size="xsm" color="secondary">
-                    Audit Events
-                  </Text>
-                  <FileClock className="w-4 h-4 text-rose-500" />
-                </HStack>
-                <Heading level={2} type="display-3">
-                  {auditLogs.length}
-                </Heading>
-                <Text type="supporting" size="xsm" color="secondary">
-                  {summaryStats.criticalAudits} critical • {summaryStats.failedAudits} failed
-                </Text>
-              </VStack>
-            </Card>
-
-            <Card variant="default" padding={4}>
-              <VStack gap={1}>
-                <HStack justify="between" vAlign="center">
-                  <Text type="supporting" size="xsm" color="secondary">
-                    Auth Events
-                  </Text>
-                  <Activity className="w-4 h-4 text-emerald-500" />
-                </HStack>
-                <Heading level={2} type="display-3">
-                  {loginHistory.length}
-                </Heading>
-                <Text type="supporting" size="xsm" color="secondary">
-                  {summaryStats.deniedOrFailedLogins} rejected/failed attempts
-                </Text>
-              </VStack>
-            </Card>
-          </Grid>
-        </VStack>
-      </Section>
-
-      {/* Main Navigation Tabs */}
-      <Section padding={5}>
-        <VStack gap={4}>
+        </HStack>
+      }
+      title="SECURITY & GOVERNANCE"
+      subtitle="High Counsel RBAC access matrix, staff directory, immutable audit trail & authentication telemetry"
+      actions={
+        <HStack gap={2} wrap="wrap" vAlign="center">
+          <Button
+            variant="secondary"
+            size="sm"
+            label="Refresh"
+            icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+            onClick={() => void loadSecuritySnapshot()}
+            isDisabled={loading}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            label="Purge Local Buffers"
+            icon={<Trash2 className="w-4 h-4" />}
+            onClick={handleClearSessionBuffers}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            label="Create Staff"
+            icon={<UserPlus className="w-4 h-4" />}
+            onClick={() => {
+              setCreateFormError(null);
+              setIsCreateAccountOpen(true);
+            }}
+          />
+        </HStack>
+      }
+      banner={topBanner}
+      toolbar={
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <TabList
             value={activeTab}
             onChange={(val) => setActiveTab(val as GovernanceTab)}
             role="tablist"
-            hasDivider
           >
             <Tab
               value="accounts"
@@ -1227,6 +1149,19 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
               endContent={<Badge variant="info" label={loginHistory.length} />}
             />
           </TabList>
+
+          {activeTab === 'roles' && roleDiffCount > 0 && (
+            <Badge
+              variant="warning"
+              label={`${roleDiffCount} Unsaved RBAC Change${roleDiffCount > 1 ? 's' : ''} (${selectedRole.name})`}
+            />
+          )}
+        </div>
+      }
+    >
+      {/* Main Tab Body Card */}
+      <Card padding={4}>
+        <VStack gap={4}>
 
           {/* TAB 1: STAFF ACCOUNTS */}
           {activeTab === 'accounts' && (
@@ -1672,7 +1607,7 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
             </div>
           )}
         </VStack>
-      </Section>
+      </Card>
 
       {/* DIALOG: Create Staff Account */}
       <Dialog
@@ -2092,6 +2027,6 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
           setPendingAction(null);
         }}
       />
-    </VStack>
+    </ConsolePage>
   );
 };

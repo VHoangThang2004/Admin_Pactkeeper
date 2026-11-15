@@ -24,7 +24,7 @@ export const Layout: React.FC<LayoutProps> = ({
     <AppShell
       height="fill"
       variant="surface"
-      contentPadding={4}
+      contentPadding={0}
       topNav={
         <Header
           role={role}
@@ -42,7 +42,7 @@ export const Layout: React.FC<LayoutProps> = ({
         />
       }
     >
-      <div className="mx-auto w-full max-w-[1600px] pb-8">
+      <div className="h-full w-full min-h-0 flex flex-col overflow-hidden">
         <Outlet />
       </div>
     </AppShell>

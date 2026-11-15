@@ -24,15 +24,11 @@ import { Card } from '@astryxdesign/core/Card';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Divider } from '@astryxdesign/core/Divider';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
-import { Grid } from '@astryxdesign/core/Grid';
-import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
-import { Section } from '@astryxdesign/core/Section';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Selector } from '@astryxdesign/core/Selector';
-import { StackItem } from '@astryxdesign/core/Stack';
 import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
@@ -41,6 +37,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { adminClient } from '../api/adminClient';
 import { fetchAvailableLogFiles, fetchMatchLogs } from '../api/matchLogApi';
+import { ConsolePage } from '../components/ConsolePage';
 import { LogTerminalView } from '../components/LogTerminalView';
 import { MatchLogInspector } from '../components/MatchLogInspector';
 import type { LogFileInfo, MatchHistoryItem, MatchLogLevel, MatchLogResponse } from '../types';
@@ -418,13 +415,24 @@ export const MatchSupervision: React.FC = () => {
     {
       key: 'actions',
       header: 'Actions',
-      width: pixel(210),
+      width: pixel(240),
       align: 'end',
       renderCell: (m) => {
         const mId = m.matchId || m.id || '';
         const hasLog = logFileSet.has(mId.toLowerCase());
         return (
-          <HStack gap={2} hAlign="end" vAlign="center">
+          <HStack gap={1.5} hAlign="end" vAlign="center">
+            <IconButton
+              label={`Open ${mId} in Live Log Terminal`}
+              tooltip="Open in Live Log Terminal"
+              variant="secondary"
+              size="sm"
+              icon={<Icon icon={Terminal} />}
+              onClick={() => {
+                setTargetMatchId(mId);
+                setActiveTab('diagnostics');
+              }}
+            />
             <Button
               variant="secondary"
               size="sm"
@@ -445,256 +453,193 @@ export const MatchSupervision: React.FC = () => {
   ];
 
   return (
-    <VStack gap={5}>
-      {/* Hero Banner & Quick Stats */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-            <VStack gap={1.5}>
-              <HStack gap={2} vAlign="center" wrap="wrap">
-                <Badge label="OPERATIONAL TELEMETRY & DIAGNOSTICS" variant="info" />
-                <Text type="code" size="xsm" color="secondary">
-                  Netcode NGO 7777–7800
-                </Text>
-              </HStack>
-              <HStack gap={2} vAlign="center">
-                <Icon icon={Swords} size="lg" color="accent" />
-                <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
-                  MATCH SUPERVISION &amp; SERVER LOGS
-                </Heading>
-              </HStack>
-              <Text type="supporting" size="sm">
-                Authoritative overview of live and historical SRPG battles alongside raw dedicated
-                VPS diagnostic logs.
-              </Text>
-            </VStack>
-
-            <StackItem size="static">
-              <Button
-                variant="secondary"
-                size="md"
-                isLoading={loading}
-                icon={<Icon icon={RefreshCw} />}
-                label="Sync Telemetry"
-                onClick={fetchAllData}
+    <ConsolePage
+      fillBody={activeTab === 'diagnostics'}
+      badge="OPERATIONAL TELEMETRY & DIAGNOSTICS"
+      badgeVariant="info"
+      meta={
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <Text type="code" size="xsm" color="secondary">
+            Netcode NGO 7777–7800
+          </Text>
+          <Badge
+            label={loading ? 'Live: ...' : `${liveMatches.length} Live Battles`}
+            variant={liveMatches.length > 0 ? 'success' : 'neutral'}
+            icon={<Icon icon={Activity} />}
+          />
+          <Badge
+            label={loading ? 'Matches: ...' : `${matches.length} Recorded`}
+            variant="info"
+          />
+          <Badge
+            label={loading ? 'VPS Logs: ...' : `${logFiles.length} VPS Files`}
+            variant="yellow"
+          />
+        </HStack>
+      }
+      icon={<Icon icon={Swords} size="lg" color="accent" />}
+      title="MATCH SUPERVISION & SERVER LOGS"
+      subtitle="Authoritative overview of live and historical SRPG battles alongside raw dedicated VPS diagnostic logs."
+      actions={
+        <Button
+          variant="secondary"
+          size="sm"
+          isLoading={loading}
+          icon={<Icon icon={RefreshCw} />}
+          label="Sync Telemetry"
+          onClick={fetchAllData}
+        />
+      }
+      toolbar={
+        <VStack gap={2}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <TabList
+              value={activeTab}
+              onChange={(val) => setActiveTab(val as 'diagnostics' | 'sessions')}
+              role="tablist"
+            >
+              <Tab
+                value="diagnostics"
+                label="Dedicated Server Diagnostics"
+                icon={<Icon icon={Server} />}
+                panelId="match-panel-diagnostics"
               />
-            </StackItem>
-          </HStack>
+              <Tab
+                value="sessions"
+                label={`Match Sessions Directory (${matches.length})`}
+                icon={<Icon icon={Swords} />}
+                endContent={
+                  liveMatches.length > 0 ? (
+                    <Badge label={`${liveMatches.length} LIVE`} variant="error" />
+                  ) : undefined
+                }
+                panelId="match-panel-sessions"
+              />
+            </TabList>
 
-          <Grid columns={{ minWidth: 180, max: 4 }} gap={3}>
-            <Card variant="default" padding={3}>
-              <HStack gap={3} vAlign="center">
-                <Icon icon={Activity} size="lg" color="success" />
-                <VStack gap={0.5}>
-                  <Text type="label" size="2xs" color="secondary">
-                    LIVE BATTLES
-                  </Text>
-                  <Text size="lg" weight="bold" type="code" hasTabularNumbers>
-                    {loading ? '...' : `${liveMatches.length} Active`}
-                  </Text>
-                </VStack>
-              </HStack>
-            </Card>
-
-            <Card variant="default" padding={3}>
-              <HStack gap={3} vAlign="center">
-                <Icon icon={Swords} size="lg" color="accent" />
-                <VStack gap={0.5}>
-                  <Text type="label" size="2xs" color="secondary">
-                    MATCH SESSIONS
-                  </Text>
-                  <Text size="lg" weight="bold" type="code" hasTabularNumbers>
-                    {loading ? '...' : `${matches.length} Recorded`}
-                  </Text>
-                </VStack>
-              </HStack>
-            </Card>
-
-            <Card variant="default" padding={3}>
-              <HStack gap={3} vAlign="center">
-                <Icon icon={FileText} size="lg" color="info" />
-                <VStack gap={0.5}>
-                  <Text type="label" size="2xs" color="secondary">
-                    VPS LOG FILES
-                  </Text>
-                  <Text size="lg" weight="bold" type="code" hasTabularNumbers>
-                    {loading ? '...' : `${logFiles.length} Files`}
-                  </Text>
-                </VStack>
-              </HStack>
-            </Card>
-
-            <Card variant="default" padding={3}>
-              <HStack gap={3} vAlign="center">
-                <Icon icon={Server} size="lg" color="accent" />
-                <VStack gap={0.5}>
-                  <Text type="label" size="2xs" color="secondary">
-                    NGO CLUSTER
-                  </Text>
-                  <Text size="lg" weight="bold" type="code" hasTabularNumbers>
-                    7777–7800
-                  </Text>
-                </VStack>
-              </HStack>
-            </Card>
-          </Grid>
-        </VStack>
-      </Section>
-
-      {/* Page Tabs */}
-      <TabList
-        value={activeTab}
-        onChange={(val) => setActiveTab(val as 'diagnostics' | 'sessions')}
-        hasDivider
-        role="tablist"
-      >
-        <Tab
-          value="diagnostics"
-          label="Dedicated Server Diagnostics"
-          icon={<Icon icon={Server} />}
-          panelId="match-panel-diagnostics"
-        />
-        <Tab
-          value="sessions"
-          label="Match Sessions Directory"
-          icon={<Icon icon={Swords} />}
-          endContent={
-            liveMatches.length > 0 ? (
-              <Badge label={`${liveMatches.length} LIVE`} variant="error" />
-            ) : undefined
-          }
-          panelId="match-panel-sessions"
-        />
-      </TabList>
-
-      {/* Tab 1: Dedicated Server Diagnostics */}
-      {activeTab === 'diagnostics' && (
-        <div id="match-panel-diagnostics">
-          <VStack gap={4}>
-            <Banner
-              status="info"
-              title="VPS Log File Retention"
-              description={`Viewing dedicated server stdout/stderr files currently stored on VPS disk (${logFiles.length} files available). Older matches rotate automatically to maintain disk performance.`}
-              endContent={
-                targetMatchId ? (
+            {activeTab === 'diagnostics' && (
+              <HStack gap={2} vAlign="center" wrap="wrap">
+                <Text type="code" size="xsm" color="secondary">
+                  VPS disk retains {logFiles.length} recent logs; older files rotate.
+                </Text>
+                {targetMatchId && (
                   <Button
                     variant="secondary"
                     size="sm"
-                    label="Clear Target Match"
+                    label="Clear Target"
                     onClick={() => setTargetMatchId('')}
                   />
-                ) : undefined
-              }
-            />
+                )}
+              </HStack>
+            )}
+          </div>
 
-            <MatchLogInspector initialMatchId={targetMatchId} />
-          </VStack>
+          {activeTab === 'sessions' && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[var(--color-border-subtle)]">
+              <div className="flex-1 min-w-[240px]">
+                <TextInput
+                  label="Search Match GUID, Player, or Mode"
+                  isLabelHidden
+                  size="sm"
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  startIcon={Search}
+                  placeholder="Search by Match GUID, Player ID, Alias, or Mode..."
+                  hasClear
+                  width="100%"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                  label="Match status filter"
+                  value={statusFilter}
+                  onChange={(val) => setStatusFilter(val as MatchStatusFilter)}
+                  size="sm"
+                >
+                  <SegmentedControlItem value="ALL" label="ALL" />
+                  <SegmentedControlItem value="LIVE" label="LIVE" />
+                  <SegmentedControlItem value="COMPLETED" label="COMPLETED" />
+                  <SegmentedControlItem value="CANCELLED" label="CANCELLED" />
+                </SegmentedControl>
+
+                <Selector
+                  label="Mode filter"
+                  isLabelHidden
+                  startIcon={Swords}
+                  options={MODE_OPTIONS}
+                  value={modeFilter}
+                  onChange={(val) => setModeFilter(val as MatchModeFilter)}
+                  variant="secondary"
+                  size="sm"
+                  width={125}
+                />
+
+                <Selector
+                  label="Log filter"
+                  isLabelHidden
+                  startIcon={FileText}
+                  options={logFilterOptions}
+                  value={logFilter}
+                  onChange={(val) => setLogFilter(val as MatchLogFilter)}
+                  variant="secondary"
+                  size="sm"
+                  width={165}
+                />
+
+                <Selector
+                  label="Rows display limit"
+                  isLabelHidden
+                  startIcon={SlidersHorizontal}
+                  options={displayLimitOptions}
+                  value={String(displayLimit)}
+                  onChange={(val) => setDisplayLimit(val === 'ALL' ? 'ALL' : Number(val))}
+                  variant="secondary"
+                  size="sm"
+                  width={118}
+                />
+
+                <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                  {displayedMatches.length}/{filteredMatches.length}
+                </Text>
+              </div>
+            </div>
+          )}
+        </VStack>
+      }
+    >
+      {/* Tab 1: Dedicated Server Diagnostics (IDE Split Workbench) */}
+      {activeTab === 'diagnostics' && (
+        <div id="match-panel-diagnostics" className="flex-1 min-h-0 flex flex-col">
+          <MatchLogInspector
+            initialMatchId={targetMatchId}
+            onSelectMatch={setTargetMatchId}
+            fillHeight
+          />
         </div>
       )}
 
       {/* Tab 2: Match Sessions Directory */}
       {activeTab === 'sessions' && (
         <div id="match-panel-sessions">
-          <VStack gap={4}>
-            <Section padding={4}>
-              <VStack gap={3}>
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-                  <div className="flex-1 min-w-[260px]">
-                    <TextInput
-                      label="Search Match GUID, Player, or Mode"
-                      isLabelHidden
-                      value={searchQuery}
-                      onChange={setSearchQuery}
-                      startIcon={Search}
-                      placeholder="Search by Match GUID, Player ID, Player Alias, or Mode..."
-                      hasClear
-                      width="100%"
-                    />
-                  </div>
-
-                  <SegmentedControl
-                    label="Match status filter"
-                    value={statusFilter}
-                    onChange={(val) => setStatusFilter(val as MatchStatusFilter)}
-                    size="sm"
-                  >
-                    <SegmentedControlItem value="ALL" label="ALL" />
-                    <SegmentedControlItem value="LIVE" label="LIVE" />
-                    <SegmentedControlItem value="COMPLETED" label="COMPLETED" />
-                    <SegmentedControlItem value="CANCELLED" label="CANCELLED" />
-                  </SegmentedControl>
-
-                  <Selector
-                    label="Mode filter"
-                    isLabelHidden
-                    startIcon={Swords}
-                    options={MODE_OPTIONS}
-                    value={modeFilter}
-                    onChange={(val) => setModeFilter(val as MatchModeFilter)}
-                    variant="secondary"
-                    size="sm"
-                    width={130}
-                  />
-
-                  <Selector
-                    label="Log filter"
-                    isLabelHidden
-                    startIcon={FileText}
-                    options={logFilterOptions}
-                    value={logFilter}
-                    onChange={(val) => setLogFilter(val as MatchLogFilter)}
-                    variant="secondary"
-                    size="sm"
-                    width={175}
-                  />
-
-                  <Selector
-                    label="Rows display limit"
-                    isLabelHidden
-                    startIcon={SlidersHorizontal}
-                    options={displayLimitOptions}
-                    value={String(displayLimit)}
-                    onChange={(val) => setDisplayLimit(val === 'ALL' ? 'ALL' : Number(val))}
-                    variant="secondary"
-                    size="sm"
-                    width={120}
-                  />
-                </HStack>
-
-                <Divider />
-
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                    Displaying <strong>{displayedMatches.length}</strong> of{' '}
-                    <strong>{filteredMatches.length}</strong> matches (Total Recorded:{' '}
-                    {matches.length})
-                  </Text>
-                  <Text type="code" size="xsm" color="secondary">
-                    Sorted by Latest First ↓
-                  </Text>
-                </HStack>
-              </VStack>
-            </Section>
-
-            <Section padding={4}>
-              {displayedMatches.length === 0 ? (
-                <EmptyState
-                  icon={<Icon icon={Swords} size="lg" color="secondary" />}
-                  title="No match sessions found matching your filters"
-                  description="Try clearing search criteria or switching status filters."
-                />
-              ) : (
-                <Table
-                  data={displayedMatches as MatchTableRow[]}
-                  columns={columns}
-                  idKey="_rowKey"
-                  density="balanced"
-                  dividers="rows"
-                  hasHover
-                />
-              )}
-            </Section>
-          </VStack>
+          <Card padding={3}>
+            {displayedMatches.length === 0 ? (
+              <EmptyState
+                icon={<Icon icon={Swords} size="lg" color="secondary" />}
+                title="No match sessions found matching your filters"
+                description="Try clearing search criteria or switching status filters."
+              />
+            ) : (
+              <Table
+                data={displayedMatches as MatchTableRow[]}
+                columns={columns}
+                idKey="_rowKey"
+                density="balanced"
+                dividers="rows"
+                hasHover
+              />
+            )}
+          </Card>
         </div>
       )}
 
@@ -936,7 +881,7 @@ export const MatchSupervision: React.FC = () => {
           </VStack>
         )}
       </Dialog>
-    </VStack>
+    </ConsolePage>
   );
 };
 

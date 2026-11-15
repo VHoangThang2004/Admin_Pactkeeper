@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowUpDown,
   BarChart3,
   Calendar,
   Check,
   CheckCircle2,
+  ChevronRight,
   Clock,
   Copy,
   CreditCard,
@@ -19,6 +21,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   TrendingUp,
+  UserCheck,
   XCircle,
 } from 'lucide-react';
 import {
@@ -41,14 +44,15 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Grid } from '@astryxdesign/core/Grid';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
-import { Section } from '@astryxdesign/core/Section';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Selector, type SelectorOptionData } from '@astryxdesign/core/Selector';
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Stack';
+import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { adminClient } from '../api/adminClient';
+import { ConsolePage } from '../components/ConsolePage';
 import { GemArt } from '../components/GemArt';
 import { WEB_TOPUP_URL } from '../constants/links';
 import { useThemeMode } from '../hooks/useThemeMode';
@@ -272,10 +276,14 @@ const RevenueTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }
 /**
  * PaymentManagement — PayOS Gateway Orders, Revenue Analytics & Storefront Crystal Packs.
  */
+type TreasuryTab = 'overview' | 'ledger' | 'catalog';
+
 export const PaymentManagement: React.FC = () => {
+  const navigate = useNavigate();
   const { mode } = useThemeMode();
   const isDark = mode === 'dark';
 
+  const [activeTab, setActiveTab] = useState<TreasuryTab>('overview');
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [packs, setPacks] = useState<TopUpPackDto[]>([]);
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
@@ -413,9 +421,20 @@ export const PaymentManagement: React.FC = () => {
     const map = new Map<string, TopUpPackDto>();
     for (const pack of packs) {
       map.set(pack.id, pack);
+      if (pack.id) {
+        map.set(pack.id.trim().toLowerCase(), pack);
+      }
     }
     return map;
   }, [packs]);
+
+  const resolvePack = useCallback(
+    (packId: string | undefined): TopUpPackDto | undefined => {
+      if (!packId) return undefined;
+      return packMap.get(packId) ?? packMap.get(packId.trim().toLowerCase());
+    },
+    [packMap]
+  );
 
   const filteredPacks = useMemo(() => {
     if (packCategory === 'all') return packs;
@@ -464,7 +483,7 @@ export const PaymentManagement: React.FC = () => {
       if (order.status === 'PAID') {
         paidCount += 1;
         grossRevenue += order.amount || 0;
-        const pack = packMap.get(order.packId);
+        const pack = resolvePack(order.packId);
         totalGemsIssued += pack?.gemsAmount ?? 0;
       } else if (order.status === 'PENDING') {
         pendingCount += 1;
@@ -489,7 +508,7 @@ export const PaymentManagement: React.FC = () => {
       totalGemsIssued,
       availablePacksCount,
     };
-  }, [dateScopedOrders, packs, packMap]);
+  }, [dateScopedOrders, packs, resolvePack]);
 
   const dailyChartData = useMemo<ChartPoint[]>(() => {
     const byDay = new Map<string, ChartPoint>();
@@ -515,7 +534,7 @@ export const PaymentManagement: React.FC = () => {
   const packChartData = useMemo<ChartPoint[]>(() => {
     const byPack = new Map<string, ChartPoint>();
     for (const order of dateScopedOrders) {
-      const packName = packMap.get(order.packId)?.name || order.packId || 'Unknown Pack';
+      const packName = resolvePack(order.packId)?.name || order.packId || 'Unknown Pack';
       const current = byPack.get(packName) ?? {
         label: packName,
         revenue: 0,
@@ -532,7 +551,7 @@ export const PaymentManagement: React.FC = () => {
     return Array.from(byPack.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
-  }, [dateScopedOrders, packMap]);
+  }, [dateScopedOrders, resolvePack]);
 
   const filteredOrders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -542,7 +561,7 @@ export const PaymentManagement: React.FC = () => {
       }
       if (!q) return true;
       const username = (playerNames[order.playerId] || '').toLowerCase();
-      const packName = (packMap.get(order.packId)?.name || '').toLowerCase();
+      const packName = (resolvePack(order.packId)?.name || '').toLowerCase();
       return (
         String(order.orderCode).toLowerCase().includes(q) ||
         order.id.toLowerCase().includes(q) ||
@@ -561,7 +580,7 @@ export const PaymentManagement: React.FC = () => {
       const tb = new Date(b.createdAt).getTime() || 0;
       return sortBy === 'OLDEST' ? ta - tb : tb - ta;
     });
-  }, [dateScopedOrders, orderStatusFilter, searchQuery, sortBy, playerNames, packMap]);
+  }, [dateScopedOrders, orderStatusFilter, searchQuery, sortBy, playerNames, resolvePack]);
 
   const displayedOrders = useMemo(() => {
     if (rowLimit === 'ALL') return filteredOrders;
@@ -671,7 +690,7 @@ export const PaymentManagement: React.FC = () => {
       width: proportional(1.3),
       renderCell: (row) => {
         const order = row as unknown as PurchaseOrder;
-        const pack = packMap.get(order.packId);
+        const pack = resolvePack(order.packId);
         return (
           <VStack gap={0.5}>
             <Text weight="medium" size="sm" maxLines={1}>
@@ -743,345 +762,502 @@ export const PaymentManagement: React.FC = () => {
     },
   ];
 
-  const selectedPack = selectedOrder ? packMap.get(selectedOrder.packId) : undefined;
+  const selectedPack = selectedOrder ? resolvePack(selectedOrder.packId) : undefined;
   const selectedSig = selectedOrder
     ? selectedOrder.webhookSignature || selectedOrder.signature || ''
     : '';
 
+  const recentOrdersPreview = useMemo(() => filteredOrders.slice(0, 5), [filteredOrders]);
+
+  const topBanner =
+    notice || syncError ? (
+      <VStack gap={2}>
+        {notice && (
+          <Banner
+            status={notice.status}
+            title={notice.status === 'error' ? 'Treasury Alert' : 'PayOS Ledger Notice'}
+            description={notice.text}
+            isDismissable
+            onDismiss={() => setNotice(null)}
+          />
+        )}
+        {syncError && (
+          <Banner
+            status="warning"
+            title="Partial Telemetry Synchronization"
+            description={syncError}
+            isDismissable
+            onDismiss={() => setSyncError(null)}
+          />
+        )}
+      </VStack>
+    ) : undefined;
+
   return (
-    <VStack gap={5}>
-      {notice && (
-        <Banner
-          status={notice.status}
-          title={notice.status === 'error' ? 'Treasury Alert' : 'PayOS Ledger Notice'}
-          description={notice.text}
-          isDismissable
-          onDismiss={() => setNotice(null)}
-        />
-      )}
-
-      {/* Header & Top Actions */}
-      <Section padding={5}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-          <VStack gap={1.5}>
-            <HStack gap={2} vAlign="center" wrap="wrap">
-              <Badge label="PAYOS GATEWAY & TREASURY" variant="purple" />
-              <Text type="code" size="xsm" color="secondary">
-                VND Settlement &amp; Crystal Catalog
-              </Text>
-            </HStack>
-            <HStack gap={2} vAlign="center">
-              <Icon icon={CreditCard} size="lg" color="accent" />
-              <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
-                PAYMENT &amp; TOP-UP ADMINISTRATION
-              </Heading>
-            </HStack>
-            <Text type="supporting" size="sm">
-              Monitor VND order settlement, revenue trajectories, and storefront crystal availability.
-            </Text>
-          </VStack>
-
-          <HStack gap={2} vAlign="center" wrap="wrap">
-            <Button
-              label="Open Storefront"
-              variant="secondary"
-              size="md"
-              icon={<ExternalLink size={14} />}
-              href={WEB_TOPUP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-            />
-            <Button
-              label={`Export CSV (${filteredOrders.length})`}
-              variant="secondary"
-              size="md"
-              icon={<Download size={14} />}
-              isDisabled={filteredOrders.length === 0}
-              onClick={handleExportCsv}
-            />
-            <Button
-              label={refreshing ? 'Syncing...' : 'Refresh Telemetry'}
-              variant="primary"
-              size="md"
-              icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />}
-              isLoading={refreshing || loading}
-              onClick={() => void handleRefresh()}
-            />
-          </HStack>
+    <ConsolePage
+      badge="PAYOS GATEWAY & TREASURY"
+      badgeVariant="purple"
+      icon={<Icon icon={CreditCard} size="lg" color="accent" />}
+      meta={
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <Text type="code" size="xsm" color="secondary">
+            VND Settlement &amp; Crystal Catalog
+          </Text>
+          <Badge
+            label={loading ? 'Orders: ...' : `${kpis.paidCount} Paid / ${dateScopedOrders.length}`}
+            variant="success"
+          />
+          <Badge
+            label={loading ? 'Revenue: ...' : formatVnd(kpis.grossRevenue)}
+            variant="yellow"
+          />
         </HStack>
-      </Section>
-
-      {syncError && (
-        <Banner
-          status="warning"
-          title="Partial Telemetry Synchronization"
-          description={syncError}
-          isDismissable
-          onDismiss={() => setSyncError(null)}
-        />
-      )}
-
-      {/* Global Date Scope Bar */}
-      <Section padding={4}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-          <HStack gap={2} vAlign="center">
-            <Icon icon={Calendar} size="sm" color="accent" />
-            <Text type="label" size="sm" weight="semibold">
-              Telemetry Timeframe
-            </Text>
-          </HStack>
-
-          <HStack gap={3} vAlign="center" wrap="wrap">
-            <SegmentedControl
-              label="Timeframe preset"
-              value={datePreset}
-              onChange={(val) => setDatePreset(val as DateRangePreset)}
+      }
+      title="PAYMENT & TOP-UP ADMINISTRATION"
+      subtitle="Monitor VND order settlement, revenue trajectories, and storefront crystal availability."
+      actions={
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <Button
+            label="Open Storefront"
+            variant="secondary"
+            size="sm"
+            icon={<ExternalLink size={14} />}
+            href={WEB_TOPUP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          />
+          <Button
+            label={`Export CSV (${filteredOrders.length})`}
+            variant="secondary"
+            size="sm"
+            icon={<Download size={14} />}
+            isDisabled={filteredOrders.length === 0}
+            onClick={handleExportCsv}
+          />
+          <Button
+            label={refreshing ? 'Syncing...' : 'Refresh Telemetry'}
+            variant="primary"
+            size="sm"
+            icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />}
+            isLoading={refreshing || loading}
+            onClick={() => void handleRefresh()}
+          />
+        </HStack>
+      }
+      banner={topBanner}
+      toolbar={
+        <VStack gap={2}>
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <TabList
+              value={activeTab}
+              onChange={(val) => setActiveTab(val as TreasuryTab)}
+              role="tablist"
             >
-              <SegmentedControlItem value="ALL" label="All Time" />
-              <SegmentedControlItem value="7D" label="Last 7 Days" />
-              <SegmentedControlItem value="30D" label="Last 30 Days" />
-              <SegmentedControlItem value="CUSTOM" label="Custom Range" />
-            </SegmentedControl>
+              <Tab
+                value="overview"
+                label="Overview & Analytics"
+                icon={<Icon icon={BarChart3} />}
+              />
+              <Tab
+                value="ledger"
+                label="PayOS Ledger"
+                icon={<Icon icon={Receipt} />}
+                endContent={<Badge label={filteredOrders.length} variant="info" />}
+              />
+              <Tab
+                value="catalog"
+                label="Crystal Storefront"
+                icon={<Icon icon={Package} />}
+                endContent={<Badge label={packs.length} variant="yellow" />}
+              />
+            </TabList>
 
-            {datePreset === 'CUSTOM' && (
-              <HStack gap={2} vAlign="center" wrap="wrap">
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  aria-label="Filter start date"
-                  className={DATE_INPUT_CLASS}
-                />
-                <Text type="supporting" size="xsm">
-                  to
-                </Text>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  aria-label="Filter end date"
-                  className={DATE_INPUT_CLASS}
-                />
-                {(customStartDate || customEndDate) && (
-                  <Button
-                    label="Clear"
-                    variant="ghost"
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Icon icon={Calendar} size="sm" color="accent" />
+              <SegmentedControl
+                label="Timeframe preset"
+                size="sm"
+                value={datePreset}
+                onChange={(val) => setDatePreset(val as DateRangePreset)}
+              >
+                <SegmentedControlItem value="ALL" label="All Time" />
+                <SegmentedControlItem value="7D" label="7D" />
+                <SegmentedControlItem value="30D" label="30D" />
+                <SegmentedControlItem value="CUSTOM" label="Custom" />
+              </SegmentedControl>
+
+              {datePreset === 'CUSTOM' && (
+                <HStack gap={1.5} vAlign="center" wrap="wrap">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    aria-label="Filter start date"
+                    className={DATE_INPUT_CLASS}
+                  />
+                  <Text type="supporting" size="xsm">
+                    to
+                  </Text>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    aria-label="Filter end date"
+                    className={DATE_INPUT_CLASS}
+                  />
+                  {(customStartDate || customEndDate) && (
+                    <Button
+                      label="Clear"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCustomStartDate('');
+                        setCustomEndDate('');
+                      }}
+                    />
+                  )}
+                </HStack>
+              )}
+            </HStack>
+          </div>
+
+          {activeTab === 'ledger' && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-border-subtle)]">
+              <div className="flex flex-wrap items-center gap-2 flex-1">
+                <div className="min-w-[230px] flex-1 max-w-sm">
+                  <TextInput
+                    label="Search transactions"
+                    isLabelHidden
                     size="sm"
-                    onClick={() => {
-                      setCustomStartDate('');
-                      setCustomEndDate('');
+                    placeholder="Search Order Code, ID, Username, Player, Pack..."
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    hasClear
+                    startIcon={<Search size={14} />}
+                  />
+                </div>
+
+                <SegmentedControl
+                  label="Filter orders by status"
+                  size="sm"
+                  value={orderStatusFilter}
+                  onChange={(val) => setOrderStatusFilter(val as OrderStatusFilter)}
+                >
+                  <SegmentedControlItem value="ALL" label={`All (${dateScopedOrders.length})`} />
+                  <SegmentedControlItem value="PAID" label={`Paid (${kpis.paidCount})`} />
+                  <SegmentedControlItem value="PENDING" label={`Pending (${kpis.pendingCount})`} />
+                  <SegmentedControlItem
+                    value="CANCELLED"
+                    label={`Cancelled (${kpis.cancelledCount})`}
+                  />
+                </SegmentedControl>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="w-44">
+                  <Selector
+                    label="Sort orders"
+                    isLabelHidden
+                    size="sm"
+                    options={SORT_OPTIONS}
+                    value={sortBy}
+                    onChange={(val) => {
+                      if (val) setSortBy(val as OrderSortOption);
+                    }}
+                    startIcon={<ArrowUpDown size={14} />}
+                  />
+                </div>
+                <div className="w-32">
+                  <Selector
+                    label="Rows limit"
+                    isLabelHidden
+                    size="sm"
+                    options={ROW_LIMIT_OPTIONS}
+                    value={rowLimit}
+                    onChange={(val) => {
+                      if (val) setRowLimit(val as RowLimitOption);
                     }}
                   />
-                )}
-              </HStack>
-            )}
-          </HStack>
-        </HStack>
-      </Section>
+                </div>
+                <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                  {displayedOrders.length}/{filteredOrders.length}
+                </Text>
+              </div>
+            </div>
+          )}
 
-      {/* KPI Summary Cards */}
-      <Grid columns={{ minWidth: 220, max: 4 }} gap={4}>
-        <Card padding={4}>
-          <VStack gap={1.5}>
-            <HStack justify="between" vAlign="center">
-              <Text type="label" size="xsm" color="secondary">
-                Paid Revenue (VND)
+          {activeTab === 'catalog' && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-border-subtle)]">
+              <SegmentedControl
+                label="Filter top-up packs"
+                size="sm"
+                value={packCategory}
+                onChange={(val) => setPackCategory(val as PackCategoryFilter)}
+              >
+                <SegmentedControlItem value="all" label={`All (${packs.length})`} />
+                <SegmentedControlItem
+                  value="gems"
+                  label={`Crystals (${packs.filter((p) => !isBundlePack(p)).length})`}
+                />
+                <SegmentedControlItem
+                  value="bundles"
+                  label={`Bundles (${packs.filter(isBundlePack).length})`}
+                />
+              </SegmentedControl>
+
+              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                {kpis.availablePacksCount} of {packs.length} packs active • PATCH /topuppack/&#123;id&#125;/availability
               </Text>
-              <Icon icon={TrendingUp} size="md" color="success" />
-            </HStack>
-            <Text type="display-3" weight="bold" hasTabularNumbers>
-              {loading ? '...' : formatVnd(kpis.grossRevenue)}
-            </Text>
-            <Text type="supporting" size="xsm">
-              {kpis.paidCount} settled orders in range
-            </Text>
-          </VStack>
-        </Card>
-
-        <Card padding={4}>
-          <VStack gap={1.5}>
-            <HStack justify="between" vAlign="center">
-              <Text type="label" size="xsm" color="secondary">
-                Avg Order Value &amp; Gems
-              </Text>
-              <Icon icon={Gem} size="md" color="info" />
-            </HStack>
-            <Text type="display-3" weight="bold" hasTabularNumbers>
-              {loading ? '...' : formatVnd(kpis.avgOrderValue)}
-            </Text>
-            <Text type="supporting" size="xsm">
-              {kpis.totalGemsIssued.toLocaleString('en-US')} gems delivered to accounts
-            </Text>
-          </VStack>
-        </Card>
-
-        <Card padding={4}>
-          <VStack gap={1.5}>
-            <HStack justify="between" vAlign="center">
-              <Text type="label" size="xsm" color="secondary">
-                Settlement Rate
-              </Text>
-              <Icon icon={CheckCircle2} size="md" color="accent" />
-            </HStack>
-            <Text type="display-3" weight="bold" hasTabularNumbers>
-              {loading ? '...' : `${kpis.conversionRate.toFixed(1)}%`}
-            </Text>
-            <Text type="supporting" size="xsm">
-              {kpis.pendingCount} pending · {kpis.cancelledCount} cancelled
-            </Text>
-          </VStack>
-        </Card>
-
-        <Card padding={4}>
-          <VStack gap={1.5}>
-            <HStack justify="between" vAlign="center">
-              <Text type="label" size="xsm" color="secondary">
-                Storefront Catalog
-              </Text>
-              <Icon icon={Package} size="md" color="accent" />
-            </HStack>
-            <Text type="display-3" weight="bold" hasTabularNumbers>
-              {loading ? '...' : `${kpis.availablePacksCount} / ${packs.length}`}
-            </Text>
-            <Text type="supporting" size="xsm">
-              Active top-up packs live for purchase
-            </Text>
-          </VStack>
-        </Card>
-      </Grid>
-
-      {/* Recharts Revenue Analytics */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-            <VStack gap={0.5}>
-              <HStack gap={2} vAlign="center">
-                <Icon icon={BarChart3} size="md" color="accent" />
-                <Heading level={2} className="font-cinzel">
-                  Revenue &amp; Pack Performance Analytics
-                </Heading>
-              </HStack>
-              <Text type="supporting" size="xsm">
-                Aggregated strictly from orders marked PAID inside the selected timeframe.
-              </Text>
-            </VStack>
-
-            <SegmentedControl
-              label="Chart mode"
-              value={chartView}
-              onChange={(val) => setChartView(val as ChartViewMode)}
-            >
-              <SegmentedControlItem value="daily" label="Daily Revenue Trend" />
-              <SegmentedControlItem value="packs" label="Top Packs by Revenue" />
-            </SegmentedControl>
-          </HStack>
-
-          {(chartView === 'daily' ? dailyChartData : packChartData).length === 0 ? (
-            <EmptyState
-              isCompact
-              icon={<BarChart3 size={24} />}
-              title={
-                loading
-                  ? 'Loading PayOS Revenue Series...'
-                  : 'No Transaction Data in Selected Window'
-              }
-              description="Adjust your timeframe filter or refresh PayOS telemetry."
-            />
-          ) : (
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                {chartView === 'daily' ? (
-                  <AreaChart
-                    data={dailyChartData}
-                    margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient id="payosRevenueFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={chartPalette.fillStop} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={chartPalette.fillStop} stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chartPalette.grid} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={chartPalette.axis}
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      stroke={chartPalette.axis}
-                      fontSize={11}
-                      tickLine={false}
-                      tickFormatter={formatCompactVnd}
-                    />
-                    <Tooltip content={<RevenueTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke={chartPalette.stroke}
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#payosRevenueFill)"
-                    />
-                  </AreaChart>
-                ) : (
-                  <BarChart
-                    data={packChartData}
-                    margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke={chartPalette.grid} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={chartPalette.axis}
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      stroke={chartPalette.axis}
-                      fontSize={11}
-                      tickLine={false}
-                      tickFormatter={formatCompactVnd}
-                    />
-                    <Tooltip content={<RevenueTooltip />} />
-                    <Bar dataKey="revenue" fill={chartPalette.bar} radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                )}
-              </ResponsiveContainer>
             </div>
           )}
         </VStack>
-      </Section>
-
-      {/* Storefront Packs Catalog */}
-      <Section padding={5}>
+      }
+    >
+      {/* TAB 1: OVERVIEW & ANALYTICS */}
+      {activeTab === 'overview' && (
         <VStack gap={4}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-            <VStack gap={0.5}>
-              <Heading level={2} className="font-cinzel">
-                Top-Up Packs &amp; Bundles Catalog
-              </Heading>
-              <Text type="supporting" size="xsm">
-                Toggle storefront availability via PATCH /topuppack/&#123;id&#125;/availability.
-              </Text>
+          {/* 4 KPI Summary Cards */}
+          <Grid columns={{ minWidth: 220, max: 4 }} gap={4}>
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="label" size="xsm" color="secondary">
+                    Paid Revenue (VND)
+                  </Text>
+                  <Icon icon={TrendingUp} size="md" color="success" />
+                </HStack>
+                <Text type="display-3" weight="bold" hasTabularNumbers>
+                  {loading ? '...' : formatVnd(kpis.grossRevenue)}
+                </Text>
+                <Text type="supporting" size="xsm">
+                  {kpis.paidCount} settled orders in range
+                </Text>
+              </VStack>
+            </Card>
+
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="label" size="xsm" color="secondary">
+                    Avg Order Value &amp; Gems
+                  </Text>
+                  <Icon icon={Gem} size="md" color="info" />
+                </HStack>
+                <Text type="display-3" weight="bold" hasTabularNumbers>
+                  {loading ? '...' : formatVnd(kpis.avgOrderValue)}
+                </Text>
+                <Text type="supporting" size="xsm">
+                  {kpis.totalGemsIssued.toLocaleString('en-US')} gems matched from catalog
+                </Text>
+              </VStack>
+            </Card>
+
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="label" size="xsm" color="secondary">
+                    Settlement Rate
+                  </Text>
+                  <Icon icon={CheckCircle2} size="md" color="accent" />
+                </HStack>
+                <Text type="display-3" weight="bold" hasTabularNumbers>
+                  {loading ? '...' : `${kpis.conversionRate.toFixed(1)}%`}
+                </Text>
+                <Text type="supporting" size="xsm">
+                  {kpis.pendingCount} pending · {kpis.cancelledCount} cancelled
+                </Text>
+              </VStack>
+            </Card>
+
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack justify="between" vAlign="center">
+                  <Text type="label" size="xsm" color="secondary">
+                    Storefront Catalog
+                  </Text>
+                  <Icon icon={Package} size="md" color="accent" />
+                </HStack>
+                <Text type="display-3" weight="bold" hasTabularNumbers>
+                  {loading ? '...' : `${kpis.availablePacksCount} / ${packs.length}`}
+                </Text>
+                <Text type="supporting" size="xsm">
+                  Active top-up packs live for purchase
+                </Text>
+              </VStack>
+            </Card>
+          </Grid>
+
+          {/* Recharts Revenue Analytics */}
+          <Card padding={4}>
+            <VStack gap={4}>
+              <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+                <VStack gap={0.5}>
+                  <HStack gap={2} vAlign="center">
+                    <Icon icon={BarChart3} size="md" color="accent" />
+                    <Heading level={2} className="font-cinzel">
+                      Revenue &amp; Pack Performance Analytics
+                    </Heading>
+                  </HStack>
+                  <Text type="supporting" size="xsm">
+                    Aggregated strictly from orders marked PAID inside the selected timeframe.
+                  </Text>
+                </VStack>
+
+                <SegmentedControl
+                  label="Chart mode"
+                  size="sm"
+                  value={chartView}
+                  onChange={(val) => setChartView(val as ChartViewMode)}
+                >
+                  <SegmentedControlItem value="daily" label="Daily Revenue Trend" />
+                  <SegmentedControlItem value="packs" label="Top Packs by Revenue" />
+                </SegmentedControl>
+              </HStack>
+
+              {(chartView === 'daily' ? dailyChartData : packChartData).length === 0 ? (
+                <EmptyState
+                  isCompact
+                  icon={<BarChart3 size={24} />}
+                  title={
+                    loading
+                      ? 'Loading PayOS Revenue Series...'
+                      : 'No Transaction Data in Selected Window'
+                  }
+                  description="Adjust your timeframe filter or refresh PayOS telemetry."
+                />
+              ) : (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chartView === 'daily' ? (
+                      <AreaChart
+                        data={dailyChartData}
+                        margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient id="payosRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={chartPalette.fillStop} stopOpacity={0.4} />
+                            <stop offset="95%" stopColor={chartPalette.fillStop} stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={chartPalette.grid} />
+                        <XAxis
+                          dataKey="label"
+                          stroke={chartPalette.axis}
+                          fontSize={11}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          stroke={chartPalette.axis}
+                          fontSize={11}
+                          tickLine={false}
+                          tickFormatter={formatCompactVnd}
+                        />
+                        <Tooltip content={<RevenueTooltip />} />
+                        <Area
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke={chartPalette.stroke}
+                          strokeWidth={2}
+                          fillOpacity={1}
+                          fill="url(#payosRevenueFill)"
+                        />
+                      </AreaChart>
+                    ) : (
+                      <BarChart
+                        data={packChartData}
+                        margin={{ top: 10, right: 16, left: 4, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke={chartPalette.grid} />
+                        <XAxis
+                          dataKey="label"
+                          stroke={chartPalette.axis}
+                          fontSize={11}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          stroke={chartPalette.axis}
+                          fontSize={11}
+                          tickLine={false}
+                          tickFormatter={formatCompactVnd}
+                        />
+                        <Tooltip content={<RevenueTooltip />} />
+                        <Bar dataKey="revenue" fill={chartPalette.bar} radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              )}
             </VStack>
+          </Card>
 
-            <SegmentedControl
-              label="Filter top-up packs"
-              value={packCategory}
-              onChange={(val) => setPackCategory(val as PackCategoryFilter)}
-            >
-              <SegmentedControlItem value="all" label={`All (${packs.length})`} />
-              <SegmentedControlItem
-                value="gems"
-                label={`Crystals (${packs.filter((p) => !isBundlePack(p)).length})`}
-              />
-              <SegmentedControlItem
-                value="bundles"
-                label={`Bundles (${packs.filter(isBundlePack).length})`}
-              />
-            </SegmentedControl>
-          </HStack>
+          {/* Compact Recent Orders Preview */}
+          <Card padding={4}>
+            <VStack gap={3}>
+              <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                <VStack gap={0.5}>
+                  <Heading level={3} className="font-cinzel">
+                    Recent PayOS Orders
+                  </Heading>
+                  <Text type="supporting" size="xsm">
+                    Showing latest {recentOrdersPreview.length} matching orders.
+                  </Text>
+                </VStack>
+                <Button
+                  label={`Open Full Ledger (${filteredOrders.length})`}
+                  variant="secondary"
+                  size="sm"
+                  endContent={<ChevronRight size={14} />}
+                  onClick={() => setActiveTab('ledger')}
+                />
+              </HStack>
 
+              <Table
+                columns={orderColumns}
+                data={loading ? [] : (recentOrdersPreview as OrderTableRow[])}
+                idKey="id"
+                density="compact"
+                emptyState={
+                  <EmptyState
+                    isCompact
+                    icon={<Receipt size={24} />}
+                    title={loading ? 'Synchronizing PayOS...' : 'No Recent PayOS Orders'}
+                    description="No transactions matched the active timeframe."
+                  />
+                }
+              />
+            </VStack>
+          </Card>
+        </VStack>
+      )}
+
+      {/* TAB 2: FULL PAYOS LEDGER */}
+      {activeTab === 'ledger' && (
+        <Card padding={3}>
+          <Table
+            columns={orderColumns}
+            data={loading ? [] : (displayedOrders as OrderTableRow[])}
+            idKey="id"
+            density="balanced"
+            aria-label="PayOS Transaction Ledger"
+            emptyState={
+              <EmptyState
+                isCompact
+                icon={<Receipt size={24} />}
+                title={loading ? 'Synchronizing PayOS Transactions...' : 'No PayOS Orders Match Filters'}
+                description={
+                  loading
+                    ? 'Fetching latest settlement receipts and player mappings.'
+                    : 'Try clearing the search query or widening the date range.'
+                }
+              />
+            }
+          />
+        </Card>
+      )}
+
+      {/* TAB 3: CRYSTAL STOREFRONT CATALOG */}
+      {activeTab === 'catalog' && (
+        <Card padding={4}>
           {loading ? (
             <EmptyState
               isCompact
@@ -1175,99 +1351,8 @@ export const PaymentManagement: React.FC = () => {
               })}
             </Grid>
           )}
-        </VStack>
-      </Section>
-
-      {/* Transactions Ledger */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-            <VStack gap={0.5}>
-              <Heading level={2} className="font-cinzel">
-                PayOS Transaction Ledger
-              </Heading>
-              <Text type="supporting" size="xsm">
-                Showing {displayedOrders.length} of {filteredOrders.length} matching orders (
-                {dateScopedOrders.length} inside active date filter).
-              </Text>
-            </VStack>
-
-            <SegmentedControl
-              label="Filter orders by status"
-              value={orderStatusFilter}
-              onChange={(val) => setOrderStatusFilter(val as OrderStatusFilter)}
-            >
-              <SegmentedControlItem value="ALL" label={`All (${dateScopedOrders.length})`} />
-              <SegmentedControlItem value="PAID" label={`Paid (${kpis.paidCount})`} />
-              <SegmentedControlItem value="PENDING" label={`Pending (${kpis.pendingCount})`} />
-              <SegmentedControlItem value="CANCELLED" label={`Cancelled (${kpis.cancelledCount})`} />
-            </SegmentedControl>
-          </HStack>
-
-          {/* Search, Sort & Limit Controls */}
-          <HStack gap={3} wrap="wrap" vAlign="center">
-            <div className="flex-1 min-w-[240px]">
-              <TextInput
-                label="Search transactions"
-                isLabelHidden
-                size="sm"
-                placeholder="Search by Order Code, Order ID, Username, Player ID, or Pack..."
-                value={searchQuery}
-                onChange={setSearchQuery}
-                hasClear
-                startIcon={<Search size={14} />}
-              />
-            </div>
-
-            <div className="w-48">
-              <Selector
-                label="Sort orders"
-                isLabelHidden
-                size="sm"
-                options={SORT_OPTIONS}
-                value={sortBy}
-                onChange={(val) => {
-                  if (val) setSortBy(val as OrderSortOption);
-                }}
-                startIcon={<ArrowUpDown size={14} />}
-              />
-            </div>
-
-            <div className="w-36">
-              <Selector
-                label="Rows limit"
-                isLabelHidden
-                size="sm"
-                options={ROW_LIMIT_OPTIONS}
-                value={rowLimit}
-                onChange={(val) => {
-                  if (val) setRowLimit(val as RowLimitOption);
-                }}
-              />
-            </div>
-          </HStack>
-
-          <Table
-            columns={orderColumns}
-            data={loading ? [] : (displayedOrders as OrderTableRow[])}
-            idKey="id"
-            density="balanced"
-            aria-label="PayOS Transaction Ledger"
-            emptyState={
-              <EmptyState
-                isCompact
-                icon={<Receipt size={24} />}
-                title={loading ? 'Synchronizing PayOS Transactions...' : 'No PayOS Orders Match Filters'}
-                description={
-                  loading
-                    ? 'Fetching latest settlement receipts and player mappings.'
-                    : 'Try clearing the search query or widening the date range.'
-                }
-              />
-            }
-          />
-        </VStack>
-      </Section>
+        </Card>
+      )}
 
       {/* Receipt & Webhook Audit Modal */}
       <Dialog
@@ -1408,10 +1493,21 @@ export const PaymentManagement: React.FC = () => {
               </VStack>
             </Card>
 
-            <HStack justify="end">
+            <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+              <Button
+                label="Inspect Player"
+                variant="secondary"
+                size="md"
+                icon={<UserCheck size={14} />}
+                onClick={() => {
+                  const targetPlayerId = selectedOrder.playerId;
+                  setSelectedOrder(null);
+                  navigate(`/players?search=${encodeURIComponent(targetPlayerId)}`);
+                }}
+              />
               <Button
                 label="Close"
-                variant="secondary"
+                variant="primary"
                 size="md"
                 onClick={() => setSelectedOrder(null)}
               />
@@ -1419,6 +1515,6 @@ export const PaymentManagement: React.FC = () => {
           </VStack>
         )}
       </Dialog>
-    </VStack>
+    </ConsolePage>
   );
 };

@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Calendar,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Copy,
   Download,
-  FileText,
   Filter,
   FolderOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
   Radio,
   RefreshCw,
   Search,
@@ -20,14 +18,11 @@ import { Badge } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
-import { Divider } from '@astryxdesign/core/Divider';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
-import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { InputGroup } from '@astryxdesign/core/InputGroup';
-import { Section } from '@astryxdesign/core/Section';
 import { Selector } from '@astryxdesign/core/Selector';
 import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { Switch } from '@astryxdesign/core/Switch';
@@ -42,10 +37,13 @@ import { LogTerminalView } from './LogTerminalView';
 interface MatchLogInspectorProps {
   initialMatchId?: string;
   onSelectMatch?: (matchId: string) => void;
+  fillHeight?: boolean;
 }
 
 export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
   initialMatchId = '',
+  onSelectMatch,
+  fillHeight = false,
 }) => {
   const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatchId);
   const [prevInitialMatchId, setPrevInitialMatchId] = useState<string>(initialMatchId);
@@ -252,310 +250,288 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     return displayLimit === 'ALL' ? filtered : filtered.slice(0, displayLimit);
   }, [sortedLogFiles, browseSearch, displayLimit]);
 
+  const handleSelectTarget = (matchId: string) => {
+    setInputMatchId(matchId);
+    setSelectedMatchId(matchId);
+    onSelectMatch?.(matchId);
+  };
+
+  const containerClass = fillHeight
+    ? 'flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-12 gap-3 overflow-hidden'
+    : 'grid grid-cols-1 xl:grid-cols-12 gap-3';
+
   return (
-    <VStack gap={4}>
-      {/* Header & Streaming Actions */}
-      <Section padding={4}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-          <HStack gap={3} vAlign="center">
-            <div className="w-10 h-10 rounded-xl bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
-              <Icon icon={Terminal} size="md" color="accent" />
-            </div>
-            <VStack gap={0.5}>
-              <HStack gap={2} vAlign="center" wrap="wrap">
-                <Heading level={2} className="font-cinzel pk-gold-text">
-                  MATCH SERVER LOG INSPECTOR
-                </Heading>
-                {logData && (
-                  <Badge
-                    label="LIVE VPS LOG"
-                    variant="success"
-                    icon={<Icon icon={Radio} />}
+    <div className={containerClass}>
+      {/* Left IDE Rail: VPS Log Directory & Custom GUID Loader */}
+      {browseExpanded && (
+        <Card
+          variant="default"
+          padding={0}
+          className={`xl:col-span-4 flex flex-col min-h-0 overflow-hidden ${fillHeight ? '' : 'max-h-[680px]'}`}
+        >
+          {/* Directory Header */}
+          <div className="shrink-0 p-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-muted)]">
+            <VStack gap={2}>
+              <HStack justify="between" vAlign="center" gap={2}>
+                <HStack gap={2} vAlign="center">
+                  <Icon icon={FolderOpen} size="sm" color="accent" />
+                  <Text type="label" size="xsm" weight="bold" className="font-cinzel">
+                    VPS LOG DIRECTORY
+                  </Text>
+                  <Badge label={`${sortedLogFiles.length}`} variant="info" />
+                </HStack>
+
+                <HStack gap={1.5} vAlign="center">
+                  <Selector
+                    label="Max logs to display"
+                    isLabelHidden
+                    startIcon={SlidersHorizontal}
+                    options={limitSelectOptions}
+                    value={String(displayLimit)}
+                    onChange={(val) => setDisplayLimit(val === 'ALL' ? 'ALL' : Number(val))}
+                    variant="secondary"
+                    size="sm"
+                    width={118}
                   />
-                )}
+                  <IconButton
+                    label="Rescan server files on VPS"
+                    tooltip="Rescan VPS files"
+                    variant="secondary"
+                    size="sm"
+                    icon={<Icon icon={RefreshCw} />}
+                    onClick={refreshFiles}
+                  />
+                </HStack>
               </HStack>
-              <Text type="supporting" size="xsm">
-                Streaming real-time stdout/stderr from Dedicated Game Server instance (
-                <code>logs/match_*.log</code>)
-              </Text>
+
+              {/* Manual GUID Search */}
+              <form onSubmit={handleSearchSubmit}>
+                <InputGroup label="Load custom Match GUID" isLabelHidden>
+                  <TextInput
+                    label="Custom Match GUID"
+                    isLabelHidden
+                    size="sm"
+                    value={inputMatchId}
+                    onChange={setInputMatchId}
+                    startIcon={Search}
+                    placeholder="Paste Match GUID to load..."
+                    width="100%"
+                  />
+                  <Button type="submit" variant="primary" size="sm" label="Load" />
+                </InputGroup>
+              </form>
+
+              {/* Filter Directory */}
+              <TextInput
+                label="Filter directory files"
+                isLabelHidden
+                value={browseSearch}
+                onChange={setBrowseSearch}
+                startIcon={Filter}
+                placeholder="Filter directory by date, GUID, file..."
+                hasClear
+                size="sm"
+                width="100%"
+              />
             </VStack>
-          </HStack>
+          </div>
 
-          <HStack gap={2} vAlign="center" wrap="wrap">
-            <Switch
-              label={autoRefresh ? 'TAIL -F (Streaming)' : 'TAIL -F'}
-              value={autoRefresh}
-              isDisabled={!selectedMatchId}
-              size="sm"
-              onChange={(checked) => setAutoRefresh(checked)}
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              isDisabled={!selectedMatchId}
-              isLoading={loading}
-              icon={<Icon icon={RefreshCw} />}
-              label="Sync"
-              onClick={() => loadLogs(selectedMatchId)}
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              isDisabled={!logData}
-              icon={<Icon icon={copied ? CheckCircle2 : Copy} />}
-              label={copied ? 'Copied!' : 'Copy'}
-              onClick={handleCopyLogs}
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              isDisabled={!logData}
-              icon={<Icon icon={Download} />}
-              label="Export .log"
-              tooltip="Download full .log file"
-              onClick={handleDownloadLog}
-            />
-          </HStack>
-        </HStack>
-      </Section>
+          {/* Scrollable Log File List */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
+            {filteredDirectoryFiles.length === 0 ? (
+              <EmptyState
+                isCompact
+                title={
+                  sortedLogFiles.length === 0
+                    ? 'No VPS log files currently detected'
+                    : `No files matching "${browseSearch}"`
+                }
+                description={
+                  sortedLogFiles.length === 0
+                    ? 'Older matches rotate off VPS disk; paste a specific GUID above to query archives.'
+                    : 'Clear the directory filter or click Rescan.'
+                }
+              />
+            ) : (
+              filteredDirectoryFiles.map((file, idx) => {
+                const isSelected = selectedMatchId === file.matchId;
+                const dt = formatLogDateTime(file.lastModifiedUtc || file.createdAtUtc);
+                const kb = (file.fileSizeBytes / 1024).toFixed(1);
 
-      {/* Log Source, Dropdown, Manual GUID & Chronological Directory */}
-      <Section padding={4}>
-        <VStack gap={3}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-            <Badge
-              label={`Dedicated VPS Log Files (${availableLogFiles.length})`}
-              variant="info"
-              icon={<Icon icon={FolderOpen} />}
-            />
-            <HStack gap={2} vAlign="center">
-              <Text type="code" size="xsm" color="secondary">
-                Selected Target:
-              </Text>
-              <Text type="code" size="xsm" weight="bold" color="accent">
+                return (
+                  <Card
+                    key={file.fileName}
+                    variant={isSelected ? 'yellow' : 'default'}
+                    padding={2}
+                  >
+                    <VStack gap={1.5}>
+                      <HStack justify="between" vAlign="center" gap={2}>
+                        <HStack gap={1.5} vAlign="center">
+                          <Badge
+                            label={idx === 0 ? 'LATEST' : `#${idx + 1}`}
+                            variant={idx === 0 ? 'success' : 'neutral'}
+                          />
+                          <Text type="code" size="xsm" weight="semibold" hasTabularNumbers>
+                            {dt.date} {dt.time}
+                          </Text>
+                        </HStack>
+                        <Badge label={`${kb} KB`} variant="neutral" />
+                      </HStack>
+
+                      <HStack justify="between" vAlign="center" gap={2}>
+                        <div className="min-w-0 flex-1">
+                          <Text type="code" size="xsm" weight="semibold" maxLines={1}>
+                            {file.fileName}
+                          </Text>
+                          <Text type="code" size="2xs" color="secondary" maxLines={1}>
+                            {file.matchId}
+                          </Text>
+                        </div>
+
+                        {isSelected ? (
+                          <HStack gap={1} vAlign="center" className="shrink-0">
+                            <StatusDot variant="success" isPulsing label="Streaming" />
+                            <Badge label="ACTIVE" variant="success" />
+                          </HStack>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            label="Open"
+                            onClick={() => handleSelectTarget(file.matchId)}
+                          />
+                        )}
+                      </HStack>
+                    </VStack>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+
+          <div className="shrink-0 px-3 py-2 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-muted)]">
+            <HStack gap={1.5} vAlign="center" justify="between">
+              <HStack gap={1.5} vAlign="center">
+                <Icon icon={Clock} size="xsm" color="accent" />
+                <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+                  Showing {filteredDirectoryFiles.length} of {currentTotal} (Newest First)
+                </Text>
+              </HStack>
+              <Text type="code" size="2xs" color="accent" weight="bold">
                 {selectedMatchId ? `#${selectedMatchId.slice(0, 8)}` : 'None'}
               </Text>
             </HStack>
-          </HStack>
-
-          <Divider />
-
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-            <div className="flex-1 min-w-[260px]">
-              <Selector
-                label="Select Server Log File"
-                isLabelHidden
-                options={fileSelectOptions}
-                value={selectedMatchId}
-                hasSearch
-                placeholder={`Select Server Log File (${selectLogFiles.length} of ${sortedLogFiles.length} files - Newest First)`}
-                onChange={(val) => {
-                  if (val) {
-                    setInputMatchId(val);
-                    setSelectedMatchId(val);
-                  }
-                }}
-                width="100%"
-              />
-            </div>
-
-            <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-center gap-2">
-              <InputGroup label="Load custom Match GUID" isLabelHidden>
-                <TextInput
-                  label="Custom Match GUID"
-                  isLabelHidden
-                  value={inputMatchId}
-                  onChange={setInputMatchId}
-                  startIcon={Search}
-                  placeholder="Or paste custom GUID..."
-                  width={200}
-                />
-                <Button type="submit" variant="primary" label="Load" />
-              </InputGroup>
-
-              <IconButton
-                label="Rescan server files on VPS"
-                tooltip="Rescan server files on VPS"
-                variant="secondary"
-                icon={<Icon icon={RefreshCw} />}
-                onClick={refreshFiles}
-              />
-
-              <Selector
-                label="Max logs to display"
-                isLabelHidden
-                startIcon={SlidersHorizontal}
-                options={limitSelectOptions}
-                value={String(displayLimit)}
-                onChange={(val) => setDisplayLimit(val === 'ALL' ? 'ALL' : Number(val))}
-                variant="secondary"
-                width={140}
-              />
-
-              <Button
-                variant={browseExpanded ? 'primary' : 'secondary'}
-                icon={<Icon icon={Calendar} />}
-                endContent={<Icon icon={browseExpanded ? ChevronUp : ChevronDown} />}
-                label={`Directory (${sortedLogFiles.length})`}
-                onClick={() => setBrowseExpanded((prev) => !prev)}
-              />
-            </form>
-          </HStack>
-
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-            <HStack gap={1.5} vAlign="center">
-              <Icon icon={Clock} size="xsm" color="accent" />
-              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                Order: <strong>Newest first (Top to Bottom)</strong> • Showing up to{' '}
-                <strong>{displayLimit === 'ALL' ? currentTotal : displayLimit}</strong> of{' '}
-                {currentTotal} logs
-              </Text>
-            </HStack>
-            {selectedMatchId && (
-              <Text type="code" size="xsm" color="secondary">
-                Selected: <strong>{selectedMatchId}</strong>
-              </Text>
-            )}
-          </HStack>
-
-          {browseExpanded && (
-            <>
-              <Divider />
-              <Card variant="muted" padding={3}>
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <HStack gap={2} vAlign="center">
-                    <Icon icon={Calendar} size="sm" color="accent" />
-                    <Text weight="semibold" size="xsm" className="font-cinzel">
-                      CHRONOLOGICAL DIRECTORY
-                    </Text>
-                    <Badge label={`${sortedLogFiles.length} files`} variant="yellow" />
-                  </HStack>
-
-                  <HStack gap={2} vAlign="center" wrap="wrap">
-                    <TextInput
-                      label="Filter directory files"
-                      isLabelHidden
-                      value={browseSearch}
-                      onChange={setBrowseSearch}
-                      startIcon={Filter}
-                      placeholder="Filter by date, ID, file..."
-                      hasClear
-                      size="sm"
-                      width={240}
-                    />
-                    <Selector
-                      label="Directory display limit"
-                      isLabelHidden
-                      startIcon={SlidersHorizontal}
-                      options={limitSelectOptions}
-                      value={String(displayLimit)}
-                      onChange={(val) => setDisplayLimit(val === 'ALL' ? 'ALL' : Number(val))}
-                      size="sm"
-                      variant="secondary"
-                      width={130}
-                    />
-                  </HStack>
-                </HStack>
-              </Card>
-
-              <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
-                {filteredDirectoryFiles.length === 0 ? (
-                  <EmptyState
-                    isCompact
-                    title={`No server log files found matching "${browseSearch}"`}
-                    description="Clear the directory filter or rescan VPS log files."
-                  />
-                ) : (
-                  filteredDirectoryFiles.map((file, idx) => {
-                    const isSelected = selectedMatchId === file.matchId;
-                    const dt = formatLogDateTime(file.lastModifiedUtc || file.createdAtUtc);
-                    const kb = (file.fileSizeBytes / 1024).toFixed(1);
-
-                    return (
-                      <Card
-                        key={file.fileName}
-                        variant={isSelected ? 'yellow' : 'default'}
-                        padding={3}
-                      >
-                        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-                          <HStack gap={2} vAlign="center" wrap="wrap">
-                            <Badge
-                              label={idx === 0 ? 'LATEST' : `#${idx + 1}`}
-                              variant={idx === 0 ? 'success' : 'neutral'}
-                            />
-                            <HStack gap={1} vAlign="center">
-                              <Icon icon={Calendar} size="xsm" color="accent" />
-                              <Text type="code" size="xsm" weight="semibold" hasTabularNumbers>
-                                {dt.date}
-                              </Text>
-                            </HStack>
-                            <HStack gap={1} vAlign="center">
-                              <Icon icon={Clock} size="xsm" color="secondary" />
-                              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                                {dt.time}
-                              </Text>
-                            </HStack>
-                          </HStack>
-
-                          <div className="flex-1 min-w-[200px]">
-                            <HStack gap={2} vAlign="center">
-                              <Icon icon={FileText} size="xsm" color="info" />
-                              <Text type="code" size="xsm" weight="semibold" maxLines={1}>
-                                {file.fileName}
-                              </Text>
-                              <Badge label={`${kb} KB`} variant="neutral" />
-                            </HStack>
-                            <Text type="code" size="2xs" color="secondary" maxLines={1}>
-                              GUID: {file.matchId}
-                            </Text>
-                          </div>
-
-                          <HStack gap={2} vAlign="center">
-                            {isSelected ? (
-                              <HStack gap={1.5} vAlign="center">
-                                <StatusDot variant="success" isPulsing label="Streaming" />
-                                <Badge label="STREAMING" variant="success" />
-                              </HStack>
-                            ) : (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                label="Select →"
-                                onClick={() => {
-                                  setInputMatchId(file.matchId);
-                                  setSelectedMatchId(file.matchId);
-                                }}
-                              />
-                            )}
-                          </HStack>
-                        </HStack>
-                      </Card>
-                    );
-                  })
-                )}
-              </div>
-            </>
-          )}
-        </VStack>
-      </Section>
-
-      {errorMessage && (
-        <Banner status="error" title="Server Response" description={errorMessage} />
+          </div>
+        </Card>
       )}
 
-      <LogTerminalView
-        logData={logData}
-        loading={loading}
-        errorMessage={errorMessage}
-        selectedMatchId={selectedMatchId}
-        filterLevel={filterLevel}
-        onFilterLevelChange={setFilterLevel}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        autoScroll={autoScroll}
-        onToggleAutoScroll={() => setAutoScroll((prev) => !prev)}
-        terminalBodyRef={terminalBodyRef}
-      />
-    </VStack>
+      {/* Right Main Pane: Compact Controls + Full-Height Terminal */}
+      <div
+        className={`${browseExpanded ? 'xl:col-span-8' : 'xl:col-span-12'} flex flex-col min-h-0 gap-2.5 overflow-hidden`}
+      >
+        {/* Stream Controls Header Bar */}
+        <Card variant="default" padding={3} className="shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+              <Button
+                variant={browseExpanded ? 'secondary' : 'primary'}
+                size="sm"
+                icon={<Icon icon={browseExpanded ? PanelLeftClose : PanelLeftOpen} />}
+                label={browseExpanded ? 'Hide Files' : `Files (${sortedLogFiles.length})`}
+                onClick={() => setBrowseExpanded((prev) => !prev)}
+              />
+
+              <div className="w-[260px] max-w-full">
+                <Selector
+                  label="Select Server Log File"
+                  isLabelHidden
+                  size="sm"
+                  options={fileSelectOptions}
+                  value={selectedMatchId}
+                  hasSearch
+                  placeholder={`Quick pick (${selectLogFiles.length} newest)...`}
+                  onChange={(val) => {
+                    if (val) handleSelectTarget(val);
+                  }}
+                  width="100%"
+                />
+              </div>
+
+              {logData ? (
+                <Badge
+                  label="LIVE VPS LOG"
+                  variant="success"
+                  icon={<Icon icon={Radio} />}
+                />
+              ) : (
+                <HStack gap={1.5} vAlign="center">
+                  <Icon icon={Terminal} size="xsm" color="accent" />
+                  <Text type="code" size="xsm" color="secondary">
+                    logs/match_*.log
+                  </Text>
+                </HStack>
+              )}
+            </div>
+
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Switch
+                label={autoRefresh ? 'TAIL -F (Live)' : 'TAIL -F'}
+                value={autoRefresh}
+                isDisabled={!selectedMatchId}
+                size="sm"
+                onChange={(checked) => setAutoRefresh(checked)}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={!selectedMatchId}
+                isLoading={loading}
+                icon={<Icon icon={RefreshCw} />}
+                label="Sync"
+                onClick={() => loadLogs(selectedMatchId)}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={!logData}
+                icon={<Icon icon={copied ? CheckCircle2 : Copy} />}
+                label={copied ? 'Copied!' : 'Copy'}
+                onClick={handleCopyLogs}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={!logData}
+                icon={<Icon icon={Download} />}
+                label="Export .log"
+                tooltip="Download full .log file"
+                onClick={handleDownloadLog}
+              />
+            </HStack>
+          </div>
+        </Card>
+
+        {errorMessage && (
+          <div className="shrink-0">
+            <Banner status="error" title="Server Response" description={errorMessage} />
+          </div>
+        )}
+
+        <LogTerminalView
+          logData={logData}
+          loading={loading}
+          errorMessage={errorMessage}
+          selectedMatchId={selectedMatchId}
+          filterLevel={filterLevel}
+          onFilterLevelChange={setFilterLevel}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          autoScroll={autoScroll}
+          onToggleAutoScroll={() => setAutoScroll((prev) => !prev)}
+          terminalBodyRef={terminalBodyRef}
+          fillHeight={fillHeight}
+        />
+      </div>
+    </div>
   );
 };

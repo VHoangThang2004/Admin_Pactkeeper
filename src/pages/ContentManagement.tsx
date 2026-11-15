@@ -11,7 +11,7 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { Heading } from '@astryxdesign/core/Heading';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
-import { Section } from '@astryxdesign/core/Section';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Selector, type SelectorOptionData } from '@astryxdesign/core/Selector';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
@@ -25,6 +25,7 @@ import {
   Layers,
   Plus,
   RefreshCw,
+  Search,
   Shield,
   Sparkles,
   Sword,
@@ -32,6 +33,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { adminClient } from '../api/adminClient';
+import { ConsolePage } from '../components/ConsolePage';
 import { SensitiveActionModal } from '../components/SensitiveActionModal';
 import { recordAuditEvent } from '../services/adminSecurityService';
 import type {
@@ -101,6 +103,8 @@ function renderStatModifierBadges(
 
 export const ContentManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ContentTab>('units');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'STARTER' | 'GACHA'>('ALL');
   const [units, setUnits] = useState<UnitDefinition[]>([]);
   const [chapters, setChapters] = useState<ChapterConfig[]>([]);
   const [weapons, setWeapons] = useState<WeaponDefinition[]>([]);
@@ -1102,120 +1106,267 @@ export const ContentManagement: React.FC = () => {
   const weaponRows = useMemo<WeaponRow[]>(() => weapons.map((w) => ({ ...w })), [weapons]);
   const trinketRows = useMemo<TrinketRow[]>(() => trinkets.map((t) => ({ ...t })), [trinkets]);
 
+  const skillUsageMap = useMemo(() => {
+    const map = new Map<number, string[]>();
+    const addRef = (skillId: unknown, refLabel: string) => {
+      const idNum = Number(skillId);
+      if (!Number.isFinite(idNum) || idNum <= 0) return;
+      const list = map.get(idNum) ?? [];
+      list.push(refLabel);
+      map.set(idNum, list);
+    };
+    for (const u of units) {
+      addRef(u.passiveSkillId, `Hero: ${u.unitName || u.name || `#${u.uId}`}`);
+    }
+    for (const w of weapons) {
+      addRef(w.skillId, `Weapon: ${w.name || `#${w.weaponId}`}`);
+    }
+    for (const t of trinkets) {
+      addRef(t.skillId, `Trinket: ${t.name || `#${t.trinketId}`}`);
+    }
+    for (const c of classes) {
+      const cLabel = c.name || c.className || `#${c.classId}`;
+      addRef(c.movementSkillId, `Move: ${cLabel}`);
+      addRef(c.classSkillId, `Class: ${cLabel}`);
+    }
+    return map;
+  }, [units, weapons, trinkets, classes]);
+
+  const normalizedQuery = searchTerm.trim().toLowerCase();
+
+  const matchesAvailability = useCallback(
+    (givenAtRegister: boolean | undefined) => {
+      if (availabilityFilter === 'STARTER') return Boolean(givenAtRegister);
+      if (availabilityFilter === 'GACHA') return !givenAtRegister;
+      return true;
+    },
+    [availabilityFilter]
+  );
+
+  const filteredUnitRows = useMemo(
+    () =>
+      unitRows.filter((u) => {
+        if (!matchesAvailability(u.givenAtRegister)) return false;
+        if (!normalizedQuery) return true;
+        return (
+          (u.unitName || u.name || '').toLowerCase().includes(normalizedQuery) ||
+          String(u.uId ?? '').toLowerCase().includes(normalizedQuery) ||
+          String(u.passiveSkillId ?? '').toLowerCase().includes(normalizedQuery)
+        );
+      }),
+    [unitRows, matchesAvailability, normalizedQuery]
+  );
+
+  const filteredChapterRows = useMemo(
+    () =>
+      chapterRows.filter((c) => {
+        if (!normalizedQuery) return true;
+        const sceneMatch = (c.scenes || []).some((sc) =>
+          `${sc.mapId || ''} ${sc.description || ''} ${sc.type || ''}`
+            .toLowerCase()
+            .includes(normalizedQuery)
+        );
+        return (
+          sceneMatch ||
+          String(c.chapterName || c.title || c.chapterTitle || '')
+            .toLowerCase()
+            .includes(normalizedQuery) ||
+          String(c.chapterId ?? '').toLowerCase().includes(normalizedQuery) ||
+          String(c.mapId ?? '').toLowerCase().includes(normalizedQuery)
+        );
+      }),
+    [chapterRows, normalizedQuery]
+  );
+
+  const filteredWeaponRows = useMemo(
+    () =>
+      weaponRows.filter((w) => {
+        if (!matchesAvailability(w.givenAtRegister)) return false;
+        if (!normalizedQuery) return true;
+        return (
+          (w.name || '').toLowerCase().includes(normalizedQuery) ||
+          String(w.weaponId ?? '').toLowerCase().includes(normalizedQuery) ||
+          String(w.skillId ?? '').toLowerCase().includes(normalizedQuery)
+        );
+      }),
+    [weaponRows, matchesAvailability, normalizedQuery]
+  );
+
+  const filteredTrinketRows = useMemo(
+    () =>
+      trinketRows.filter((t) => {
+        if (!matchesAvailability(t.givenAtRegister)) return false;
+        if (!normalizedQuery) return true;
+        return (
+          (t.name || '').toLowerCase().includes(normalizedQuery) ||
+          String(t.trinketId ?? '').toLowerCase().includes(normalizedQuery) ||
+          String(t.skillId ?? '').toLowerCase().includes(normalizedQuery)
+        );
+      }),
+    [trinketRows, matchesAvailability, normalizedQuery]
+  );
+
+  const filteredClasses = useMemo(
+    () =>
+      classes.filter((c) => {
+        if (!normalizedQuery) return true;
+        return (
+          (c.name || c.className || '').toLowerCase().includes(normalizedQuery) ||
+          String(c.classId ?? '').toLowerCase().includes(normalizedQuery) ||
+          String(c.movementSkillId ?? '').toLowerCase().includes(normalizedQuery) ||
+          String(c.classSkillId ?? '').toLowerCase().includes(normalizedQuery)
+        );
+      }),
+    [classes, normalizedQuery]
+  );
+
+  const filteredSkills = useMemo(
+    () =>
+      skills.filter((s) => {
+        if (!normalizedQuery) return true;
+        const refs = skillUsageMap.get(Number(s.skillId)) ?? [];
+        return (
+          (s.skillName || '').toLowerCase().includes(normalizedQuery) ||
+          String(s.skillId ?? '').toLowerCase().includes(normalizedQuery) ||
+          refs.some((r) => r.toLowerCase().includes(normalizedQuery))
+        );
+      }),
+    [skills, normalizedQuery, skillUsageMap]
+  );
+
+  const activeTabMeta = useMemo(() => {
+    switch (activeTab) {
+      case 'units':
+        return {
+          endpoint: '/api/UnitDefinition',
+          addLabel: 'Add Hero',
+          shown: filteredUnitRows.length,
+          total: units.length,
+          onAdd: () => {
+            setModalError(null);
+            setIsAddingUnit(true);
+          },
+        };
+      case 'chapters':
+        return {
+          endpoint: '/api/ChapterConfig',
+          addLabel: 'Add Chapter',
+          shown: filteredChapterRows.length,
+          total: chapters.length,
+          onAdd: () => {
+            setModalError(null);
+            setIsAddingChapter(true);
+          },
+        };
+      case 'weapons':
+        return {
+          endpoint: '/api/WeaponDefinition',
+          addLabel: 'Add Weapon',
+          shown: filteredWeaponRows.length,
+          total: weapons.length,
+          onAdd: () => {
+            setModalError(null);
+            setIsAddingWeapon(true);
+          },
+        };
+      case 'trinkets':
+        return {
+          endpoint: '/api/TrinketDefinition',
+          addLabel: 'Add Trinket',
+          shown: filteredTrinketRows.length,
+          total: trinkets.length,
+          onAdd: () => {
+            setModalError(null);
+            setIsAddingTrinket(true);
+          },
+        };
+      case 'classes':
+        return {
+          endpoint: '/api/ClassDefinition',
+          addLabel: 'Add Class',
+          shown: filteredClasses.length,
+          total: classes.length,
+          onAdd: () => {
+            setModalError(null);
+            setIsAddingClass(true);
+          },
+        };
+      case 'skills':
+      default:
+        return {
+          endpoint: '/api/SkillDefinition',
+          addLabel: 'Add Skill',
+          shown: filteredSkills.length,
+          total: skills.length,
+          onAdd: () => {
+            setModalError(null);
+            setIsAddingSkill(true);
+          },
+        };
+    }
+  }, [
+    activeTab,
+    filteredUnitRows.length,
+    units.length,
+    filteredChapterRows.length,
+    chapters.length,
+    filteredWeaponRows.length,
+    weapons.length,
+    filteredTrinketRows.length,
+    trinkets.length,
+    filteredClasses.length,
+    classes.length,
+    filteredSkills.length,
+    skills.length,
+  ]);
+
+  const showAvailabilityFilter =
+    activeTab === 'units' || activeTab === 'weapons' || activeTab === 'trinkets';
+
   return (
-    <VStack gap={5}>
-      {/* Header Section */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" gap={3} wrap="wrap">
-            <HStack gap={3} vAlign="center">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center shrink-0">
-                <Sword className="w-6 h-6 text-amber-500" />
-              </div>
-              <VStack gap={0.5}>
-                <HStack gap={2} vAlign="center" wrap="wrap">
-                  <Badge variant="yellow" label="GAME DESIGN ARCHIVES • MONGODB" />
-                  <Text type="code" size="xsm" color="secondary">
-                    6 Core SRPG Domains with Full CRUD
-                  </Text>
-                </HStack>
-                <Heading level={1} type="display-3">
-                  SRPG ARCHIVES &amp; ARMORY DEFINITIONS
-                </Heading>
-                <Text size="sm" color="secondary">
-                  Live Game Content CMS: In-browser Create, Edit &amp; Delete for Heroes, Chapters, Weapons, Trinkets, Classes &amp; Skills.
-                </Text>
-              </VStack>
-            </HStack>
-
-            <Button
-              variant="primary"
-              label={loading ? 'Syncing Archives...' : 'Sync Archives'}
-              icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
-              onClick={() => void fetchContent()}
-              isDisabled={loading}
-            />
-          </HStack>
-
-          {feedback && (
-            <Banner
-              status={feedback.status}
-              title={feedback.title}
-              description={feedback.detail}
-              isDismissable
-              onDismiss={() => setFeedback(null)}
-            />
-          )}
-
-          {/* Domain Summary Strip */}
-          <Grid columns={{ minWidth: 155, max: 6, repeat: 'fit' }} gap={3}>
-            <Card variant="muted" padding={3}>
-              <VStack gap={0.5}>
-                <Text type="supporting" size="xsm" color="secondary">
-                  Heroes
-                </Text>
-                <Heading level={2} type="display-3">
-                  {units.length}
-                </Heading>
-              </VStack>
-            </Card>
-            <Card variant="muted" padding={3}>
-              <VStack gap={0.5}>
-                <Text type="supporting" size="xsm" color="secondary">
-                  Chapters
-                </Text>
-                <Heading level={2} type="display-3">
-                  {chapters.length}
-                </Heading>
-              </VStack>
-            </Card>
-            <Card variant="muted" padding={3}>
-              <VStack gap={0.5}>
-                <Text type="supporting" size="xsm" color="secondary">
-                  Weapons
-                </Text>
-                <Heading level={2} type="display-3">
-                  {weapons.length}
-                </Heading>
-              </VStack>
-            </Card>
-            <Card variant="muted" padding={3}>
-              <VStack gap={0.5}>
-                <Text type="supporting" size="xsm" color="secondary">
-                  Trinkets
-                </Text>
-                <Heading level={2} type="display-3">
-                  {trinkets.length}
-                </Heading>
-              </VStack>
-            </Card>
-            <Card variant="muted" padding={3}>
-              <VStack gap={0.5}>
-                <Text type="supporting" size="xsm" color="secondary">
-                  Classes
-                </Text>
-                <Heading level={2} type="display-3">
-                  {classes.length}
-                </Heading>
-              </VStack>
-            </Card>
-            <Card variant="muted" padding={3}>
-              <VStack gap={0.5}>
-                <Text type="supporting" size="xsm" color="secondary">
-                  Skills
-                </Text>
-                <Heading level={2} type="display-3">
-                  {skills.length}
-                </Heading>
-              </VStack>
-            </Card>
-          </Grid>
-        </VStack>
-      </Section>
-
-      {/* Main Content Tabs */}
-      <Section padding={5}>
-        <VStack gap={4}>
+    <ConsolePage
+      badge="GAME DESIGN ARCHIVES • MONGODB"
+      badgeVariant="yellow"
+      icon={<Sword className="w-6 h-6 text-amber-500" />}
+      meta={
+        <Text type="code" size="xsm" color="secondary">
+          6 Core SRPG Domains • {activeTabMeta.endpoint}
+        </Text>
+      }
+      title="SRPG ARCHIVES & ARMORY DEFINITIONS"
+      subtitle="Live Game Content CMS: In-browser Create, Edit & Delete for Heroes, Chapters, Weapons, Trinkets, Classes & Skills."
+      actions={
+        <HStack gap={2} vAlign="center">
+          <Button
+            variant="secondary"
+            size="sm"
+            label={loading ? 'Syncing...' : 'Sync Archives'}
+            icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+            onClick={() => void fetchContent()}
+            isDisabled={loading}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            label={activeTabMeta.addLabel}
+            icon={<Plus className="w-4 h-4" />}
+            onClick={activeTabMeta.onAdd}
+          />
+        </HStack>
+      }
+      banner={
+        feedback ? (
+          <Banner
+            status={feedback.status}
+            title={feedback.title}
+            description={feedback.detail}
+            isDismissable
+            onDismiss={() => setFeedback(null)}
+          />
+        ) : undefined
+      }
+      toolbar={
+        <VStack gap={2}>
           <TabList
             value={activeTab}
             onChange={(val) => setActiveTab(val as ContentTab)}
@@ -1266,381 +1417,386 @@ export const ContentManagement: React.FC = () => {
             />
           </TabList>
 
-          {/* 1. HERO UNITS TAB */}
-          {activeTab === 'units' && (
-            <div role="tabpanel" id="panel-units">
-              <VStack gap={4}>
-                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-                  <Text size="sm" weight="semibold" color="primary">
-                    SRPG Hero Definitions (`/api/UnitDefinition`)
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    label="Add Hero"
-                    icon={<Plus className="w-4 h-4" />}
-                    onClick={() => {
-                      setModalError(null);
-                      setIsAddingUnit(true);
-                    }}
-                  />
-                </HStack>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              <TextInput
+                label="Filter current archive tab"
+                isLabelHidden
+                size="sm"
+                value={searchTerm}
+                onChange={setSearchTerm}
+                startIcon={<Search className="w-4 h-4" />}
+                placeholder={`Filter ${activeTab} by name, ID, or skill reference...`}
+                hasClear
+                width={320}
+              />
 
-                {unitRows.length === 0 ? (
-                  <EmptyState
-                    title="No Hero Definitions Recorded"
-                    description="Create a playable hero unit definition in MongoDB to configure classes and passive skills."
-                    icon={<Shield className="w-8 h-8" />}
-                    actions={
-                      <Button
-                        variant="primary"
-                        label="Add Hero"
-                        icon={<Plus className="w-4 h-4" />}
-                        onClick={() => setIsAddingUnit(true)}
-                      />
-                    }
-                  />
-                ) : (
-                  <Table
-                    columns={unitColumns}
-                    data={unitRows}
-                    idKey="id"
-                    density="balanced"
-                    hasHover
-                    aria-label="SRPG Hero Definitions"
-                  />
-                )}
-              </VStack>
+              {showAvailabilityFilter && (
+                <SegmentedControl
+                  label="Filter by availability"
+                  size="sm"
+                  value={availabilityFilter}
+                  onChange={(val) => setAvailabilityFilter(val as 'ALL' | 'STARTER' | 'GACHA')}
+                >
+                  <SegmentedControlItem value="ALL" label="All Pools" />
+                  <SegmentedControlItem value="STARTER" label="Starter" />
+                  <SegmentedControlItem value="GACHA" label="Gacha Only" />
+                </SegmentedControl>
+              )}
             </div>
-          )}
 
-          {/* 2. CHAPTERS TAB */}
-          {activeTab === 'chapters' && (
-            <div role="tabpanel" id="panel-chapters">
-              <VStack gap={4}>
-                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-                  <Text size="sm" weight="semibold" color="primary">
-                    Story Chapters &amp; Scenario Maps (`/api/ChapterConfig`)
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    label="Add Chapter"
-                    icon={<Plus className="w-4 h-4" />}
-                    onClick={() => {
-                      setModalError(null);
-                      setIsAddingChapter(true);
-                    }}
-                  />
-                </HStack>
-
-                {chapterRows.length === 0 ? (
-                  <EmptyState
-                    title="No Story Chapter Configurations Found"
-                    description="Create a story chapter configuration and attach PVE battle, dialogue, or cutscene scenes."
-                    icon={<BookOpen className="w-8 h-8" />}
-                    actions={
-                      <Button
-                        variant="primary"
-                        label="Add Chapter"
-                        icon={<Plus className="w-4 h-4" />}
-                        onClick={() => setIsAddingChapter(true)}
-                      />
-                    }
-                  />
-                ) : (
-                  <Table
-                    columns={chapterColumns}
-                    data={chapterRows}
-                    idKey="id"
-                    density="balanced"
-                    hasHover
-                    aria-label="Story Chapters"
-                  />
-                )}
-              </VStack>
-            </div>
-          )}
-
-          {/* 3. WEAPONS TAB */}
-          {activeTab === 'weapons' && (
-            <div role="tabpanel" id="panel-weapons">
-              <VStack gap={4}>
-                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-                  <Text size="sm" weight="semibold" color="primary">
-                    Weapon Definitions &amp; Class Assignments BR-04 (`/api/WeaponDefinition`)
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    label="Add Weapon"
-                    icon={<Plus className="w-4 h-4" />}
-                    onClick={() => {
-                      setModalError(null);
-                      setIsAddingWeapon(true);
-                    }}
-                  />
-                </HStack>
-
-                {weaponRows.length === 0 ? (
-                  <EmptyState
-                    title="No Weapon Definitions Found"
-                    description="Define class-restricted weapons and combat skill attachments."
-                    icon={<Sword className="w-8 h-8" />}
-                    actions={
-                      <Button
-                        variant="primary"
-                        label="Add Weapon"
-                        icon={<Plus className="w-4 h-4" />}
-                        onClick={() => setIsAddingWeapon(true)}
-                      />
-                    }
-                  />
-                ) : (
-                  <Table
-                    columns={weaponColumns}
-                    data={weaponRows}
-                    idKey="id"
-                    density="balanced"
-                    hasHover
-                    aria-label="Weapon Definitions"
-                  />
-                )}
-              </VStack>
-            </div>
-          )}
-
-          {/* 4. TRINKETS TAB */}
-          {activeTab === 'trinkets' && (
-            <div role="tabpanel" id="panel-trinkets">
-              <VStack gap={4}>
-                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-                  <Text size="sm" weight="semibold" color="primary">
-                    Trinket Definitions &amp; Stat Modifiers (`/api/TrinketDefinition`)
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    label="Add Trinket"
-                    icon={<Plus className="w-4 h-4" />}
-                    onClick={() => {
-                      setModalError(null);
-                      setIsAddingTrinket(true);
-                    }}
-                  />
-                </HStack>
-
-                {trinketRows.length === 0 ? (
-                  <EmptyState
-                    title="No Trinket Definitions Found"
-                    description="Create accessory artifacts with passive combat skills and stat modifiers."
-                    icon={<Gem className="w-8 h-8" />}
-                    actions={
-                      <Button
-                        variant="primary"
-                        label="Add Trinket"
-                        icon={<Plus className="w-4 h-4" />}
-                        onClick={() => setIsAddingTrinket(true)}
-                      />
-                    }
-                  />
-                ) : (
-                  <Table
-                    columns={trinketColumns}
-                    data={trinketRows}
-                    idKey="id"
-                    density="balanced"
-                    hasHover
-                    aria-label="Trinket Definitions"
-                  />
-                )}
-              </VStack>
-            </div>
-          )}
-
-          {/* 5. CLASSES TAB */}
-          {activeTab === 'classes' && (
-            <div role="tabpanel" id="panel-classes">
-              <VStack gap={4}>
-                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-                  <Text size="sm" weight="semibold" color="primary">
-                    Class Archetype Definitions (`/api/ClassDefinition`)
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    label="Add Class"
-                    icon={<Plus className="w-4 h-4" />}
-                    onClick={() => {
-                      setModalError(null);
-                      setIsAddingClass(true);
-                    }}
-                  />
-                </HStack>
-
-                {classes.length === 0 ? (
-                  <EmptyState
-                    title="No Class Definitions Found"
-                    description="Add an SRPG class archetype with movement and class combat skill mappings."
-                    icon={<Layers className="w-8 h-8" />}
-                    actions={
-                      <Button
-                        variant="primary"
-                        label="Add Class"
-                        icon={<Plus className="w-4 h-4" />}
-                        onClick={() => setIsAddingClass(true)}
-                      />
-                    }
-                  />
-                ) : (
-                  <Grid columns={{ minWidth: 250, max: 3, repeat: 'fit' }} gap={3}>
-                    {classes.map((c, idx) => (
-                      <Card key={c.id || idx} variant="muted" padding={4}>
-                        <VStack gap={3}>
-                          <HStack justify="between" vAlign="center" gap={2}>
-                            <Heading level={3} type="display-3">
-                              {c.name || c.className || `Class #${c.classId}`}
-                            </Heading>
-                            <Badge variant="yellow" label={`ID #${c.classId}`} />
-                          </HStack>
-
-                          <VStack gap={1}>
-                            <HStack justify="between">
-                              <Text type="supporting" size="xsm" color="secondary">
-                                Movement Skill
-                              </Text>
-                              <Text type="code" size="xsm" weight="bold" color="primary">
-                                #{c.movementSkillId ?? '—'}
-                              </Text>
-                            </HStack>
-                            <HStack justify="between">
-                              <Text type="supporting" size="xsm" color="secondary">
-                                Class Combat Skill
-                              </Text>
-                              <Text type="code" size="xsm" weight="bold" color="accent">
-                                #{c.classSkillId ?? '—'}
-                              </Text>
-                            </HStack>
-                          </VStack>
-
-                          <HStack justify="end" gap={1.5}>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              label="Edit"
-                              icon={<Edit2 className="w-3.5 h-3.5" />}
-                              onClick={() => {
-                                setModalError(null);
-                                setEditingClass(c);
-                              }}
-                            />
-                            <IconButton
-                              size="sm"
-                              variant="destructive"
-                              label={`Delete Class #${c.classId}`}
-                              icon={<Trash2 className="w-3.5 h-3.5" />}
-                              onClick={() =>
-                                handleDelete(
-                                  'ClassDefinition',
-                                  c.id,
-                                  c.name || c.className || `Class #${c.classId}`
-                                )
-                              }
-                            />
-                          </HStack>
-                        </VStack>
-                      </Card>
-                    ))}
-                  </Grid>
-                )}
-              </VStack>
-            </div>
-          )}
-
-          {/* 6. SKILLS TAB */}
-          {activeTab === 'skills' && (
-            <div role="tabpanel" id="panel-skills">
-              <VStack gap={4}>
-                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-                  <Text size="sm" weight="semibold" color="primary">
-                    Combat Skill Registry (`/api/SkillDefinition`)
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    label="Add Skill"
-                    icon={<Plus className="w-4 h-4" />}
-                    onClick={() => {
-                      setModalError(null);
-                      setIsAddingSkill(true);
-                    }}
-                  />
-                </HStack>
-
-                {skills.length === 0 ? (
-                  <EmptyState
-                    title="No Skill Definitions Found"
-                    description="Register combat and passive skill IDs referenced by units, weapons, and classes."
-                    icon={<Zap className="w-8 h-8" />}
-                    actions={
-                      <Button
-                        variant="primary"
-                        label="Add Skill"
-                        icon={<Plus className="w-4 h-4" />}
-                        onClick={() => setIsAddingSkill(true)}
-                      />
-                    }
-                  />
-                ) : (
-                  <Grid columns={{ minWidth: 165, max: 6, repeat: 'fit' }} gap={3}>
-                    {skills.map((s, idx) => (
-                      <Card key={s.id || idx} variant="muted" padding={3}>
-                        <VStack gap={2} hAlign="center">
-                          <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                            <Sparkles className="w-4 h-4 text-amber-500" />
-                          </div>
-                          <Badge variant="yellow" label={`Skill #${s.skillId}`} />
-                          {s.skillName && (
-                            <Text
-                              size="xsm"
-                              weight="medium"
-                              color="secondary"
-                              className="text-center"
-                            >
-                              {s.skillName}
-                            </Text>
-                          )}
-                          <HStack gap={1.5} justify="center">
-                            <IconButton
-                              size="sm"
-                              variant="secondary"
-                              label={`Edit Skill #${s.skillId}`}
-                              icon={<Edit2 className="w-3.5 h-3.5" />}
-                              onClick={() => {
-                                setModalError(null);
-                                setEditingSkill(s);
-                              }}
-                            />
-                            <IconButton
-                              size="sm"
-                              variant="destructive"
-                              label={`Delete Skill #${s.skillId}`}
-                              icon={<Trash2 className="w-3.5 h-3.5" />}
-                              onClick={() =>
-                                handleDelete('SkillDefinition', s.id, `Skill #${s.skillId}`)
-                              }
-                            />
-                          </HStack>
-                        </VStack>
-                      </Card>
-                    ))}
-                  </Grid>
-                )}
-              </VStack>
-            </div>
-          )}
+            <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+              Showing {activeTabMeta.shown} of {activeTabMeta.total} entries
+            </Text>
+          </div>
         </VStack>
-      </Section>
+      }
+    >
+      {/* Main Active Tab Card */}
+      <Card padding={4}>
+        {/* 1. HERO UNITS TAB */}
+        {activeTab === 'units' && (
+          <div role="tabpanel" id="panel-units">
+            {filteredUnitRows.length === 0 ? (
+              <EmptyState
+                title={
+                  units.length === 0
+                    ? 'No Hero Definitions Recorded'
+                    : 'No Heroes Match Current Filter'
+                }
+                description={
+                  units.length === 0
+                    ? 'Create a playable hero unit definition in MongoDB to configure classes and passive skills.'
+                    : 'Clear search or switch Starter/Gacha pool filter to inspect other hero records.'
+                }
+                icon={<Shield className="w-8 h-8" />}
+                actions={
+                  units.length === 0 ? (
+                    <Button
+                      variant="primary"
+                      label="Add Hero"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => setIsAddingUnit(true)}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Table
+                columns={unitColumns}
+                data={filteredUnitRows}
+                idKey="id"
+                density="balanced"
+                hasHover
+                aria-label="SRPG Hero Definitions"
+              />
+            )}
+          </div>
+        )}
+
+        {/* 2. CHAPTERS TAB */}
+        {activeTab === 'chapters' && (
+          <div role="tabpanel" id="panel-chapters">
+            {filteredChapterRows.length === 0 ? (
+              <EmptyState
+                title={
+                  chapters.length === 0
+                    ? 'No Story Chapter Configurations Found'
+                    : 'No Chapters Match Search'
+                }
+                description={
+                  chapters.length === 0
+                    ? 'Create a story chapter configuration and attach PVE battle, dialogue, or cutscene scenes.'
+                    : 'Clear search query to inspect all story chapters.'
+                }
+                icon={<BookOpen className="w-8 h-8" />}
+                actions={
+                  chapters.length === 0 ? (
+                    <Button
+                      variant="primary"
+                      label="Add Chapter"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => setIsAddingChapter(true)}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Table
+                columns={chapterColumns}
+                data={filteredChapterRows}
+                idKey="id"
+                density="balanced"
+                hasHover
+                aria-label="Story Chapters"
+              />
+            )}
+          </div>
+        )}
+
+        {/* 3. WEAPONS TAB */}
+        {activeTab === 'weapons' && (
+          <div role="tabpanel" id="panel-weapons">
+            {filteredWeaponRows.length === 0 ? (
+              <EmptyState
+                title={
+                  weapons.length === 0
+                    ? 'No Weapon Definitions Found'
+                    : 'No Weapons Match Current Filter'
+                }
+                description={
+                  weapons.length === 0
+                    ? 'Define class-restricted weapons and combat skill attachments.'
+                    : 'Clear search or switch pool filter to inspect other weapons.'
+                }
+                icon={<Sword className="w-8 h-8" />}
+                actions={
+                  weapons.length === 0 ? (
+                    <Button
+                      variant="primary"
+                      label="Add Weapon"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => setIsAddingWeapon(true)}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Table
+                columns={weaponColumns}
+                data={filteredWeaponRows}
+                idKey="id"
+                density="balanced"
+                hasHover
+                aria-label="Weapon Definitions"
+              />
+            )}
+          </div>
+        )}
+
+        {/* 4. TRINKETS TAB */}
+        {activeTab === 'trinkets' && (
+          <div role="tabpanel" id="panel-trinkets">
+            {filteredTrinketRows.length === 0 ? (
+              <EmptyState
+                title={
+                  trinkets.length === 0
+                    ? 'No Trinket Definitions Found'
+                    : 'No Trinkets Match Current Filter'
+                }
+                description={
+                  trinkets.length === 0
+                    ? 'Create accessory artifacts with passive combat skills and stat modifiers.'
+                    : 'Clear search or switch pool filter to inspect other trinkets.'
+                }
+                icon={<Gem className="w-8 h-8" />}
+                actions={
+                  trinkets.length === 0 ? (
+                    <Button
+                      variant="primary"
+                      label="Add Trinket"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => setIsAddingTrinket(true)}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Table
+                columns={trinketColumns}
+                data={filteredTrinketRows}
+                idKey="id"
+                density="balanced"
+                hasHover
+                aria-label="Trinket Definitions"
+              />
+            )}
+          </div>
+        )}
+
+        {/* 5. CLASSES TAB */}
+        {activeTab === 'classes' && (
+          <div role="tabpanel" id="panel-classes">
+            {filteredClasses.length === 0 ? (
+              <EmptyState
+                title={
+                  classes.length === 0
+                    ? 'No Class Definitions Found'
+                    : 'No Classes Match Search'
+                }
+                description={
+                  classes.length === 0
+                    ? 'Add an SRPG class archetype with movement and class combat skill mappings.'
+                    : 'Clear search query to inspect all class definitions.'
+                }
+                icon={<Layers className="w-8 h-8" />}
+                actions={
+                  classes.length === 0 ? (
+                    <Button
+                      variant="primary"
+                      label="Add Class"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => setIsAddingClass(true)}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Grid columns={{ minWidth: 250, max: 3, repeat: 'fit' }} gap={3}>
+                {filteredClasses.map((c, idx) => (
+                  <Card key={c.id || idx} variant="muted" padding={4}>
+                    <VStack gap={3}>
+                      <HStack justify="between" vAlign="center" gap={2}>
+                        <Heading level={3} type="display-3">
+                          {c.name || c.className || `Class #${c.classId}`}
+                        </Heading>
+                        <Badge variant="yellow" label={`ID #${c.classId}`} />
+                      </HStack>
+
+                      <VStack gap={1}>
+                        <HStack justify="between">
+                          <Text type="supporting" size="xsm" color="secondary">
+                            Movement Skill
+                          </Text>
+                          <Text type="code" size="xsm" weight="bold" color="primary">
+                            #{c.movementSkillId ?? '—'}
+                          </Text>
+                        </HStack>
+                        <HStack justify="between">
+                          <Text type="supporting" size="xsm" color="secondary">
+                            Class Combat Skill
+                          </Text>
+                          <Text type="code" size="xsm" weight="bold" color="accent">
+                            #{c.classSkillId ?? '—'}
+                          </Text>
+                        </HStack>
+                      </VStack>
+
+                      <HStack justify="end" gap={1.5}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          label="Edit"
+                          icon={<Edit2 className="w-3.5 h-3.5" />}
+                          onClick={() => {
+                            setModalError(null);
+                            setEditingClass(c);
+                          }}
+                        />
+                        <IconButton
+                          size="sm"
+                          variant="destructive"
+                          label={`Delete Class #${c.classId}`}
+                          icon={<Trash2 className="w-3.5 h-3.5" />}
+                          onClick={() =>
+                            handleDelete(
+                              'ClassDefinition',
+                              c.id,
+                              c.name || c.className || `Class #${c.classId}`
+                            )
+                          }
+                        />
+                      </HStack>
+                    </VStack>
+                  </Card>
+                ))}
+              </Grid>
+            )}
+          </div>
+        )}
+
+        {/* 6. SKILLS TAB */}
+        {activeTab === 'skills' && (
+          <div role="tabpanel" id="panel-skills">
+            {filteredSkills.length === 0 ? (
+              <EmptyState
+                title={
+                  skills.length === 0
+                    ? 'No Skill Definitions Found'
+                    : 'No Skills Match Search'
+                }
+                description={
+                  skills.length === 0
+                    ? 'Register combat and passive skill IDs referenced by units, weapons, and classes.'
+                    : 'Clear search query to inspect all skill definitions.'
+                }
+                icon={<Zap className="w-8 h-8" />}
+                actions={
+                  skills.length === 0 ? (
+                    <Button
+                      variant="primary"
+                      label="Add Skill"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => setIsAddingSkill(true)}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Grid columns={{ minWidth: 185, max: 5, repeat: 'fit' }} gap={3}>
+                {filteredSkills.map((s, idx) => {
+                  const refs = skillUsageMap.get(Number(s.skillId)) ?? [];
+                  return (
+                    <Card key={s.id || idx} variant="muted" padding={3}>
+                      <VStack gap={2} hAlign="center">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                          <Sparkles className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <Badge variant="yellow" label={`Skill #${s.skillId}`} />
+                        {s.skillName && (
+                          <Text
+                            size="xsm"
+                            weight="medium"
+                            color="secondary"
+                            className="text-center"
+                          >
+                            {s.skillName}
+                          </Text>
+                        )}
+                        <div className="flex flex-wrap justify-center gap-1 min-h-[20px]">
+                          {refs.length === 0 ? (
+                            <Badge variant="neutral" label="Unreferenced" />
+                          ) : (
+                            <>
+                              {refs.slice(0, 2).map((refLabel, rIdx) => (
+                                <Badge key={rIdx} variant="info" label={refLabel} />
+                              ))}
+                              {refs.length > 2 && (
+                                <Badge variant="neutral" label={`+${refs.length - 2}`} />
+                              )}
+                            </>
+                          )}
+                        </div>
+                        <HStack gap={1.5} justify="center">
+                          <IconButton
+                            size="sm"
+                            variant="secondary"
+                            label={`Edit Skill #${s.skillId}`}
+                            icon={<Edit2 className="w-3.5 h-3.5" />}
+                            onClick={() => {
+                              setModalError(null);
+                              setEditingSkill(s);
+                            }}
+                          />
+                          <IconButton
+                            size="sm"
+                            variant="destructive"
+                            label={`Delete Skill #${s.skillId}`}
+                            icon={<Trash2 className="w-3.5 h-3.5" />}
+                            onClick={() =>
+                              handleDelete('SkillDefinition', s.id, `Skill #${s.skillId}`)
+                            }
+                          />
+                        </HStack>
+                      </VStack>
+                    </Card>
+                  );
+                })}
+              </Grid>
+            )}
+          </div>
+        )}
+      </Card>
 
       {/* ========================================================= */}
       {/* EDIT DIALOGS                                              */}
@@ -2547,6 +2703,6 @@ export const ContentManagement: React.FC = () => {
         }}
         onConfirm={executePendingDelete}
       />
-    </VStack>
+    </ConsolePage>
   );
 };

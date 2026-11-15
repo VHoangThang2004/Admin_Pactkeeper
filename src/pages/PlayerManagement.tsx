@@ -1,8 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  ArrowDownUp,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   Copy,
+  Download,
   Edit3,
+  Eye,
   Gem,
   Inbox,
   RefreshCw,
@@ -21,22 +27,20 @@ import { Card } from '@astryxdesign/core/Card';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Divider } from '@astryxdesign/core/Divider';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
-import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { InputGroup } from '@astryxdesign/core/InputGroup';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
-import { Section } from '@astryxdesign/core/Section';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Selector } from '@astryxdesign/core/Selector';
-import { StackItem } from '@astryxdesign/core/Stack';
 import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
 import { Text } from '@astryxdesign/core/Text';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
+import { ConsolePage } from '../components/ConsolePage';
 import { adminClient } from '../api/adminClient';
 import { recordAuditEvent } from '../services/adminSecurityService';
 import {
@@ -54,7 +58,9 @@ interface PlayerManagementProps {
   role?: CounselRole;
 }
 
-type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE';
+type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE' | 'BANNED';
+type PlayerSortOrder = 'PRESENCE' | 'GEMS_DESC' | 'GOLD_DESC' | 'LEVEL_DESC' | 'NAME_ASC';
+type PageSizeOption = '20' | '50' | 'ALL';
 type BanDuration = 'TEMPORARY_24H' | 'TEMPORARY_7D' | 'PERMANENT';
 type PlayerTableRow = PlayerProfile & Record<string, unknown>;
 
@@ -64,11 +70,34 @@ const BAN_DURATION_OPTIONS = [
   { value: 'PERMANENT', label: 'Permanent Account Ban' },
 ];
 
+const SORT_OPTIONS: { value: PlayerSortOrder; label: string }[] = [
+  { value: 'PRESENCE', label: 'Sort: Presence Priority' },
+  { value: 'GEMS_DESC', label: 'Sort: Most Gems' },
+  { value: 'GOLD_DESC', label: 'Sort: Most Gold' },
+  { value: 'LEVEL_DESC', label: 'Sort: Highest Level' },
+  { value: 'NAME_ASC', label: 'Sort: Name (A–Z)' },
+];
+
 export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admin' }) => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const querySearch = searchParams.get('search') || '';
+  const [prevQuerySearch, setPrevQuerySearch] = useState(querySearch);
+
   const [players, setPlayers] = useState<PlayerProfile[]>([]);
   const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>('ALL');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<PlayerSortOrder>('PRESENCE');
+  const [pageSize, setPageSize] = useState<PageSizeOption>('20');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState(querySearch);
   const [newPlayerIdInput, setNewPlayerIdInput] = useState('');
+  const [inspectPlayer, setInspectPlayer] = useState<PlayerProfile | null>(null);
+
+  if (querySearch !== prevQuerySearch) {
+    setPrevQuerySearch(querySearch);
+    setSearchTerm(querySearch);
+    setCurrentPage(1);
+  }
 
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerProfile | null>(null);
   const [adjustGems, setAdjustGems] = useState<number>(0);
@@ -289,26 +318,106 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     let online = 0;
     let battle = 0;
     let offline = 0;
+    let banned = 0;
     for (const p of players) {
+      if (p.isBanned) banned += 1;
       if (p.presence === 'Online') online += 1;
       else if (p.presence === 'InBattle') battle += 1;
       else offline += 1;
     }
-    return { online, battle, offline };
+    return { online, battle, offline, banned };
   }, [players]);
 
-  const filteredPlayers = useMemo(() => {
-    const q = searchTerm.toLowerCase();
-    return players.filter((p) => {
+  const sortedPlayers = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    const filtered = players.filter((p) => {
       const matchesSearch =
-        p.username.toLowerCase().includes(q) || p.playerId.toLowerCase().includes(q);
+        !q || p.username.toLowerCase().includes(q) || p.playerId.toLowerCase().includes(q);
       if (!matchesSearch) return false;
       if (presenceFilter === 'ONLINE') return p.presence === 'Online';
       if (presenceFilter === 'BATTLE') return p.presence === 'InBattle';
       if (presenceFilter === 'OFFLINE') return p.presence === 'Offline';
+      if (presenceFilter === 'BANNED') return Boolean(p.isBanned);
       return true;
     });
-  }, [players, searchTerm, presenceFilter]);
+
+    const presenceRank = (p: PlayerProfile) =>
+      p.presence === 'InBattle' ? 0 : p.presence === 'Online' ? 1 : 2;
+
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'GEMS_DESC':
+          return (b.gems ?? 0) - (a.gems ?? 0) || a.username.localeCompare(b.username);
+        case 'GOLD_DESC':
+          return (b.gold ?? 0) - (a.gold ?? 0) || a.username.localeCompare(b.username);
+        case 'LEVEL_DESC':
+          return (
+            b.level - a.level ||
+            (b.experience ?? 0) - (a.experience ?? 0) ||
+            a.username.localeCompare(b.username)
+          );
+        case 'NAME_ASC':
+          return a.username.localeCompare(b.username);
+        case 'PRESENCE':
+        default:
+          return (
+            presenceRank(a) - presenceRank(b) ||
+            a.username.localeCompare(b.username)
+          );
+      }
+    });
+  }, [players, searchTerm, presenceFilter, sortBy]);
+
+  const numericPageSize = pageSize === 'ALL' ? Math.max(sortedPlayers.length, 1) : Number(pageSize);
+  const totalPages = Math.max(1, Math.ceil(sortedPlayers.length / numericPageSize));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedPlayers = useMemo(() => {
+    if (pageSize === 'ALL') return sortedPlayers;
+    const start = (safePage - 1) * numericPageSize;
+    return sortedPlayers.slice(start, start + numericPageSize);
+  }, [sortedPlayers, pageSize, safePage, numericPageSize]);
+
+  const pageStart = sortedPlayers.length === 0 ? 0 : (safePage - 1) * numericPageSize + 1;
+  const pageEnd =
+    pageSize === 'ALL'
+      ? sortedPlayers.length
+      : Math.min(safePage * numericPageSize, sortedPlayers.length);
+
+  const handleExportCsv = () => {
+    const headers = ['playerId', 'username', 'level', 'exp', 'gold', 'gems', 'presence', 'isBanned', 'matchId'];
+    const escapeCell = (val: unknown) => {
+      const str = String(val ?? '');
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    };
+    const csvRows = [
+      headers.join(','),
+      ...sortedPlayers.map((p) =>
+        [
+          p.playerId,
+          p.username,
+          p.level,
+          p.experience ?? 0,
+          p.gold ?? 0,
+          p.gems ?? 0,
+          p.presence || 'Offline',
+          Boolean(p.isBanned),
+          p.activeMatch?.matchId || '',
+        ]
+          .map(escapeCell)
+          .join(','),
+      ),
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pactkeeper-players-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const isSupport = role === 'Technical Support' || role === 'Support';
   const isAdmin = role === 'Admin' || role === 'Server';
@@ -445,6 +554,14 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           <Badge label="Read-Only" variant="neutral" />
         ) : (
           <HStack gap={2} hAlign="end" vAlign="center">
+            <IconButton
+              label={`Inspect profile for ${player.username}`}
+              tooltip="Quick Inspect"
+              variant="secondary"
+              size="sm"
+              icon={<Icon icon={Eye} />}
+              onClick={() => setInspectPlayer(player)}
+            />
             {isAdmin && (
               <IconButton
                 label={`Adjust currencies for ${player.username}`}
@@ -476,134 +593,222 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     },
   ];
 
-  return (
-    <VStack gap={5}>
-      {/* Hero Banner */}
-      <Section padding={5}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-          <VStack gap={1.5}>
-            <HStack gap={2} vAlign="center" wrap="wrap">
-              <Badge label="SCREEN 29 & 30 • PLAYER CARE & DISCIPLINE" variant="yellow" />
-              <Text type="code" size="xsm" color="secondary">
-                {role === 'Moderator' ? 'User Directory' : 'Accounts Management'}
-              </Text>
-            </HStack>
-            <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
-              {role === 'Moderator'
-                ? 'USER DIRECTORY & DISCIPLINARY LOGS'
-                : 'MANAGE USER ACCOUNTS & TREASURY'}
-            </Heading>
-            <Text type="supporting" size="sm">
-              Authoritative aggregation across Google OAuth sessions, Live Support Tickets, and
-              In-Match Combatants.
-            </Text>
-          </VStack>
-
-          <StackItem size="static">
-            <Button
-              variant="primary"
-              size="md"
-              isLoading={loading}
-              icon={<Icon icon={RefreshCw} />}
-              label="Sync Players"
-              onClick={fetchPlayers}
-            />
-          </StackItem>
-        </HStack>
-      </Section>
-
-      {/* Role Notice */}
-      {role === 'Moderator' && (
-        <Banner
-          status="info"
-          title="Realm Moderator Inspection Mode"
-          description="Live presence tracking and match inspection enabled. Account balance adjustments are reserved for High Counsel Administrators."
-        />
-      )}
-
-      {notification && (
-        <Banner
-          status="success"
-          title="Player Directory Updated"
-          description={notification}
-          isDismissable
-          onDismiss={() => setNotification(null)}
-        />
-      )}
-
-      {/* Search & Load Player ID Controls */}
-      <Section padding={4}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-          <TextInput
-            label="Search by Player ID or Username"
-            isLabelHidden
-            value={searchTerm}
-            onChange={setSearchTerm}
-            startIcon={Search}
-            placeholder="Search by Player ID or Username..."
-            hasClear
-            width={340}
+  const topBanner =
+    role === 'Moderator' || notification ? (
+      <VStack gap={2}>
+        {role === 'Moderator' && (
+          <Banner
+            status="info"
+            title="Realm Moderator Inspection Mode"
+            description="Live presence tracking and match inspection enabled. Account balance adjustments are reserved for High Counsel Administrators."
           />
+        )}
+        {notification && (
+          <Banner
+            status="success"
+            title="Player Directory Updated"
+            description={notification}
+            isDismissable
+            onDismiss={() => setNotification(null)}
+          />
+        )}
+      </VStack>
+    ) : undefined;
 
-          <InputGroup label="Load Player ID from database" isLabelHidden>
-            <TextInput
-              label="Player ID"
-              isLabelHidden
-              value={newPlayerIdInput}
-              onChange={setNewPlayerIdInput}
-              placeholder="Enter Player ID from DB (e.g. Google ID)..."
-              onEnter={handleAddPlayerById}
-              width={280}
-            />
-            <Button
-              variant="primary"
-              icon={<Icon icon={UserPlus} />}
-              label="Load ID"
-              isDisabled={!newPlayerIdInput.trim()}
-              onClick={handleAddPlayerById}
-            />
-          </InputGroup>
+  return (
+    <ConsolePage
+      badge="SCREEN 29 & 30 • PLAYER CARE & DISCIPLINE"
+      badgeVariant="yellow"
+      meta={
+        <HStack gap={2} vAlign="center">
+          <Text type="code" size="xsm" color="secondary">
+            {role === 'Moderator' ? 'User Directory' : 'Accounts Management'}
+          </Text>
+          <Badge
+            label={`${players.length} Accounts • ${presenceCounts.online + presenceCounts.battle} Active`}
+            variant="info"
+          />
+          {presenceCounts.banned > 0 && (
+            <Badge label={`${presenceCounts.banned} Banned`} variant="red" />
+          )}
         </HStack>
-      </Section>
+      }
+      title={
+        role === 'Moderator'
+          ? 'USER DIRECTORY & DISCIPLINARY LOGS'
+          : 'MANAGE USER ACCOUNTS & TREASURY'
+      }
+      subtitle="Authoritative aggregation across Google OAuth sessions, Live Support Tickets, and In-Match Combatants."
+      actions={
+        <HStack gap={2} vAlign="center">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Icon icon={Download} />}
+            label={`Export CSV (${sortedPlayers.length})`}
+            isDisabled={sortedPlayers.length === 0}
+            onClick={handleExportCsv}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            isLoading={loading}
+            icon={<Icon icon={RefreshCw} />}
+            label="Sync Players"
+            onClick={fetchPlayers}
+          />
+        </HStack>
+      }
+      banner={topBanner}
+      toolbar={
+        <VStack gap={2}>
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <TextInput
+                label="Search by Player ID or Username"
+                isLabelHidden
+                size="sm"
+                value={searchTerm}
+                onChange={(val) => {
+                  setSearchTerm(val);
+                  setCurrentPage(1);
+                }}
+                startIcon={Search}
+                placeholder="Search by Player ID or Username..."
+                hasClear
+                width={300}
+              />
+              <div className="w-[210px]">
+                <Selector
+                  label="Sort players"
+                  isLabelHidden
+                  size="sm"
+                  value={sortBy}
+                  onChange={(val) => {
+                    if (val) {
+                      setSortBy(val as PlayerSortOrder);
+                      setCurrentPage(1);
+                    }
+                  }}
+                  options={SORT_OPTIONS}
+                  startIcon={ArrowDownUp}
+                />
+              </div>
+            </div>
 
-      {/* Presence Filter Controls */}
-      <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-        <SegmentedControl
-          label="Filter players by presence"
-          value={presenceFilter}
-          onChange={(val) => setPresenceFilter(val as PresenceFilter)}
-          size="sm"
-        >
-          <SegmentedControlItem value="ALL" label={`All Players (${players.length})`} />
-          <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
-          <SegmentedControlItem value="BATTLE" label={`In Battle (${presenceCounts.battle})`} />
-          <SegmentedControlItem value="OFFLINE" label={`Offline (${presenceCounts.offline})`} />
-        </SegmentedControl>
+            <InputGroup label="Load Player ID from database" isLabelHidden>
+              <TextInput
+                label="Player ID"
+                isLabelHidden
+                size="sm"
+                value={newPlayerIdInput}
+                onChange={setNewPlayerIdInput}
+                placeholder="Paste Player GUID / Google ID..."
+                onEnter={handleAddPlayerById}
+                width={300}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<Icon icon={UserPlus} />}
+                label="Load ID"
+                isDisabled={!newPlayerIdInput.trim()}
+                onClick={handleAddPlayerById}
+              />
+            </InputGroup>
+          </div>
 
-        <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-          Showing {filteredPlayers.length} of {players.length} Heroes
-        </Text>
-      </HStack>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SegmentedControl
+              label="Filter players by presence"
+              value={presenceFilter}
+              onChange={(val) => {
+                setPresenceFilter(val as PresenceFilter);
+                setCurrentPage(1);
+              }}
+              size="sm"
+            >
+              <SegmentedControlItem value="ALL" label={`All (${players.length})`} />
+              <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
+              <SegmentedControlItem value="BATTLE" label={`In Battle (${presenceCounts.battle})`} />
+              <SegmentedControlItem value="OFFLINE" label={`Offline (${presenceCounts.offline})`} />
+              <SegmentedControlItem value="BANNED" label={`Banned (${presenceCounts.banned})`} />
+            </SegmentedControl>
 
+            <HStack gap={2} vAlign="center">
+              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                {sortedPlayers.length === 0
+                  ? '0 of 0 Heroes'
+                  : `${pageStart}–${pageEnd} of ${sortedPlayers.length} Heroes`}
+              </Text>
+              <SegmentedControl
+                label="Rows per page"
+                size="sm"
+                value={pageSize}
+                onChange={(val) => {
+                  setPageSize(val as PageSizeOption);
+                  setCurrentPage(1);
+                }}
+              >
+                <SegmentedControlItem value="20" label="20" />
+                <SegmentedControlItem value="50" label="50" />
+                <SegmentedControlItem value="ALL" label="All" />
+              </SegmentedControl>
+            </HStack>
+          </div>
+        </VStack>
+      }
+    >
       {/* Player Table */}
-      <Section padding={4}>
-        {filteredPlayers.length === 0 ? (
+      <Card padding={3}>
+        {sortedPlayers.length === 0 ? (
           <EmptyState
             icon={<Icon icon={Inbox} size="lg" color="accent" />}
             title="No player accounts match current search and presence filters"
-            description="Type a Player ID into 'Load ID' above to query details directly."
+            description="Type a Player ID into 'Load ID' above to query details directly, or clear filters."
           />
         ) : (
-          <Table
-            data={filteredPlayers as PlayerTableRow[]}
-            columns={columns}
-            idKey="playerId"
-            density="balanced"
-            dividers="rows"
-            hasHover
-          />
+          <VStack gap={3}>
+            <Table
+              data={paginatedPlayers as PlayerTableRow[]}
+              columns={columns}
+              idKey="playerId"
+              density="balanced"
+              dividers="rows"
+              hasHover
+            />
+
+            {totalPages > 1 && (
+              <>
+                <Divider />
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                    Page {safePage} of {totalPages} ({sortedPlayers.length} filtered accounts)
+                  </Text>
+                  <HStack gap={2} vAlign="center">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Icon icon={ChevronLeft} />}
+                      label="Previous"
+                      isDisabled={safePage <= 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      endContent={<Icon icon={ChevronRight} />}
+                      label="Next"
+                      isDisabled={safePage >= totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    />
+                  </HStack>
+                </HStack>
+              </>
+            )}
+          </VStack>
         )}
-      </Section>
+      </Card>
 
       {/* Adjust Treasury Dialog */}
       <Dialog
@@ -817,6 +1022,165 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           </HStack>
         </VStack>
       </Dialog>
-    </VStack>
+
+      {/* Quick Player Inspector Dialog */}
+      <Dialog
+        isOpen={inspectPlayer !== null}
+        onOpenChange={(open) => {
+          if (!open) setInspectPlayer(null);
+        }}
+        purpose="info"
+        width={520}
+        padding={5}
+      >
+        <DialogHeader
+          title={inspectPlayer?.username || 'Player Profile'}
+          subtitle="Unified OAuth & Live Presence Dossier"
+          startContent={<Icon icon={Eye} size="md" color="accent" />}
+          onOpenChange={(open) => {
+            if (!open) setInspectPlayer(null);
+          }}
+        />
+        {inspectPlayer && (
+          <VStack gap={4}>
+            <Card variant="muted" padding={3}>
+              <VStack gap={2}>
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <Badge
+                    label={getPresenceDisplayLabel(inspectPlayer.presence || 'Offline', inspectPlayer.isBanned)}
+                    variant={getPresenceBadgeVariant(inspectPlayer.presence || 'Offline', inspectPlayer.isBanned)}
+                  />
+                  <Badge
+                    label={inspectPlayer.isBanned ? 'BANNED SANCTION' : 'STANDING: NORMAL'}
+                    variant={inspectPlayer.isBanned ? 'red' : 'green'}
+                  />
+                </HStack>
+
+                <Divider />
+
+                <HStack justify="between" vAlign="center" gap={2}>
+                  <Text type="label" size="xsm" color="secondary">
+                    FULL PLAYER ID
+                  </Text>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Icon icon={Copy} />}
+                    label="Copy ID"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(inspectPlayer.playerId);
+                      setNotification(`Copied Player ID for ${inspectPlayer.username}`);
+                    }}
+                  />
+                </HStack>
+                <Text type="code" size="xsm" className="break-all">
+                  {inspectPlayer.playerId}
+                </Text>
+              </VStack>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Card variant="muted" padding={3}>
+                <VStack gap={1}>
+                  <Text type="label" size="xsm" color="secondary">
+                    PROGRESSION
+                  </Text>
+                  <Text type="display-3" weight="bold" hasTabularNumbers>
+                    Level {inspectPlayer.level}
+                  </Text>
+                  <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                    {(inspectPlayer.experience ?? 0).toLocaleString()} EXP
+                  </Text>
+                </VStack>
+              </Card>
+              <Card variant="muted" padding={3}>
+                <VStack gap={1}>
+                  <Text type="label" size="xsm" color="secondary">
+                    TREASURY BALANCES
+                  </Text>
+                  <HStack gap={3} vAlign="center" wrap="wrap">
+                    <HStack gap={1} vAlign="center">
+                      <Icon icon={Coins} size="sm" color="warning" />
+                      <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
+                        {(inspectPlayer.gold ?? 0).toLocaleString()}
+                      </Text>
+                    </HStack>
+                    <HStack gap={1} vAlign="center">
+                      <Icon icon={Gem} size="sm" color="accent" />
+                      <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
+                        {(inspectPlayer.gems ?? 0).toLocaleString()}
+                      </Text>
+                    </HStack>
+                  </HStack>
+                </VStack>
+              </Card>
+            </div>
+
+            {inspectPlayer.activeMatch?.matchId && (
+              <Card variant="muted" padding={3}>
+                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
+                  <VStack gap={0.5}>
+                    <Text type="label" size="xsm" color="secondary">
+                      ACTIVE / RECENT MATCH ID
+                    </Text>
+                    <Text type="code" size="xsm">
+                      {inspectPlayer.activeMatch.matchId}
+                    </Text>
+                  </VStack>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Icon icon={Terminal} />}
+                    label="Inspect Match Log"
+                    onClick={() => {
+                      const targetId = inspectPlayer.activeMatch?.matchId;
+                      setInspectPlayer(null);
+                      if (targetId) {
+                        navigate(`/matches?matchId=${encodeURIComponent(targetId)}`);
+                      }
+                    }}
+                  />
+                </HStack>
+              </Card>
+            )}
+
+            <Divider />
+
+            <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+              <HStack gap={2}>
+                {isAdmin && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Icon icon={Edit3} />}
+                    label="Adjust Currencies"
+                    onClick={() => {
+                      const target = inspectPlayer;
+                      setInspectPlayer(null);
+                      setModalError(null);
+                      setSelectedPlayer(target);
+                    }}
+                  />
+                )}
+                <Button
+                  variant={inspectPlayer.isBanned ? 'secondary' : 'destructive'}
+                  size="sm"
+                  icon={<Icon icon={inspectPlayer.isBanned ? UserCheck : UserX} />}
+                  label={inspectPlayer.isBanned ? 'Unban' : 'Ban'}
+                  onClick={() => {
+                    const target = inspectPlayer;
+                    setInspectPlayer(null);
+                    setModalError(null);
+                    if (target.isBanned) setUnbanTargetPlayer(target);
+                    else setBanTargetPlayer(target);
+                  }}
+                />
+              </HStack>
+              <Button variant="primary" size="sm" label="Close" onClick={() => setInspectPlayer(null)} />
+            </HStack>
+          </VStack>
+        )}
+      </Dialog>
+    </ConsolePage>
   );
 };

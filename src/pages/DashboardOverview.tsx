@@ -34,15 +34,15 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Link } from '@astryxdesign/core/Link';
-import { Section } from '@astryxdesign/core/Section';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { StackItem } from '@astryxdesign/core/Stack';
 import { StatusDot } from '@astryxdesign/core/StatusDot';
+import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Table, pixel, proportional, type TableColumn } from '@astryxdesign/core/Table';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { adminClient } from '../api/adminClient';
+import { ConsolePage } from '../components/ConsolePage';
 import { SensitiveActionModal } from '../components/SensitiveActionModal';
 import { recordAuditEvent } from '../services/adminSecurityService';
 import {
@@ -111,6 +111,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   const [activeUnitsCount, setActiveUnitsCount] = useState<number>(0);
   const [bannersCount, setBannersCount] = useState<number>(0);
   const [chaptersCount, setChaptersCount] = useState<number>(0);
+  const [activeView, setActiveView] = useState<'overview' | 'roster' | 'controls'>('overview');
 
   const loadTelemetrySnapshot = async () => {
     const [uRes, bRes, pRes, hRes, cRes, stateRes, unifiedData] = await Promise.allSettled([
@@ -431,631 +432,606 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
     },
   ];
 
-  return (
-    <VStack gap={5}>
-      {/* Top Command Hero */}
-      <Section padding={5}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-          <VStack gap={1.5}>
-            <HStack gap={2} vAlign="center" wrap="wrap">
-              <Badge label="TACTICAL COMMAND HQ" variant="yellow" />
-              <Text type="code" size="xsm" color="secondary">
-                Live Telemetry &amp; Controls
-              </Text>
-            </HStack>
-            <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
-              {isTechSupport ? 'SYSTEM STATUS & TELEMETRY MONITOR' : 'TREASURY & REALM COMMAND'}
-            </Heading>
-            <Text type="supporting" size="sm">
-              {isTechSupport
-                ? 'Technical Support Station: Monitor System/Server Status and Configure System Overrides'
-                : 'Admin Dashboard: Live Telemetry, Player Concurrency, Revenue and High Counsel Controls'}
-            </Text>
-          </VStack>
+  const settlementConversionPct =
+    totalOrdersCount > 0 ? ((paidOrdersCount / totalOrdersCount) * 100).toFixed(1) : '0.0';
 
-          <StackItem size="static">
-            <Button
-              variant="primary"
-              size="md"
-              isLoading={loading}
-              icon={<Icon icon={RotateCcw} />}
-              label="Sync Data"
-              onClick={fetchRealTelemetry}
-            />
-          </StackItem>
-        </HStack>
-      </Section>
-
-      {message && (
-        <Banner
-          status={message.type === 'success' ? 'success' : 'error'}
-          title={message.type === 'success' ? 'Telemetry Action Complete' : 'Operation Failed'}
-          description={message.text}
-          isDismissable
-          onDismiss={() => setMessage(null)}
-        />
-      )}
-
-      {/* Keeper Profile / Realm Revenue / Server Nodes */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-            <VStack gap={1}>
-              <Text type="code" size="xsm" color="accent" weight="semibold">
-                {isTechSupport
-                  ? 'TECHNICAL SUPPORT & INFRASTRUCTURE'
-                  : 'HIGH COUNSEL RECORD OFFICE'}
-              </Text>
-              <Heading level={2} className="font-cinzel">
-                {isTechSupport ? 'SYSTEM MONITOR & SERVER NODES' : 'KEEPER OF RECORDS'}
+  const heroRosterCard = (
+    <Card padding={4}>
+      <VStack gap={3}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+          <HStack gap={2} vAlign="center">
+            <Icon icon={Radio} size="md" color="success" />
+            <VStack gap={0.5}>
+              <Heading level={3} className="font-cinzel">
+                REAL-TIME HERO PRESENCE ROSTER
               </Heading>
-              <HStack gap={2} vAlign="center">
-                <StatusDot variant="success" isPulsing label="Gateway Live" />
-                <Badge label="GATEWAY LIVE" variant="success" />
-              </HStack>
+              <Text type="supporting" size="xsm">
+                Verified across Realm Gateway &amp; SignalR Support Hub
+              </Text>
             </VStack>
-            <div className="w-12 h-12 rounded-xl bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center">
-              <Icon icon={Crown} size="lg" color="accent" />
-            </div>
           </HStack>
 
-          <Card variant={isTechSupport ? 'green' : 'yellow'} padding={4}>
-            {!isTechSupport ? (
-              <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" className="font-cinzel">
-                    CURRENT REALM TREASURY REVENUE (PAYOS LEDGER)
-                  </Text>
-                  <HStack gap={3} vAlign="center">
-                    <Icon icon={Coins} size="lg" color="accent" />
-                    <Text size="3xl" weight="bold" type="code" hasTabularNumbers>
-                      {totalRevenue.toLocaleString()} VND
-                    </Text>
-                  </HStack>
-                </VStack>
-                <VStack gap={0.5} hAlign="end">
-                  <Text type="code" size="xsm" weight="semibold" color="accent" hasTabularNumbers>
-                    {paidOrdersCount} / {totalOrdersCount} Completed Receipts
-                  </Text>
-                  <Text type="supporting" size="xsm">
-                    {packsCount} Active Store Packs Configured • payOS Gateway Live
-                  </Text>
-                </VStack>
-              </HStack>
-            ) : (
-              <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" className="font-cinzel">
-                    SERVER NODES &amp; DEDICATED INSTANCES
-                  </Text>
-                  <HStack gap={3} vAlign="center">
-                    <Icon icon={Server} size="lg" color="accent" />
-                    <Text size="3xl" weight="bold" type="code" hasTabularNumbers>
-                      {activeMatchesCount} HEADLESS NODES ACTIVE
-                    </Text>
-                  </HStack>
-                </VStack>
-                <VStack gap={0.5} hAlign="end">
-                  <Text type="code" size="xsm" weight="semibold">
-                    UDP Port Pool: 7777 - 7800 • Ubuntu 22.04 LTS
-                  </Text>
-                  <Text type="supporting" size="xsm">
-                    Unity Netcode for GameObjects (NGO) • Dedicated Server Architecture
-                  </Text>
-                </VStack>
-              </HStack>
-            )}
-          </Card>
-        </VStack>
-      </Section>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <TextInput
+              label="Search Hero or Reference"
+              isLabelHidden
+              value={searchQuery}
+              onChange={setSearchQuery}
+              startIcon={Search}
+              placeholder="Search Hero or Ref..."
+              hasClear
+              size="sm"
+              width={210}
+            />
+            <SegmentedControl
+              label="Filter hero presence"
+              value={presenceFilter}
+              onChange={(val) => setPresenceFilter(val as PresenceFilter)}
+              size="sm"
+            >
+              <SegmentedControlItem value="ALL" label={`All (${trackedPlayers.length})`} />
+              <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
+              <SegmentedControlItem
+                value="BATTLE"
+                label={`In Battle (${presenceCounts.battle})`}
+              />
+              <SegmentedControlItem
+                value="OFFLINE"
+                label={`Offline (${presenceCounts.offline})`}
+              />
+            </SegmentedControl>
+          </HStack>
+        </HStack>
 
-      {/* Live Population & Combat Telemetry */}
-      <VStack gap={3}>
-        <Heading level={3} className="font-cinzel">
-          Live Player Population &amp; Combat Telemetry
-        </Heading>
+        {trackedPlayers.length === 0 ? (
+          <EmptyState
+            icon={<Icon icon={Users} size="lg" color="accent" />}
+            title="No active player sessions currently detected"
+            description="Gateway telemetry is listening for hero logins in real-time."
+          />
+        ) : filteredPlayers.length === 0 ? (
+          <EmptyState
+            icon={<Icon icon={Search} size="lg" color="secondary" />}
+            title="No heroes match the active filter"
+            description="Adjust the search query or switch presence state filter."
+            actions={
+              <Button
+                label="Reset Filter"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setPresenceFilter('ALL');
+                  setSearchQuery('');
+                }}
+              />
+            }
+          />
+        ) : (
+          <div className={activeView === 'roster' ? '' : 'max-h-[430px] overflow-y-auto'}>
+            <Table
+              data={filteredPlayers as PresenceTableRow[]}
+              columns={presenceColumns}
+              idKey="playerId"
+              density="balanced"
+              dividers="rows"
+              hasHover
+            />
+          </div>
+        )}
 
-        <Grid columns={{ minWidth: 220, max: 4 }} gap={3}>
-          <Card variant="default" padding={4}>
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="start">
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                    ONLINE PLAYERS (CCU)
-                  </Text>
-                  <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                    {onlinePlayersCount} Online
-                  </Text>
-                  <HStack gap={1.5} vAlign="center">
-                    <StatusDot variant="success" isPulsing label="Live Hub Active" />
-                    <Text size="xsm" color="secondary">
-                      Live Hub Active
-                    </Text>
-                  </HStack>
-                </VStack>
-                <Icon icon={Users} size="lg" color="success" />
-              </HStack>
-              <Divider />
-              <HStack justify="between" vAlign="center">
-                <Text type="code" size="xsm" color="secondary">
-                  SignalR WebSocket
-                </Text>
-                <Badge label="Connected" variant="success" />
-              </HStack>
-            </VStack>
-          </Card>
+        <Divider />
 
-          <Card variant="default" padding={4}>
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="start">
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                    IN-MATCH PLAYERS
-                  </Text>
-                  <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                    {inMatchPlayersCount} Combatants
-                  </Text>
-                  <HStack gap={1.5} vAlign="center">
-                    <Icon icon={Flame} size="xsm" color="info" />
-                    <Text size="xsm" color="secondary" hasTabularNumbers>
-                      {activeMatchesCount} Active Battles
-                    </Text>
-                  </HStack>
-                </VStack>
-                <Icon icon={Swords} size="lg" color="info" />
-              </HStack>
-              <Divider />
-              <HStack justify="between" vAlign="center">
-                <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                  {totalMatchesCount} Total Matches
-                </Text>
-                <Button
-                  href="/matches"
-                  variant="ghost"
-                  size="sm"
-                  icon={<Icon icon={Terminal} />}
-                  label="Inspect"
-                />
-              </HStack>
-            </VStack>
-          </Card>
-
-          <Card variant="default" padding={4}>
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="start">
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                    MATCHMAKING QUEUE
-                  </Text>
-                  <HStack gap={2} vAlign="center">
-                    <Badge
-                      label={serverState.matchmakingBlocked ? 'PAUSED' : 'ACTIVE (OPEN)'}
-                      variant={serverState.matchmakingBlocked ? 'error' : 'success'}
-                    />
-                  </HStack>
-                  <Text size="xsm" color="secondary">
-                    {serverState.matchmakingBlocked
-                      ? 'Emergency Lock Engaged'
-                      : 'Auto Match Allocation'}
-                  </Text>
-                </VStack>
-                <Icon icon={Clock} size="lg" color="accent" />
-              </HStack>
-              <Divider />
-              <HStack justify="between" vAlign="center">
-                <Text type="code" size="xsm" color="secondary">
-                  PvP Engine
-                </Text>
-                <Badge label="Turn-Based SRPG" variant="success" />
-              </HStack>
-            </VStack>
-          </Card>
-
-          {!isTechSupport ? (
-            <Card variant="default" padding={4}>
-              <VStack gap={3}>
-                <HStack justify="between" vAlign="start">
-                  <VStack gap={1}>
-                    <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                      TREASURY RECEIPTS
-                    </Text>
-                    <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                      {paidOrdersCount} Paid
-                    </Text>
-                    <Text size="xsm" color="secondary">
-                      Webhooks Verified
-                    </Text>
-                  </VStack>
-                  <Icon icon={Coins} size="lg" color="accent" />
-                </HStack>
-                <Divider />
-                <HStack justify="between" vAlign="center">
-                  <Text type="code" size="xsm" color="secondary">
-                    Total Orders
-                  </Text>
-                  <Text type="code" size="xsm" weight="semibold" hasTabularNumbers>
-                    {totalOrdersCount} Receipts
-                  </Text>
-                </HStack>
-              </VStack>
-            </Card>
-          ) : (
-            <Card variant="default" padding={4}>
-              <VStack gap={3}>
-                <HStack justify="between" vAlign="start">
-                  <VStack gap={1}>
-                    <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                      NETCODE INSTANCES
-                    </Text>
-                    <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                      {activeMatchesCount} Live
-                    </Text>
-                    <Text size="xsm" color="secondary">
-                      Dedicated Processes
-                    </Text>
-                  </VStack>
-                  <Icon icon={Server} size="lg" color="info" />
-                </HStack>
-                <Divider />
-                <HStack justify="between" vAlign="center">
-                  <Text type="code" size="xsm" color="secondary">
-                    Port Allocation
-                  </Text>
-                  <Text type="code" size="xsm" weight="semibold">
-                    7777 - 7800 RUDP
-                  </Text>
-                </HStack>
-              </VStack>
-            </Card>
-          )}
-        </Grid>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+          <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+            Showing {filteredPlayers.length} of {trackedPlayers.length} Heroes across Realm
+          </Text>
+          <Link href="/players">
+            <HStack gap={1} vAlign="center">
+              <Text weight="semibold" size="xsm" color="accent" className="font-cinzel">
+                MANAGE IN ACCOUNTS
+              </Text>
+              <Text size="xsm" color="accent">
+                →
+              </Text>
+            </HStack>
+          </Link>
+        </HStack>
       </VStack>
+    </Card>
+  );
 
-      {/* Real-Time Hero Presence Roster */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-            <HStack gap={3} vAlign="center">
-              <Icon icon={Radio} size="md" color="success" />
+  const emergencyOverridesPanel = (
+    <Card padding={4}>
+      <VStack gap={3}>
+        <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+          <HStack gap={2} vAlign="center">
+            <Icon icon={ShieldAlert} size="md" color="error" />
+            <VStack gap={0}>
+              <Heading level={3} className="font-cinzel">
+                EMERGENCY REALM OVERRIDES
+              </Heading>
+              <Text type="supporting" size="xsm">
+                Direct AdminController safety switches
+              </Text>
+            </VStack>
+          </HStack>
+          {!canOverride && (
+            <Badge label="RESTRICTED" variant="error" icon={<Icon icon={ShieldX} />} />
+          )}
+        </HStack>
+
+        {!canOverride && (
+          <Banner
+            status="warning"
+            title="Restricted Operations"
+            description="Emergency overrides are reserved for Technical Support & Administrators."
+          />
+        )}
+
+        <VStack gap={2}>
+          <Card variant="muted" padding={3}>
+            <HStack justify="between" vAlign="center" gap={2}>
               <VStack gap={0.5}>
-                <Heading level={3} className="font-cinzel">
-                  REAL-TIME HERO PRESENCE ROSTER
-                </Heading>
-                <Text type="supporting" size="xsm">
-                  Ground-truth presence verified across Realm Gateway &amp; SignalR Support Hub
+                <Text weight="semibold" size="xsm" className="font-cinzel">
+                  PLAYER AUTHENTICATION
+                </Text>
+                <HStack gap={1.5} vAlign="center">
+                  <Badge
+                    label={serverState.loginBlocked ? 'BLOCKED' : 'ACTIVE'}
+                    variant={serverState.loginBlocked ? 'error' : 'success'}
+                  />
+                  <Text type="code" size="xsm" color="secondary">
+                    Login Gate
+                  </Text>
+                </HStack>
+              </VStack>
+              <Button
+                variant={serverState.loginBlocked ? 'secondary' : 'destructive'}
+                size="sm"
+                isDisabled={!canOverride}
+                isLoading={loadingAction === 'login'}
+                icon={<Icon icon={serverState.loginBlocked ? Unlock : Lock} />}
+                label={serverState.loginBlocked ? 'Unblock' : 'Block'}
+                tooltip={!canOverride ? 'Privilege required' : 'Toggle login status'}
+                onClick={toggleLoginStatus}
+              />
+            </HStack>
+          </Card>
+
+          <Card variant="muted" padding={3}>
+            <HStack justify="between" vAlign="center" gap={2}>
+              <VStack gap={0.5}>
+                <Text weight="semibold" size="xsm" className="font-cinzel">
+                  PVP MATCH QUEUE
+                </Text>
+                <HStack gap={1.5} vAlign="center">
+                  <Badge
+                    label={serverState.matchmakingBlocked ? 'PAUSED' : 'ACTIVE'}
+                    variant={serverState.matchmakingBlocked ? 'warning' : 'success'}
+                  />
+                  <Text type="code" size="xsm" color="secondary">
+                    Matchmaker
+                  </Text>
+                </HStack>
+              </VStack>
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={!canOverride}
+                isLoading={loadingAction === 'queue'}
+                icon={<Icon icon={serverState.matchmakingBlocked ? Unlock : Lock} />}
+                label={serverState.matchmakingBlocked ? 'Resume' : 'Pause'}
+                tooltip={!canOverride ? 'Privilege required' : 'Toggle queue status'}
+                onClick={toggleQueueStatus}
+              />
+            </HStack>
+          </Card>
+
+          <Card variant="red" padding={3}>
+            <HStack justify="between" vAlign="center" gap={2}>
+              <VStack gap={0.5}>
+                <Text weight="semibold" size="xsm" className="font-cinzel">
+                  RESET MATCHES
+                </Text>
+                <Text size="xsm" color="secondary">
+                  Terminates {activeMatchesCount} active sessions
                 </Text>
               </VStack>
-            </HStack>
-
-            <HStack gap={2} vAlign="center" wrap="wrap">
-              <TextInput
-                label="Search Hero or Reference"
-                isLabelHidden
-                value={searchQuery}
-                onChange={setSearchQuery}
-                startIcon={Search}
-                placeholder="Search Hero or Ref..."
-                hasClear
+              <Button
+                variant="destructive"
                 size="sm"
-                width={220}
+                isDisabled={!canOverride}
+                isLoading={loadingAction === 'forceStop'}
+                icon={<Icon icon={Power} />}
+                label="Force Stop"
+                tooltip={!canOverride ? 'Privilege required' : 'Force stop all active sessions'}
+                onClick={handleForceStopAll}
               />
-              <SegmentedControl
-                label="Filter hero presence"
-                value={presenceFilter}
-                onChange={(val) => setPresenceFilter(val as PresenceFilter)}
-                size="sm"
-              >
-                <SegmentedControlItem value="ALL" label={`All (${trackedPlayers.length})`} />
-                <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
-                <SegmentedControlItem
-                  value="BATTLE"
-                  label={`In Battle (${presenceCounts.battle})`}
-                />
-                <SegmentedControlItem
-                  value="OFFLINE"
-                  label={`Offline (${presenceCounts.offline})`}
-                />
-              </SegmentedControl>
             </HStack>
-          </HStack>
-
-          {trackedPlayers.length === 0 ? (
-            <EmptyState
-              icon={<Icon icon={Users} size="lg" color="accent" />}
-              title="No active player sessions currently detected"
-              description="Gateway telemetry is listening for hero logins in real-time."
-            />
-          ) : filteredPlayers.length === 0 ? (
-            <EmptyState
-              icon={<Icon icon={Search} size="lg" color="secondary" />}
-              title="No heroes match the active filter"
-              description="Adjust the search query or switch presence state filter."
-              actions={
-                <Button
-                  label="Reset Filter"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setPresenceFilter('ALL');
-                    setSearchQuery('');
-                  }}
-                />
-              }
-            />
-          ) : (
-            <div className="max-h-[520px] overflow-y-auto">
-              <Table
-                data={filteredPlayers as PresenceTableRow[]}
-                columns={presenceColumns}
-                idKey="playerId"
-                density="balanced"
-                dividers="rows"
-                hasHover
-              />
-            </div>
-          )}
-
-          <Divider />
-
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-            <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-              Showing {filteredPlayers.length} of {trackedPlayers.length} Heroes across Realm
-            </Text>
-            <Link href="/players">
-              <HStack gap={1} vAlign="center">
-                <Text weight="semibold" size="xsm" color="accent" className="font-cinzel">
-                  MANAGE IN ACCOUNTS
-                </Text>
-                <Text size="xsm" color="accent">
-                  →
-                </Text>
-              </HStack>
-            </Link>
-          </HStack>
+          </Card>
         </VStack>
-      </Section>
+      </VStack>
+    </Card>
+  );
 
-      {/* Game Archives & Realm Infrastructure */}
+  const archivesSummaryPanel = (
+    <Card padding={4}>
       <VStack gap={3}>
-        <Heading level={3} className="font-cinzel">
-          Game Archives &amp; Realm Infrastructure
-        </Heading>
+        <HStack justify="between" vAlign="center">
+          <Heading level={3} className="font-cinzel">
+            REALM ARCHIVES &amp; GATEWAY
+          </Heading>
+          <Badge label=".NET 9 + MongoDB" variant="info" />
+        </HStack>
 
-        <Grid columns={{ minWidth: 220, max: 4 }} gap={3}>
-          <Card variant="default" padding={4}>
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="start">
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                    HERO ARCHIVES
-                  </Text>
-                  <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                    {activeUnitsCount} Heroes
-                  </Text>
-                  <Text size="xsm" color="secondary">
-                    MongoDB Collection
-                  </Text>
-                </VStack>
-                <Icon icon={Swords} size="lg" color="info" />
-              </HStack>
-              <Divider />
+        <Grid columns={{ minWidth: 135, max: 2 }} gap={2}>
+          <Card variant="muted" padding={3}>
+            <VStack gap={0.5}>
               <HStack justify="between" vAlign="center">
-                <Text type="code" size="xsm" color="secondary">
-                  Endpoint
+                <Text type="label" size="xsm" color="secondary">
+                  Heroes
                 </Text>
-                <Text type="code" size="xsm" weight="semibold">
-                  /api/UnitDefinition
-                </Text>
+                <Icon icon={Swords} size="sm" color="info" />
               </HStack>
+              <Text size="xl" weight="bold" type="code" hasTabularNumbers>
+                {activeUnitsCount}
+              </Text>
+              <Link href="/content">
+                <Text size="xsm" color="accent">
+                  Open Codex →
+                </Text>
+              </Link>
             </VStack>
           </Card>
 
-          <Card variant="default" padding={4}>
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="start">
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                    SUMMON BANNERS
-                  </Text>
-                  <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                    {bannersCount} Banners
-                  </Text>
-                  <Text size="xsm" color="secondary">
-                    Active Gacha Pools
-                  </Text>
-                </VStack>
-                <Icon icon={Gem} size="lg" color="accent" />
-              </HStack>
-              <Divider />
+          <Card variant="muted" padding={3}>
+            <VStack gap={0.5}>
               <HStack justify="between" vAlign="center">
-                <Text type="code" size="xsm" color="secondary">
-                  Endpoint
+                <Text type="label" size="xsm" color="secondary">
+                  Gacha Pools
                 </Text>
-                <Text type="code" size="xsm" weight="semibold">
-                  /api/gachabanner
-                </Text>
+                <Icon icon={Gem} size="sm" color="accent" />
               </HStack>
+              <Text size="xl" weight="bold" type="code" hasTabularNumbers>
+                {bannersCount}
+              </Text>
+              <Link href="/gacha">
+                <Text size="xsm" color="accent">
+                  View Banners →
+                </Text>
+              </Link>
             </VStack>
           </Card>
 
-          <Card variant="default" padding={4}>
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="start">
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                    STORY CHAPTERS
-                  </Text>
-                  <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                    {chaptersCount} Chapters
-                  </Text>
-                  <HStack gap={1} vAlign="center">
-                    <Icon icon={TrendingUp} size="xsm" color="success" />
-                    <Text size="xsm" color="secondary">
-                      Story Maps Configured
-                    </Text>
-                  </HStack>
-                </VStack>
-                <Icon icon={BookOpen} size="lg" color="success" />
-              </HStack>
-              <Divider />
+          <Card variant="muted" padding={3}>
+            <VStack gap={0.5}>
               <HStack justify="between" vAlign="center">
-                <Text type="code" size="xsm" color="secondary">
-                  Endpoint
+                <Text type="label" size="xsm" color="secondary">
+                  Chapters
                 </Text>
-                <Text type="code" size="xsm" weight="semibold">
-                  /api/ChapterConfig
-                </Text>
+                <Icon icon={BookOpen} size="sm" color="success" />
               </HStack>
+              <Text size="xl" weight="bold" type="code" hasTabularNumbers>
+                {chaptersCount}
+              </Text>
+              <Text type="code" size="xsm" color="secondary">
+                PvE Story
+              </Text>
             </VStack>
           </Card>
 
-          <Card variant="default" padding={4}>
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="start">
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary" className="font-cinzel">
-                    REALM GATEWAY
-                  </Text>
-                  <HStack gap={1.5} vAlign="center">
-                    <Activity size={16} />
-                    <Text size="lg" weight="bold" type="code">
-                      ONLINE (.NET 9)
-                    </Text>
-                  </HStack>
-                  <Text type="code" size="xsm" color="secondary">
-                    Active / MongoDB Atlas
-                  </Text>
-                </VStack>
-                <Icon icon={Server} size="lg" color="info" />
-              </HStack>
-              <Divider />
+          <Card variant="muted" padding={3}>
+            <VStack gap={0.5}>
               <HStack justify="between" vAlign="center">
-                <Text type="code" size="xsm" color="secondary">
+                <Text type="label" size="xsm" color="secondary">
                   SignalR Hub
                 </Text>
-                <Badge label="/hubs/support" variant="success" />
+                <Icon icon={Server} size="sm" color="info" />
               </HStack>
+              <HStack gap={1} vAlign="center">
+                <StatusDot variant="success" isPulsing label="Hub Online" />
+                <Text size="sm" weight="bold" type="code">
+                  LIVE
+                </Text>
+              </HStack>
+              <Text type="code" size="xsm" color="secondary">
+                /hubs/support
+              </Text>
             </VStack>
           </Card>
         </Grid>
       </VStack>
+    </Card>
+  );
 
-      {/* Emergency Counsel Override Actions */}
-      <Section padding={5}>
-        <VStack gap={4}>
-          <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-            <HStack gap={3} vAlign="center">
-              <Icon icon={ShieldAlert} size="lg" color="error" />
-              <VStack gap={0.5}>
-                <Heading level={3} className="font-cinzel">
-                  EMERGENCY REALM OVERRIDES
-                </Heading>
-                <Text type="supporting" size="xsm">
-                  Direct operational overrides via AdminController endpoints.
-                </Text>
-              </VStack>
-            </HStack>
-            {!canOverride && (
-              <Badge
-                label="RESTRICTED"
-                variant="error"
-                icon={<Icon icon={ShieldX} />}
-              />
-            )}
+  return (
+    <ConsolePage
+      badge="TACTICAL COMMAND HQ"
+      badgeVariant="yellow"
+      icon={<Icon icon={Crown} size="md" color="accent" />}
+      title={isTechSupport ? 'SYSTEM STATUS & TELEMETRY MONITOR' : 'TREASURY & REALM COMMAND'}
+      subtitle={
+        isTechSupport
+          ? 'Monitor infrastructure health, NGO servers, live presence, and emergency overrides.'
+          : 'Live telemetry across player concurrency, PayOS settlements, realm overrides, and game archives.'
+      }
+      meta={
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <HStack gap={1} vAlign="center">
+            <StatusDot variant="success" isPulsing label="Gateway Live" />
+            <Text type="code" size="xsm" color="secondary">
+              Gateway Live
+            </Text>
           </HStack>
-
-          {!canOverride && (
-            <Banner
-              status="warning"
-              title="Restricted Operations"
-              description="Emergency server overrides are restricted to Technical Support & Administrators (Use Case: Configure System)."
-            />
-          )}
-
-          <Grid columns={{ minWidth: 260, max: 3 }} gap={3}>
-            <Card variant="default" padding={4}>
-              <HStack justify="between" vAlign="center" gap={3}>
-                <VStack gap={1}>
-                  <Text weight="semibold" size="xsm" className="font-cinzel">
-                    PLAYER AUTHENTICATION
-                  </Text>
-                  <HStack gap={1.5} vAlign="center">
-                    <Text type="code" size="xsm" color="secondary">
-                      Status:
+          {serverState.loginBlocked && <Badge label="LOGIN BLOCKED" variant="error" />}
+          {serverState.matchmakingBlocked && <Badge label="QUEUE PAUSED" variant="warning" />}
+        </HStack>
+      }
+      actions={
+        <HStack gap={2} vAlign="center">
+          <Button
+            href="/matches"
+            variant="secondary"
+            size="md"
+            icon={<Icon icon={Terminal} />}
+            label="Server Logs"
+          />
+          <Button
+            variant="primary"
+            size="md"
+            isLoading={loading}
+            icon={<Icon icon={RotateCcw} />}
+            label="Sync Data"
+            onClick={fetchRealTelemetry}
+          />
+        </HStack>
+      }
+      toolbar={
+        <TabList
+          value={activeView}
+          onChange={(val) => setActiveView(val as 'overview' | 'roster' | 'controls')}
+          role="tablist"
+        >
+          <Tab value="overview" label="Command Overview" icon={<Icon icon={Activity} />} />
+          <Tab
+            value="roster"
+            label="Live Hero Roster"
+            icon={<Icon icon={Users} />}
+            endContent={<Badge label={trackedPlayers.length} variant="neutral" />}
+          />
+          <Tab
+            value="controls"
+            label="Overrides & Archives"
+            icon={<Icon icon={ShieldAlert} />}
+            endContent={
+              serverState.loginBlocked || serverState.matchmakingBlocked ? (
+                <Badge label="OVERRIDE" variant="warning" />
+              ) : undefined
+            }
+          />
+        </TabList>
+      }
+      banner={
+        message ? (
+          <Banner
+            status={message.type === 'success' ? 'success' : 'error'}
+            title={message.type === 'success' ? 'Telemetry Action Complete' : 'Operation Failed'}
+            description={message.text}
+            isDismissable
+            onDismiss={() => setMessage(null)}
+          />
+        ) : undefined
+      }
+    >
+      <VStack gap={4}>
+        {activeView === 'overview' && (
+          <>
+            {/* Compact Executive Treasury / Cluster Strip */}
+            <Card variant={isTechSupport ? 'green' : 'yellow'} padding={4}>
+              {!isTechSupport ? (
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+                  <VStack gap={0.5}>
+                    <Text type="label" size="xsm" className="font-cinzel">
+                      REALM TREASURY REVENUE (PAYOS LEDGER)
                     </Text>
-                    <Badge
-                      label={serverState.loginBlocked ? 'BLOCKED' : 'ACTIVE'}
-                      variant={serverState.loginBlocked ? 'error' : 'success'}
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      <Icon icon={Coins} size="lg" color="accent" />
+                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                        {totalRevenue.toLocaleString()} VND
+                      </Text>
+                      <Badge
+                        label={`${settlementConversionPct}% Settled`}
+                        variant="success"
+                      />
+                    </HStack>
+                  </VStack>
+                  <HStack gap={3} vAlign="center" wrap="wrap">
+                    <VStack gap={0} hAlign="end">
+                      <Text type="code" size="xsm" weight="semibold" color="accent" hasTabularNumbers>
+                        {paidOrdersCount} / {totalOrdersCount} Completed Receipts
+                      </Text>
+                      <Text type="supporting" size="xsm">
+                        {packsCount} Store Packs • payOS Gateway Live
+                      </Text>
+                    </VStack>
+                    <Button
+                      href="/payments"
+                      variant="secondary"
+                      size="sm"
+                      icon={<Icon icon={TrendingUp} />}
+                      label="Open Treasury"
+                    />
+                  </HStack>
+                </HStack>
+              ) : (
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+                  <VStack gap={0.5}>
+                    <Text type="label" size="xsm" className="font-cinzel">
+                      DEDICATED SERVER CLUSTER &amp; NODES
+                    </Text>
+                    <HStack gap={2} vAlign="center">
+                      <Icon icon={Server} size="lg" color="accent" />
+                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                        {activeMatchesCount} HEADLESS NODES ACTIVE
+                      </Text>
+                    </HStack>
+                  </VStack>
+                  <VStack gap={0} hAlign="end">
+                    <Text type="code" size="xsm" weight="semibold">
+                      UDP Port Pool: 7777–7800 • Ubuntu 22.04 LTS
+                    </Text>
+                    <Text type="supporting" size="xsm">
+                      Unity Netcode for GameObjects (NGO) • {totalMatchesCount} Matches Recorded
+                    </Text>
+                  </VStack>
+                </HStack>
+              )}
+            </Card>
+
+            {/* Primary Live KPI Grid */}
+            <Grid columns={{ minWidth: 210, max: 4 }} gap={3}>
+              <Card variant="default" padding={4}>
+                <VStack gap={2}>
+                  <HStack justify="between" vAlign="start">
+                    <VStack gap={0.5}>
+                      <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                        ONLINE PLAYERS (CCU)
+                      </Text>
+                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                        {onlinePlayersCount} Online
+                      </Text>
+                    </VStack>
+                    <Icon icon={Users} size="lg" color="success" />
+                  </HStack>
+                  <HStack justify="between" vAlign="center">
+                    <Text type="code" size="xsm" color="secondary">
+                      SignalR WebSocket
+                    </Text>
+                    <Badge label="Connected" variant="success" />
+                  </HStack>
+                </VStack>
+              </Card>
+
+              <Card variant="default" padding={4}>
+                <VStack gap={2}>
+                  <HStack justify="between" vAlign="start">
+                    <VStack gap={0.5}>
+                      <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                        IN-MATCH PLAYERS
+                      </Text>
+                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                        {inMatchPlayersCount} Combatants
+                      </Text>
+                    </VStack>
+                    <Icon icon={Swords} size="lg" color="info" />
+                  </HStack>
+                  <HStack justify="between" vAlign="center">
+                    <HStack gap={1} vAlign="center">
+                      <Icon icon={Flame} size="xsm" color="info" />
+                      <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                        {activeMatchesCount} Live / {totalMatchesCount} Total
+                      </Text>
+                    </HStack>
+                    <Button
+                      href="/matches"
+                      variant="ghost"
+                      size="sm"
+                      label="Inspect"
                     />
                   </HStack>
                 </VStack>
-                <Button
-                  variant={serverState.loginBlocked ? 'secondary' : 'destructive'}
-                  size="sm"
-                  isDisabled={!canOverride}
-                  isLoading={loadingAction === 'login'}
-                  icon={<Icon icon={serverState.loginBlocked ? Unlock : Lock} />}
-                  label={serverState.loginBlocked ? 'Unblock' : 'Block'}
-                  tooltip={!canOverride ? 'Privilege required' : 'Toggle login status'}
-                  onClick={toggleLoginStatus}
-                />
-              </HStack>
-            </Card>
+              </Card>
 
-            <Card variant="default" padding={4}>
-              <HStack justify="between" vAlign="center" gap={3}>
-                <VStack gap={1}>
-                  <Text weight="semibold" size="xsm" className="font-cinzel">
-                    PVP MATCH QUEUE
-                  </Text>
-                  <HStack gap={1.5} vAlign="center">
+              <Card variant="default" padding={4}>
+                <VStack gap={2}>
+                  <HStack justify="between" vAlign="start">
+                    <VStack gap={0.5}>
+                      <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                        MATCHMAKING QUEUE
+                      </Text>
+                      <Badge
+                        label={serverState.matchmakingBlocked ? 'PAUSED' : 'ACTIVE (OPEN)'}
+                        variant={serverState.matchmakingBlocked ? 'error' : 'success'}
+                      />
+                    </VStack>
+                    <Icon icon={Clock} size="lg" color="accent" />
+                  </HStack>
+                  <HStack justify="between" vAlign="center">
                     <Text type="code" size="xsm" color="secondary">
-                      Status:
+                      {serverState.matchmakingBlocked ? 'Lock Engaged' : 'Turn-Based SRPG'}
                     </Text>
-                    <Badge
-                      label={serverState.matchmakingBlocked ? 'PAUSED' : 'ACTIVE'}
-                      variant={serverState.matchmakingBlocked ? 'warning' : 'success'}
-                    />
+                    <Badge label={serverState.loginBlocked ? 'Login Blocked' : 'Auth Open'} variant={serverState.loginBlocked ? 'error' : 'neutral'} />
                   </HStack>
                 </VStack>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  isDisabled={!canOverride}
-                  isLoading={loadingAction === 'queue'}
-                  icon={<Icon icon={serverState.matchmakingBlocked ? Unlock : Lock} />}
-                  label={serverState.matchmakingBlocked ? 'Resume' : 'Pause'}
-                  tooltip={!canOverride ? 'Privilege required' : 'Toggle queue status'}
-                  onClick={toggleQueueStatus}
-                />
-              </HStack>
-            </Card>
+              </Card>
 
-            <Card variant="red" padding={4}>
-              <HStack justify="between" vAlign="center" gap={3}>
-                <VStack gap={1}>
-                  <Text weight="semibold" size="xsm" className="font-cinzel">
-                    RESET MATCHES
-                  </Text>
-                  <Text size="xsm" color="secondary">
-                    Terminates active sessions
-                  </Text>
-                </VStack>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  isDisabled={!canOverride}
-                  isLoading={loadingAction === 'forceStop'}
-                  icon={<Icon icon={Power} />}
-                  label="Force Stop"
-                  tooltip={!canOverride ? 'Privilege required' : 'Force stop all active sessions'}
-                  onClick={handleForceStopAll}
-                />
-              </HStack>
-            </Card>
-          </Grid>
-        </VStack>
-      </Section>
+              {!isTechSupport ? (
+                <Card variant="default" padding={4}>
+                  <VStack gap={2}>
+                    <HStack justify="between" vAlign="start">
+                      <VStack gap={0.5}>
+                        <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                          TREASURY RECEIPTS
+                        </Text>
+                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                          {paidOrdersCount} Paid
+                        </Text>
+                      </VStack>
+                      <Icon icon={Coins} size="lg" color="accent" />
+                    </HStack>
+                    <HStack justify="between" vAlign="center">
+                      <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                        {totalOrdersCount} Orders
+                      </Text>
+                      <Button href="/payments" variant="ghost" size="sm" label="Ledger" />
+                    </HStack>
+                  </VStack>
+                </Card>
+              ) : (
+                <Card variant="default" padding={4}>
+                  <VStack gap={2}>
+                    <HStack justify="between" vAlign="start">
+                      <VStack gap={0.5}>
+                        <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                          NETCODE INSTANCES
+                        </Text>
+                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                          {activeMatchesCount} Live
+                        </Text>
+                      </VStack>
+                      <Icon icon={Server} size="lg" color="info" />
+                    </HStack>
+                    <HStack justify="between" vAlign="center">
+                      <Text type="code" size="xsm" color="secondary">
+                        7777–7800 RUDP
+                      </Text>
+                      <Badge label="Dedicated" variant="info" />
+                    </HStack>
+                  </VStack>
+                </Card>
+              )}
+            </Grid>
+
+            {/* Operational 2-Column Cockpit: Live Roster + Side Control Stack */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+              <div className="xl:col-span-8">{heroRosterCard}</div>
+              <div className="xl:col-span-4 flex flex-col gap-4">
+                {emergencyOverridesPanel}
+                {archivesSummaryPanel}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeView === 'roster' && heroRosterCard}
+
+        {activeView === 'controls' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            {emergencyOverridesPanel}
+            {archivesSummaryPanel}
+          </div>
+        )}
+      </VStack>
 
       <SensitiveActionModal
         isOpen={pendingOverride !== null}
@@ -1097,6 +1073,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         }}
         onConfirm={executePendingOverride}
       />
-    </VStack>
+    </ConsolePage>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
+  ArrowDownUp,
   Calendar,
   Clock,
   Copy,
@@ -23,8 +24,8 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Grid } from '@astryxdesign/core/Grid';
 import { Icon } from '@astryxdesign/core/Icon';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
-import { Section } from '@astryxdesign/core/Section';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { Selector } from '@astryxdesign/core/Selector';
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Stack';
 import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
@@ -32,6 +33,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { adminClient } from '../api/adminClient';
+import { ConsolePage } from '../components/ConsolePage';
 import { recordAuditEvent } from '../services/adminSecurityService';
 import type { GachaBanner, GachaBannerItem, GachaPullOption } from '../types';
 
@@ -41,6 +43,14 @@ interface ResolvedDefinition {
 }
 
 type BannerFilterStatus = 'ALL' | 'LIVE' | 'UPCOMING' | 'EXPIRED' | 'INACTIVE';
+type BannerSortOrder = 'LIVE_FIRST' | 'ENDING_SOON' | 'NEWEST_START' | 'COST_ASC';
+
+const GACHA_SORT_OPTIONS: { value: BannerSortOrder; label: string }[] = [
+  { value: 'LIVE_FIRST', label: 'Sort: Live & Active First' },
+  { value: 'ENDING_SOON', label: 'Sort: Ending Soonest' },
+  { value: 'NEWEST_START', label: 'Sort: Newest Start Date' },
+  { value: 'COST_ASC', label: 'Sort: Pull Cost (Low–High)' },
+];
 
 interface RawUnitDef {
   id?: string;
@@ -240,9 +250,10 @@ export const GachaManagement: React.FC = () => {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
-  // Search & Status Filter
+  // Search, Status Filter & Sort
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<BannerFilterStatus>('ALL');
+  const [sortBy, setSortBy] = useState<BannerSortOrder>('LIVE_FIRST');
 
   // Inline Banner Notification
   const [notice, setNotice] = useState<{ text: string; status: 'success' | 'error' } | null>(
@@ -460,7 +471,7 @@ export const GachaManagement: React.FC = () => {
   }, [banners, nowMs]);
 
   const filteredBanners = useMemo(() => {
-    return banners.filter((banner) => {
+    const filtered = banners.filter((banner) => {
       const { status } = getBannerScheduleMeta(banner, nowMs);
       if (statusFilter !== 'ALL' && status !== statusFilter) {
         return false;
@@ -485,126 +496,90 @@ export const GachaManagement: React.FC = () => {
 
       return true;
     });
-  }, [banners, statusFilter, searchQuery, nowMs, definitionLookup]);
+
+    const statusRank = (b: GachaBanner) => {
+      const { status } = getBannerScheduleMeta(b, nowMs);
+      if (status === 'LIVE') return 0;
+      if (status === 'UPCOMING') return 1;
+      if (status === 'EXPIRED') return 2;
+      return 3;
+    };
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'ENDING_SOON') {
+        return new Date(a.endTime).getTime() - new Date(b.endTime).getTime();
+      }
+      if (sortBy === 'NEWEST_START') {
+        return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+      }
+      if (sortBy === 'COST_ASC') {
+        return (a.costPerPull || 0) - (b.costPerPull || 0);
+      }
+      return (
+        statusRank(a) - statusRank(b) ||
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      );
+    });
+  }, [banners, statusFilter, searchQuery, sortBy, nowMs, definitionLookup]);
 
   return (
-    <VStack gap={5}>
-      {notice && (
-        <Banner
-          status={notice.status}
-          title={notice.status === 'error' ? 'Gacha Operation Error' : 'Gacha Registry Updated'}
-          description={notice.text}
-          isDismissable
-          onDismiss={() => setNotice(null)}
-        />
-      )}
-
-      {/* Hero Header */}
-      <Section padding={5}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-          <VStack gap={1.5}>
-            <HStack gap={2} vAlign="center" wrap="wrap">
-              <Badge label="GACHA RECRUITMENT • BR-06" variant="purple" />
-              <Text type="code" size="xsm" color="secondary">
-                90-Pull Hard Pity Rules
-              </Text>
-            </HStack>
-            <HStack gap={2} vAlign="center">
-              <Icon icon={Sparkles} size="lg" color="accent" />
-              <Heading level={1} type="display-2" className="font-cinzel pk-gold-text">
-                SUMMON BANNERS &amp; WISH ROTATIONS
-              </Heading>
-            </HStack>
-            <Text type="supporting" size="sm">
-              Configure hero invocations, summon windows, pull pricing, pity thresholds, and inspect
-              rate-up pools from MongoDB.
-            </Text>
-          </VStack>
-
-          <HStack gap={2} vAlign="center" wrap="wrap">
-            <Button
-              label="Sync Banners"
-              variant="secondary"
-              size="md"
-              icon={<RefreshCw size={15} className={loading ? 'animate-spin' : ''} />}
-              isLoading={loading}
-              onClick={() => void fetchBanners()}
-            />
-            <Button
-              label="New Banner"
-              variant="primary"
-              size="md"
-              icon={<Plus size={15} />}
-              onClick={() => openCreateModal()}
-            />
-          </HStack>
+    <ConsolePage
+      badge="GACHA RECRUITMENT • BR-06"
+      badgeVariant="purple"
+      icon={<Icon icon={Sparkles} size="lg" color="accent" />}
+      meta={
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <StatusDot
+            variant="success"
+            label="Active live summon pools"
+            isPulsing={statusCounts.LIVE > 0}
+          />
+          <Badge label={`${statusCounts.LIVE} Live`} variant="success" />
+          <Badge label={`${statusCounts.UPCOMING} Upcoming`} variant="info" />
+          <Badge label={`${statusCounts.EXPIRED} Expired`} variant="warning" />
+          <Badge label={`${statusCounts.INACTIVE} Inactive`} variant="neutral" />
+          <Text type="code" size="xsm" color="secondary">
+            90-Pull Hard Pity Rules • {banners.length} Total Pools
+          </Text>
         </HStack>
-      </Section>
-
-      {/* KPI Summary Strip */}
-      <Grid columns={{ minWidth: 210, max: 4 }} gap={4}>
-        <Card padding={4}>
-          <HStack justify="between" vAlign="center" gap={3}>
-            <VStack gap={0.5}>
-              <Text type="label" size="xsm" color="secondary">
-                Total Banners
-              </Text>
-              <Text type="display-3" weight="bold" hasTabularNumbers>
-                {banners.length}
-              </Text>
-            </VStack>
-            <Icon icon={Sparkles} size="lg" color="accent" />
-          </HStack>
-        </Card>
-
-        <Card padding={4}>
-          <HStack justify="between" vAlign="center" gap={3}>
-            <VStack gap={0.5}>
-              <Text type="label" size="xsm" color="secondary">
-                Live Now
-              </Text>
-              <Text type="display-3" weight="bold" hasTabularNumbers>
-                {statusCounts.LIVE}
-              </Text>
-            </VStack>
-            <StatusDot variant="success" label="Active live summon pools" isPulsing={statusCounts.LIVE > 0} />
-          </HStack>
-        </Card>
-
-        <Card padding={4}>
-          <HStack justify="between" vAlign="center" gap={3}>
-            <VStack gap={0.5}>
-              <Text type="label" size="xsm" color="secondary">
-                Upcoming / Expired
-              </Text>
-              <Text type="display-3" weight="bold" hasTabularNumbers>
-                {statusCounts.UPCOMING} / {statusCounts.EXPIRED}
-              </Text>
-            </VStack>
-            <Icon icon={Clock} size="lg" color="info" />
-          </HStack>
-        </Card>
-
-        <Card padding={4}>
-          <HStack justify="between" vAlign="center" gap={3}>
-            <VStack gap={0.5}>
-              <Text type="label" size="xsm" color="secondary">
-                Inactive Pools
-              </Text>
-              <Text type="display-3" weight="bold" hasTabularNumbers>
-                {statusCounts.INACTIVE}
-              </Text>
-            </VStack>
-            <Icon icon={Star} size="lg" color="secondary" />
-          </HStack>
-        </Card>
-      </Grid>
-
-      {/* Filter & Search Toolbar */}
-      <Section padding={4}>
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
+      }
+      title="SUMMON BANNERS & WISH ROTATIONS"
+      subtitle="Configure hero invocations, summon windows, pull pricing, pity thresholds, and inspect rate-up pools from MongoDB."
+      actions={
+        <HStack gap={2} vAlign="center">
+          <Button
+            label="Sync Banners"
+            variant="secondary"
+            size="sm"
+            icon={<RefreshCw size={15} className={loading ? 'animate-spin' : ''} />}
+            isLoading={loading}
+            onClick={() => void fetchBanners()}
+          />
+          <Button
+            label="New Banner"
+            variant="primary"
+            size="sm"
+            icon={<Plus size={15} />}
+            onClick={() => openCreateModal()}
+          />
+        </HStack>
+      }
+      banner={
+        notice ? (
+          <Banner
+            status={notice.status}
+            title={notice.status === 'error' ? 'Gacha Operation Error' : 'Gacha Registry Updated'}
+            description={notice.text}
+            isDismissable
+            onDismiss={() => setNotice(null)}
+          />
+        ) : undefined
+      }
+      toolbar={
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           <SegmentedControl
             label="Filter banners by status"
+            size="sm"
             value={statusFilter}
             onChange={(val) => setStatusFilter(val as BannerFilterStatus)}
           >
@@ -615,24 +590,40 @@ export const GachaManagement: React.FC = () => {
             <SegmentedControlItem value="INACTIVE" label={`Inactive (${statusCounts.INACTIVE})`} />
           </SegmentedControl>
 
-          <div className="min-w-[240px] flex-1 max-w-sm">
-            <TextInput
-              label="Search banners"
-              isLabelHidden
-              size="sm"
-              placeholder="Search banner title, hero, or ID..."
-              value={searchQuery}
-              onChange={setSearchQuery}
-              hasClear
-              startIcon={<Search size={14} />}
-            />
-          </div>
-        </HStack>
-      </Section>
+          <div className="flex flex-wrap items-center gap-2 flex-1 justify-end">
+            <div className="w-[215px]">
+              <Selector
+                label="Sort banners"
+                isLabelHidden
+                size="sm"
+                startIcon={ArrowDownUp}
+                options={GACHA_SORT_OPTIONS}
+                value={sortBy}
+                onChange={(val) => {
+                  if (val) setSortBy(val as BannerSortOrder);
+                }}
+              />
+            </div>
 
+            <div className="min-w-[220px] flex-1 max-w-xs">
+              <TextInput
+                label="Search banners"
+                isLabelHidden
+                size="sm"
+                placeholder="Search banner title, hero, or ID..."
+                value={searchQuery}
+                onChange={setSearchQuery}
+                hasClear
+                startIcon={<Search size={14} />}
+              />
+            </div>
+          </div>
+        </div>
+      }
+    >
       {/* Banners Grid */}
       {filteredBanners.length === 0 ? (
-        <Section padding={8}>
+        <Card padding={8}>
           <EmptyState
             icon={<Inbox size={28} />}
             title={
@@ -667,9 +658,9 @@ export const GachaManagement: React.FC = () => {
               )
             }
           />
-        </Section>
+        </Card>
       ) : (
-        <Grid columns={{ minWidth: 340, max: 2 }} gap={5}>
+        <Grid columns={{ minWidth: 340, max: 2 }} gap={4}>
           {filteredBanners.map((banner) => {
             const schedule = getBannerScheduleMeta(banner, nowMs);
             const featuredIds = [...banner.featuredUnitIds, ...banner.featuredWeaponIds];
@@ -687,8 +678,8 @@ export const GachaManagement: React.FC = () => {
 
             return (
               <Card key={banner.id} padding={0} className="overflow-hidden flex flex-col">
-                {/* Banner Artwork Scrim Area */}
-                <div className="h-44 relative bg-slate-950 overflow-hidden border-b border-[var(--color-border-subtle)]">
+                {/* Compact Banner Artwork Scrim Area */}
+                <div className="h-28 relative bg-slate-950 overflow-hidden border-b border-[var(--color-border-subtle)]">
                   {hasValidImg ? (
                     <img
                       src={banner.bannerImageUrl}
@@ -699,8 +690,8 @@ export const GachaManagement: React.FC = () => {
                       className="w-full h-full object-cover opacity-80 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-950 via-[#0c1222] to-indigo-950 text-amber-400/50">
-                      <Star className="w-14 h-14" />
+                    <div className="w-full h-full flex items-center justify-end pr-6 bg-gradient-to-br from-slate-950 via-[#0c1222] to-indigo-950 text-amber-400/25">
+                      <Star className="w-12 h-12" />
                     </div>
                   )}
                   <div
@@ -708,16 +699,16 @@ export const GachaManagement: React.FC = () => {
                     aria-hidden="true"
                   />
 
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-2.5 right-3">
                     <Badge
                       label={badgeLabel}
                       variant={getScheduleBadgeVariant(schedule.status)}
                     />
                   </div>
 
-                  <div className="absolute bottom-3 left-4 right-4 text-white">
+                  <div className="absolute bottom-2.5 left-4 right-4 text-white">
                     <HStack gap={1.5} vAlign="center" className="text-amber-300 mb-0.5">
-                      <Sparkles size={13} />
+                      <Sparkles size={12} />
                       <Text type="code" size="xsm" weight="bold" color="inherit">
                         {banner.items && banner.items.length > 0
                           ? `${banner.items.length} POOL ENTRIES`
@@ -730,41 +721,49 @@ export const GachaManagement: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Banner Details Body */}
-                <div className="p-5 flex-1 flex flex-col justify-between gap-4">
-                  <VStack gap={3}>
-                    <Text type="supporting" size="sm" maxLines={2}>
+                {/* Compact Banner Details Body */}
+                <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+                  <VStack gap={2}>
+                    <Text type="supporting" size="sm" maxLines={1}>
                       {banner.description ||
                         'No promotional description provided for this banner rotation.'}
                     </Text>
 
-                    {/* Costs & Featured Strip */}
-                    <div className="grid grid-cols-2 gap-3 p-3 rounded-[var(--radius-md,10px)] bg-[var(--color-surface-subtle)] border border-[var(--color-border-subtle)]">
-                      <HStack gap={2} vAlign="center">
-                        <Icon icon={Gem} size="md" color="info" />
+                    {/* 3-Column Metrics Strip */}
+                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-[var(--radius-md,10px)] bg-[var(--color-surface-subtle)] border border-[var(--color-border-subtle)]">
+                      <HStack gap={1.5} vAlign="center">
+                        <Icon icon={Gem} size="sm" color="info" />
                         <VStack gap={0}>
-                          <Text type="label" size="xsm" color="secondary">
-                            Pull Pricing
+                          <Text type="label" size="2xs" color="secondary">
+                            PULL COST
                           </Text>
                           <Text weight="bold" size="sm" hasTabularNumbers>
-                            {banner.costPerPull} Gems
+                            {banner.costPerPull}
+                            {tenPullOption ? ` / ${tenPullOption.price}` : ' Gems'}
                           </Text>
-                          {tenPullOption && (
-                            <Text type="code" size="xsm" color="secondary">
-                              10x: {tenPullOption.price} Gems
-                            </Text>
-                          )}
                         </VStack>
                       </HStack>
 
-                      <HStack gap={2} vAlign="center">
-                        <Icon icon={Star} size="md" color="accent" />
+                      <HStack gap={1.5} vAlign="center">
+                        <Icon icon={Star} size="sm" color="accent" />
                         <VStack gap={0}>
-                          <Text type="label" size="xsm" color="secondary">
-                            Rate-Up Items
+                          <Text type="label" size="2xs" color="secondary">
+                            FEATURED
                           </Text>
                           <Text weight="bold" size="sm" hasTabularNumbers>
-                            {featuredIds.length} Featured
+                            {featuredIds.length} Rate-Up
+                          </Text>
+                        </VStack>
+                      </HStack>
+
+                      <HStack gap={1.5} vAlign="center">
+                        <Icon icon={Clock} size="sm" color="secondary" />
+                        <VStack gap={0}>
+                          <Text type="label" size="2xs" color="secondary">
+                            HARD PITY
+                          </Text>
+                          <Text weight="bold" size="sm" hasTabularNumbers>
+                            {banner.pityThreshold ?? 90} Pulls
                           </Text>
                         </VStack>
                       </HStack>
@@ -786,12 +785,16 @@ export const GachaManagement: React.FC = () => {
                       </HStack>
                     )}
 
-                    {/* Schedule & Hard Pity Timeline */}
-                    <VStack gap={1.5}>
+                    {/* Schedule & Progress Timeline */}
+                    <VStack gap={1}>
                       <HStack justify="between" vAlign="center" gap={2}>
-                        <Text type="code" size="xsm" color="secondary">
-                          Hard Pity: {banner.pityThreshold ?? 90} Pulls Max
-                        </Text>
+                        <HStack gap={1.5} vAlign="center">
+                          <Icon icon={Calendar} size="xsm" color="accent" />
+                          <Text type="code" size="xsm" color="secondary">
+                            {new Date(banner.startTime).toLocaleDateString()} –{' '}
+                            {new Date(banner.endTime).toLocaleDateString()}
+                          </Text>
+                        </HStack>
                         <Text type="code" size="xsm" weight="semibold">
                           {schedule.scheduleSummary}
                         </Text>
@@ -807,20 +810,11 @@ export const GachaManagement: React.FC = () => {
                   </VStack>
 
                   {/* Footer Actions */}
-                  <div className="pt-3 border-t border-[var(--color-border-subtle)]">
+                  <div className="pt-2.5 border-t border-[var(--color-border-subtle)]">
                     <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                      <VStack gap={0}>
-                        <HStack gap={1.5} vAlign="center">
-                          <Icon icon={Calendar} size="xsm" color="accent" />
-                          <Text type="code" size="xsm" color="secondary">
-                            {new Date(banner.startTime).toLocaleDateString()} –{' '}
-                            {new Date(banner.endTime).toLocaleDateString()}
-                          </Text>
-                        </HStack>
-                        <Text type="code" size="xsm" color="secondary">
-                          Ref: #{banner.id.slice(-6).toUpperCase()}
-                        </Text>
-                      </VStack>
+                      <Text type="code" size="xsm" color="secondary">
+                        Ref: #{banner.id.slice(-6).toUpperCase()}
+                      </Text>
 
                       <HStack gap={2} vAlign="center">
                         <Button
@@ -1190,6 +1184,6 @@ export const GachaManagement: React.FC = () => {
           </HStack>
         </VStack>
       </Dialog>
-    </VStack>
+    </ConsolePage>
   );
 };
