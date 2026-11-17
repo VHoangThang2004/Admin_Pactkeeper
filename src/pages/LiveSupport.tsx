@@ -37,6 +37,7 @@ import { Heading, Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { adminClient } from '../api/adminClient';
 import { ConsolePage } from '../components/ConsolePage';
+import { useRealtimePresence } from '../hooks/useRealtimePresence';
 import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { getPlayerPresence } from '../utils/presence';
 import { getPresenceBadgeVariant } from '../utils/presenceAstryx';
@@ -143,6 +144,20 @@ export const LiveSupport: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeMatchesMap, setActiveMatchesMap] = useState<Map<string, ActiveMatchSummary>>(
     () => new Map(),
+  );
+  const { trackedPlayers } = useRealtimePresence();
+  const trackedPresenceMap = useMemo(
+    () => new Map(trackedPlayers.map((tp) => [tp.playerId, tp.presence])),
+    [trackedPlayers],
+  );
+
+  const resolvePlayerPresence = useCallback(
+    (playerId: string, fallbackTime?: string) => {
+      const unified = trackedPresenceMap.get(playerId);
+      if (unified) return unified;
+      return getPlayerPresence(playerId, activeMatchesMap, fallbackTime);
+    },
+    [trackedPresenceMap, activeMatchesMap],
   );
 
   const selectedPlayerIdRef = useRef(selectedPlayerId);
@@ -349,23 +364,21 @@ export const LiveSupport: React.FC = () => {
   const activeQueueCount = useMemo(
     () =>
       players.filter((p) => {
-        const presence = getPlayerPresence(
+        const presence = resolvePlayerPresence(
           p.playerId,
-          activeMatchesMap,
           p.latestMessageTime || p.lastMessageAt,
         );
         return presence.state === 'Online' || presence.state === 'InBattle';
       }).length,
-    [players, activeMatchesMap],
+    [players, resolvePlayerPresence],
   );
 
   const filteredPlayers = useMemo(() => {
     const q = queueFilter.trim().toLowerCase();
     return players.filter((p) => {
       if (queueScope === 'ACTIVE') {
-        const presence = getPlayerPresence(
+        const presence = resolvePlayerPresence(
           p.playerId,
-          activeMatchesMap,
           p.latestMessageTime || p.lastMessageAt,
         );
         if (presence.state === 'Offline') return false;
@@ -376,10 +389,10 @@ export const LiveSupport: React.FC = () => {
       const snippet = (p.latestMessageText || p.lastMessage || '').toLowerCase();
       return name.includes(q) || id.includes(q) || snippet.includes(q);
     });
-  }, [players, queueFilter, queueScope, activeMatchesMap]);
+  }, [players, queueFilter, queueScope, resolvePlayerPresence]);
 
   const activePresence = selectedPlayerId
-    ? getPlayerPresence(selectedPlayerId, activeMatchesMap, activePlayer?.latestMessageTime)
+    ? resolvePlayerPresence(selectedPlayerId, activePlayer?.latestMessageTime)
     : null;
   const activeMatchInfo = selectedPlayerId ? activeMatchesMap.get(selectedPlayerId) : undefined;
 
@@ -518,9 +531,8 @@ export const LiveSupport: React.FC = () => {
                   : isSelected && activePlayerRealName && !activePlayerRealName.startsWith('Traveler')
                     ? activePlayerRealName
                     : `Traveler #${p.playerId.slice(-4).toUpperCase()}`;
-                const presence = getPlayerPresence(
+                const presence = resolvePlayerPresence(
                   p.playerId,
-                  activeMatchesMap,
                   p.latestMessageTime || p.lastMessageAt,
                 );
 

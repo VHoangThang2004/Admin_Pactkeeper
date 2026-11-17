@@ -8,6 +8,12 @@ import {
 } from '../utils/presence';
 import * as signalR from '@microsoft/signalr';
 
+export type HubConnectionState =
+  | 'connected'
+  | 'connecting'
+  | 'reconnecting'
+  | 'disconnected';
+
 export interface TrackedPlayerPresence {
   playerId: string;
   username: string;
@@ -32,34 +38,230 @@ export interface UnifiedPlayerData {
     inBattle: number;
     offline: number;
   };
+  hubConnected: boolean;
+  hubState: HubConnectionState;
   lastSyncedAt: Date;
+}
+
+interface RealtimePresenceEntry {
+  status: string;
+  updatedAt: number;
 }
 
 // Global cached state and subscribers
 let cachedData: UnifiedPlayerData | null = null;
-let realtimePresenceMap = new Map<string, string>(); // playerId -> "idle" | "in_match" | "offline"
+const realtimePresenceMap = new Map<string, RealtimePresenceEntry>();
 const listeners = new Set<(data: UnifiedPlayerData) => void>();
 let hubConnection: signalR.HubConnection | null = null;
+let hubConnectionToken: string | null = null;
+let hubState: HubConnectionState = 'disconnected';
 let autoRefreshTimer: number | null = null;
-let isFetching = false;
+let inFlightFetch: Promise<UnifiedPlayerData> | null = null;
+
+function resolveLocalPlayerId(): string | null {
+  return (
+    sessionStorage.getItem('player_id') ||
+    sessionStorage.getItem('playerId') ||
+    sessionStorage.getItem('adminPlayerId') ||
+    localStorage.getItem('player_id') ||
+    localStorage.getItem('playerId')
+  );
+}
+
+function normalizePresencePayload(raw: unknown): {
+  playerId: string;
+  isOnline: boolean;
+  status: string;
+} | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const rawId = obj.playerId ?? obj.PlayerId;
+  if (typeof rawId !== 'string' || !rawId.trim()) return null;
+  const rawOnline = obj.isOnline ?? obj.IsOnline;
+  const rawStatus = obj.status ?? obj.Status;
+  const isOnline = typeof rawOnline === 'boolean' ? rawOnline : rawStatus !== 'offline';
+  const status =
+    typeof rawStatus === 'string' && rawStatus.trim()
+      ? rawStatus.trim().toLowerCase()
+      : isOnline
+        ? 'idle'
+        : 'offline';
+
+  return { playerId: rawId.trim(), isOnline, status };
+}
+
+function extractOnlineSnapshotMap(raw: unknown): Map<string, string> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const candidate =
+    obj.onlinePlayers && typeof obj.onlinePlayers === 'object'
+      ? (obj.onlinePlayers as Record<string, unknown>)
+      : obj.OnlinePlayers && typeof obj.OnlinePlayers === 'object'
+        ? (obj.OnlinePlayers as Record<string, unknown>)
+        : obj;
+
+  const map = new Map<string, string>();
+  for (const [pid, val] of Object.entries(candidate)) {
+    if (!pid || pid === 'count' || pid === 'Count') continue;
+    if (typeof val === 'string' && val.trim()) {
+      map.set(pid, val.trim().toLowerCase());
+    } else if (val === true) {
+      map.set(pid, 'idle');
+    }
+  }
+  return map;
+}
+
+function buildUnifiedSnapshot(
+  basePlayers: PlayerProfile[],
+  activeMatchPlayerMap: Map<string, ActiveMatchInfo>,
+  activeMatchesCount: number,
+  totalMatchesCount: number,
+  onlineSnapshotMap: Map<string, string> | null
+): UnifiedPlayerData {
+  const localPlayerId = resolveLocalPlayerId();
+  const enrichedList: PlayerProfile[] = [];
+  const trackedList: TrackedPlayerPresence[] = [];
+
+  for (const p of basePlayers) {
+    const isCurrentSessionUser = Boolean(localPlayerId && p.playerId === localPlayerId);
+    const realtimeEntry = realtimePresenceMap.get(p.playerId);
+
+    const snapshotStatus = onlineSnapshotMap?.get(p.playerId);
+    const hasBackendBoolean = typeof p.isOnline === 'boolean';
+    const isOnlineExplicit =
+      onlineSnapshotMap !== null
+        ? Boolean(snapshotStatus || p.isOnline)
+        : hasBackendBoolean
+          ? Boolean(p.isOnline)
+          : undefined;
+
+    const effectiveRealtimeStatus =
+      realtimeEntry?.status ?? snapshotStatus ?? p.presenceStatus;
+
+    const presenceInfo = getPlayerPresence(
+      p.playerId,
+      activeMatchPlayerMap,
+      p.lastActiveTime,
+      {
+        isCurrentSessionUser,
+        isOnlineExplicit,
+        realtimeStatus: effectiveRealtimeStatus,
+      }
+    );
+
+    const enrichedPlayer: PlayerProfile = {
+      ...p,
+      isOnline:
+        presenceInfo.state === 'Online' || presenceInfo.state === 'InBattle',
+      presenceStatus:
+        presenceInfo.state === 'InBattle'
+          ? 'in_match'
+          : presenceInfo.state === 'Online'
+            ? 'idle'
+            : 'offline',
+      presence: presenceInfo.state,
+      presenceDetails: presenceInfo.activityDescription,
+      presenceInfo,
+      activeMatch: activeMatchPlayerMap.get(p.playerId),
+    };
+
+    enrichedList.push(enrichedPlayer);
+
+    trackedList.push({
+      playerId: p.playerId,
+      username: p.username,
+      presence: presenceInfo,
+      lastSeen: p.lastActiveTime || p.lastLogin || '',
+      level: p.level,
+      gold: p.gold,
+      gems: p.gems,
+      isBanned: p.isBanned,
+      activeMatch: activeMatchPlayerMap.get(p.playerId),
+    });
+  }
+
+  // Sort priority: InBattle (0) > Online (1) > Offline (2), then by username
+  const order = { InBattle: 0, Online: 1, Offline: 2 };
+  enrichedList.sort((a, b) => {
+    const stateA = a.presence || 'Offline';
+    const stateB = b.presence || 'Offline';
+    const diff = (order[stateA] ?? 2) - (order[stateB] ?? 2);
+    if (diff !== 0) return diff;
+    return a.username.localeCompare(b.username);
+  });
+
+  trackedList.sort((a, b) => {
+    const diff = (order[a.presence.state] ?? 2) - (order[b.presence.state] ?? 2);
+    if (diff !== 0) return diff;
+    return a.username.localeCompare(b.username);
+  });
+
+  const totalCount = enrichedList.length;
+  const onlineCount = enrichedList.filter((p) => p.presence === 'Online').length;
+  const inBattleCount = enrichedList.filter((p) => p.presence === 'InBattle').length;
+  const offlineCount = enrichedList.filter((p) => p.presence === 'Offline').length;
+
+  return {
+    players: enrichedList,
+    trackedPlayers: trackedList,
+    activeMatchPlayerMap,
+    activeMatchesCount,
+    totalMatchesCount,
+    counts: {
+      total: totalCount,
+      online: onlineCount,
+      inBattle: inBattleCount,
+      offline: offlineCount,
+    },
+    hubConnected: hubState === 'connected',
+    hubState,
+    lastSyncedAt: new Date(),
+  };
+}
+
+function recomputeCachedData(onlineSnapshotMap: Map<string, string> | null = null) {
+  if (!cachedData) return;
+
+  // Preserve base profile metadata, dropping cached derived fields unless explicit snapshot replaces them
+  const basePlayers = cachedData.players.map((p) => ({
+    ...p,
+    isOnline: onlineSnapshotMap !== null ? onlineSnapshotMap.has(p.playerId) : p.isOnline,
+    presenceStatus:
+      onlineSnapshotMap !== null
+        ? onlineSnapshotMap.get(p.playerId) || 'offline'
+        : p.presenceStatus,
+  }));
+
+  cachedData = buildUnifiedSnapshot(
+    basePlayers,
+    cachedData.activeMatchPlayerMap,
+    cachedData.activeMatchesCount,
+    cachedData.totalMatchesCount,
+    onlineSnapshotMap
+  );
+  notifyListeners(cachedData);
+}
 
 /**
  * Fetches and aggregates complete player records from all backend endpoints
  * ensuring 100% data consistency between Overview and Accounts management.
  */
 export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
-  if (isFetching && cachedData) {
-    return cachedData;
+  if (inFlightFetch) {
+    return inFlightFetch;
   }
 
-  isFetching = true;
-  try {
-    const [allPlayersRes, matchRes, supportRes, paymentRes] = await Promise.allSettled([
-      adminClient.get('/player/all'),
-      adminClient.get('/Match/history'),
-      adminClient.get('/support/admin/players'),
-      adminClient.get('/payment/history'),
-    ]);
+  inFlightFetch = (async () => {
+    const fetchStartedAt = Date.now();
+    const [allPlayersRes, matchRes, supportRes, paymentRes, onlineRes] =
+      await Promise.allSettled([
+        adminClient.get('/player/all'),
+        adminClient.get('/Match/history'),
+        adminClient.get('/support/admin/players'),
+        adminClient.get('/payment/history'),
+        adminClient.get('/admin/online-players'),
+      ]);
 
     // 1. Process active matches & in-battle combatants (NGO Game Server)
     const activeMatchPlayerMap = new Map<string, ActiveMatchInfo>();
@@ -112,15 +314,14 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
       });
     }
 
-    // 4. Current session admin ID
-    const localPlayerId =
-      sessionStorage.getItem('player_id') ||
-      sessionStorage.getItem('playerId') ||
-      sessionStorage.getItem('adminPlayerId') ||
-      localStorage.getItem('player_id') ||
-      localStorage.getItem('playerId');
+    // 4. Online Hub snapshot from /admin/online-players (authoritative when backend exposes it)
+    const onlineSnapshotMap =
+      onlineRes.status === 'fulfilled'
+        ? extractOnlineSnapshotMap(onlineRes.value.data)
+        : null;
 
     const foundMap = new Map<string, PlayerProfile>();
+    let playersIncludeAuthoritativePresence = false;
 
     // 5. Seed with ground-truth players from /player/all
     if (allPlayersRes.status === 'fulfilled' && Array.isArray(allPlayersRes.value.data)) {
@@ -128,6 +329,12 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
         if (!p.playerId) return;
         const sInfo = supportMap.get(p.playerId);
         const pTime = paymentMap.get(p.playerId);
+
+        const rawIsOnline = p.isOnline ?? p.IsOnline;
+        const rawPresenceStatus = p.presenceStatus ?? p.PresenceStatus;
+        if (typeof rawIsOnline === 'boolean') {
+          playersIncludeAuthoritativePresence = true;
+        }
 
         // Resolve display name: support name > username > fallback
         let displayName = (p.username || '').trim();
@@ -157,6 +364,11 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
           gems: p.gems ?? 0,
           isBanned: Boolean(p.isBanned),
           banReason: p.banReason,
+          isOnline: typeof rawIsOnline === 'boolean' ? rawIsOnline : undefined,
+          presenceStatus:
+            typeof rawPresenceStatus === 'string'
+              ? rawPresenceStatus.toLowerCase()
+              : undefined,
           lastLogin: p.lastLogin ? new Date(p.lastLogin).toLocaleString() : 'Never',
           lastActiveTime: latestActivity || p.lastLogin,
           lastSeen: latestActivity || p.lastLogin,
@@ -176,7 +388,9 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
           gold: 0,
           gems: 0,
           isBanned: false,
-          lastLogin: sInfo.latestMessageTime ? new Date(sInfo.latestMessageTime).toLocaleString() : 'Recent Chat',
+          lastLogin: sInfo.latestMessageTime
+            ? new Date(sInfo.latestMessageTime).toLocaleString()
+            : 'Recent Chat',
           lastActiveTime: sInfo.latestMessageTime,
           lastSeen: sInfo.latestMessageTime,
         });
@@ -202,90 +416,32 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
       }
     });
 
-    // 8. Compute genuine presence for all players
-    const enrichedList: PlayerProfile[] = [];
-    const trackedList: TrackedPlayerPresence[] = [];
-
-    foundMap.forEach((p) => {
-      const isCurrentSessionUser = Boolean(localPlayerId && p.playerId === localPlayerId);
-      const signalRStatus = realtimePresenceMap.get(p.playerId);
-
-      const presenceInfo = getPlayerPresence(
-        p.playerId,
-        activeMatchPlayerMap,
-        p.lastActiveTime,
-        {
-          isCurrentSessionUser,
-          realtimeStatus: signalRStatus,
+    // Clear stale realtime entries older than this authoritative REST snapshot so
+    // disconnects/reconnects missed by SignalR cannot linger forever.
+    if (onlineSnapshotMap !== null || playersIncludeAuthoritativePresence) {
+      for (const [pid, entry] of realtimePresenceMap.entries()) {
+        if (entry.updatedAt < fetchStartedAt) {
+          realtimePresenceMap.delete(pid);
         }
-      );
+      }
+    }
 
-      const enrichedPlayer: PlayerProfile = {
-        ...p,
-        presence: presenceInfo.state,
-        presenceDetails: presenceInfo.activityDescription,
-        presenceInfo,
-        activeMatch: activeMatchPlayerMap.get(p.playerId),
-      };
-
-      enrichedList.push(enrichedPlayer);
-
-      trackedList.push({
-        playerId: p.playerId,
-        username: p.username,
-        presence: presenceInfo,
-        lastSeen: p.lastActiveTime || p.lastLogin || '',
-        level: p.level,
-        gold: p.gold,
-        gems: p.gems,
-        isBanned: p.isBanned,
-        activeMatch: activeMatchPlayerMap.get(p.playerId),
-      });
-    });
-
-    // 9. Sort priority: InBattle (0) > Online (1) > Offline (2), then by username
-    const order = { InBattle: 0, Online: 1, Offline: 2 };
-    enrichedList.sort((a, b) => {
-      const stateA = a.presence || 'Offline';
-      const stateB = b.presence || 'Offline';
-      const diff = (order[stateA] ?? 2) - (order[stateB] ?? 2);
-      if (diff !== 0) return diff;
-      return a.username.localeCompare(b.username);
-    });
-
-    trackedList.sort((a, b) => {
-      const diff = (order[a.presence.state] ?? 2) - (order[b.presence.state] ?? 2);
-      if (diff !== 0) return diff;
-      return a.username.localeCompare(b.username);
-    });
-
-    // 10. Compute exact metrics
-    const totalCount = enrichedList.length;
-    const onlineCount = enrichedList.filter((p) => p.presence === 'Online').length;
-    const inBattleCount = enrichedList.filter((p) => p.presence === 'InBattle').length;
-    const offlineCount = enrichedList.filter((p) => p.presence === 'Offline').length;
-
-    const data: UnifiedPlayerData = {
-      players: enrichedList,
-      trackedPlayers: trackedList,
+    const data = buildUnifiedSnapshot(
+      Array.from(foundMap.values()),
       activeMatchPlayerMap,
-      activeMatchesCount: liveMatchesCount,
+      liveMatchesCount,
       totalMatchesCount,
-      counts: {
-        total: totalCount,
-        online: onlineCount,
-        inBattle: inBattleCount,
-        offline: offlineCount,
-      },
-      lastSyncedAt: new Date(),
-    };
+      onlineSnapshotMap
+    );
 
     cachedData = data;
     notifyListeners(data);
     return data;
-  } finally {
-    isFetching = false;
-  }
+  })().finally(() => {
+    inFlightFetch = null;
+  });
+
+  return inFlightFetch;
 }
 
 /**
@@ -307,7 +463,7 @@ export function subscribeToUnifiedPresence(
   if (cachedData) {
     callback(cachedData);
   } else {
-    fetchUnifiedPlayerData();
+    fetchUnifiedPlayerData().catch(() => {});
   }
 
   ensureHubConnection();
@@ -319,6 +475,22 @@ export function subscribeToUnifiedPresence(
       stopAutoRefresh();
     }
   };
+}
+
+/**
+ * Stops SignalR LobbyHub connection and clears cached presence state (e.g. on logout).
+ */
+export function stopPresenceSync(): void {
+  stopAutoRefresh();
+  realtimePresenceMap.clear();
+  cachedData = null;
+  hubState = 'disconnected';
+  hubConnectionToken = null;
+  if (hubConnection) {
+    const conn = hubConnection;
+    hubConnection = null;
+    conn.stop().catch(() => {});
+  }
 }
 
 function notifyListeners(data: UnifiedPlayerData) {
@@ -346,40 +518,158 @@ function stopAutoRefresh() {
   }
 }
 
+function setHubState(next: HubConnectionState) {
+  if (hubState === next) return;
+  hubState = next;
+  if (cachedData) {
+    cachedData = {
+      ...cachedData,
+      hubConnected: next === 'connected',
+      hubState: next,
+    };
+    notifyListeners(cachedData);
+  }
+}
+
+function applyOnlineSnapshot(rawSnapshot: unknown) {
+  const snapshotMap = extractOnlineSnapshotMap(rawSnapshot);
+  if (!snapshotMap) return;
+
+  const now = Date.now();
+  realtimePresenceMap.clear();
+  snapshotMap.forEach((status, pid) => {
+    realtimePresenceMap.set(pid, { status, updatedAt: now });
+  });
+
+  if (cachedData) {
+    recomputeCachedData(snapshotMap);
+  } else {
+    fetchUnifiedPlayerData().catch(() => {});
+  }
+}
+
+function applySinglePresenceUpdate(raw: unknown) {
+  const normalized = normalizePresencePayload(raw);
+  if (!normalized) return;
+
+  realtimePresenceMap.set(normalized.playerId, {
+    status: normalized.status,
+    updatedAt: Date.now(),
+  });
+
+  const matchStateChanged =
+    cachedData &&
+    ((normalized.status === 'in_match' &&
+      !cachedData.activeMatchPlayerMap.has(normalized.playerId)) ||
+      (normalized.status !== 'in_match' &&
+        cachedData.activeMatchPlayerMap.has(normalized.playerId)));
+
+  if (
+    cachedData &&
+    cachedData.players.some((p) => p.playerId === normalized.playerId)
+  ) {
+    recomputeCachedData(null);
+    if (matchStateChanged) {
+      fetchUnifiedPlayerData().catch(() => {});
+    }
+  } else {
+    fetchUnifiedPlayerData().catch(() => {});
+  }
+}
+
 /**
  * Connects to SignalR LobbyHub to receive live presence notifications from Unity clients.
  */
 function ensureHubConnection() {
   const token = sessionStorage.getItem('adminToken');
-  if (!token || hubConnection) return;
+  if (!token) {
+    stopPresenceSync();
+    return;
+  }
+
+  if (hubConnection && hubConnectionToken === token) {
+    if (hubConnection.state === signalR.HubConnectionState.Disconnected) {
+      setHubState('connecting');
+      hubConnection
+        .start()
+        .then(() => {
+          setHubState('connected');
+          return hubConnection?.invoke('GetOnlinePlayers').then(applyOnlineSnapshot).catch(() => {});
+        })
+        .catch(() => {
+          setHubState('disconnected');
+        });
+    }
+    return;
+  }
+
+  if (hubConnection) {
+    const oldConn = hubConnection;
+    hubConnection = null;
+    oldConn.stop().catch(() => {});
+  }
 
   try {
-    hubConnection = new signalR.HubConnectionBuilder()
+    hubConnectionToken = token;
+    setHubState('connecting');
+
+    const connection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/lobby', {
         accessTokenFactory: () => sessionStorage.getItem('adminToken') || '',
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-      .configureLogging(signalR.LogLevel.None)
+      .configureLogging(signalR.LogLevel.Warning)
       .build();
 
-    hubConnection.on('OnFriendPresenceChanged', (presence: { playerId: string; isOnline: boolean; status: string }) => {
-      if (presence && presence.playerId) {
-        realtimePresenceMap.set(presence.playerId, presence.status || (presence.isOnline ? 'idle' : 'offline'));
-        fetchUnifiedPlayerData().catch(() => {});
+    hubConnection = connection;
+
+    connection.on('OnOnlinePlayersSnapshot', (snapshot: unknown) => {
+      applyOnlineSnapshot(snapshot);
+    });
+
+    connection.on('OnFriendPresenceChanged', (presence: unknown) => {
+      applySinglePresenceUpdate(presence);
+    });
+
+    connection.on('OnPlayerPresenceChanged', (presence: unknown) => {
+      applySinglePresenceUpdate(presence);
+    });
+
+    connection.onreconnecting(() => {
+      setHubState('reconnecting');
+    });
+
+    connection.onreconnected(() => {
+      setHubState('connected');
+      connection
+        .invoke('GetOnlinePlayers')
+        .then(applyOnlineSnapshot)
+        .catch(() => {});
+      fetchUnifiedPlayerData().catch(() => {});
+    });
+
+    connection.onclose(() => {
+      if (hubConnection === connection) {
+        setHubState('disconnected');
       }
     });
 
-    hubConnection.on('OnPlayerPresenceChanged', (presence: { playerId: string; isOnline: boolean; status: string }) => {
-      if (presence && presence.playerId) {
-        realtimePresenceMap.set(presence.playerId, presence.status || (presence.isOnline ? 'idle' : 'offline'));
-        fetchUnifiedPlayerData().catch(() => {});
-      }
-    });
-
-    hubConnection.start().catch(() => {
-      // LobbyHub connection may be optional if server runs in minimal mode
-    });
+    connection
+      .start()
+      .then(() => {
+        if (hubConnection !== connection) return;
+        setHubState('connected');
+        connection
+          .invoke('GetOnlinePlayers')
+          .then(applyOnlineSnapshot)
+          .catch(() => {});
+      })
+      .catch(() => {
+        if (hubConnection === connection) {
+          setHubState('disconnected');
+        }
+      });
   } catch {
-    // Non-blocking fallback
+    setHubState('disconnected');
   }
 }

@@ -49,6 +49,8 @@ export function useRealtimePresence() {
     counts: data?.counts || { total: 0, online: 0, inBattle: 0, offline: 0 },
     activeMatchesCount: data?.activeMatchesCount || 0,
     totalMatchesCount: data?.totalMatchesCount || 0,
+    hubConnected: data?.hubConnected ?? false,
+    hubState: data?.hubState ?? 'disconnected',
     lastSyncedAt: data?.lastSyncedAt,
     loading,
     error,

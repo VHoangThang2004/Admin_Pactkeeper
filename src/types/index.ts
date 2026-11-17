@@ -34,6 +34,8 @@ export interface PlayerProfile {
   lastLogin?: string;
   isBanned?: boolean;
   banReason?: string | null;
+  isOnline?: boolean;
+  presenceStatus?: string;
   presence?: PlayerPresenceState;
   presenceDetails?: string;
   presenceInfo?: any;

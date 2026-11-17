@@ -48,6 +48,7 @@ import {
   subscribeToUnifiedPresence,
 } from '../services/playerPresenceService';
 import type { CounselRole, PlayerProfile } from '../types';
+import { getPlayerPresence } from '../utils/presence';
 import {
   getPresenceBadgeVariant,
   getPresenceDisplayLabel,
@@ -159,6 +160,16 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       const res = await adminClient.get(`/player/profile/${targetId}`);
       if (res.data) {
         const d = res.data;
+        const rawIsOnline = d.isOnline ?? d.IsOnline;
+        const rawPresenceStatus = d.presenceStatus ?? d.PresenceStatus;
+        const presenceInfo = getPlayerPresence(targetId, new Map(), d.lastLogin, {
+          isOnlineExplicit:
+            typeof rawIsOnline === 'boolean' ? rawIsOnline : undefined,
+          realtimeStatus:
+            typeof rawPresenceStatus === 'string'
+              ? rawPresenceStatus.toLowerCase()
+              : undefined,
+        });
         const newP: PlayerProfile = {
           playerId: targetId,
           username: d.username || d.playerName || `Wanderer #${targetId.slice(-4).toUpperCase()}`,
@@ -166,9 +177,14 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           experience: d.experience ?? 0,
           gold: d.gold ?? 0,
           gems: d.gems ?? 0,
-          lastLogin: new Date().toLocaleString(),
+          lastLogin: d.lastLogin ? new Date(d.lastLogin).toLocaleString() : new Date().toLocaleString(),
           isBanned: Boolean(d.isBanned),
-          presence: 'Online',
+          isOnline: typeof rawIsOnline === 'boolean' ? rawIsOnline : undefined,
+          presenceStatus:
+            typeof rawPresenceStatus === 'string' ? rawPresenceStatus.toLowerCase() : undefined,
+          presence: presenceInfo.state,
+          presenceDetails: presenceInfo.activityDescription,
+          presenceInfo,
         };
         setPlayers((prev) => [newP, ...prev.filter((p) => p.playerId !== targetId)]);
         setNewPlayerIdInput('');

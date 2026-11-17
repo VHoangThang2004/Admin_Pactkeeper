@@ -11,6 +11,7 @@ import { LiveSupport } from './pages/LiveSupport';
 import { MatchSupervision } from './pages/MatchSupervision';
 import { SecurityGovernance } from './pages/SecurityGovernance';
 import { logoutAdminSession, recordLoginAttempt } from './services/adminSecurityService';
+import { stopPresenceSync } from './services/playerPresenceService';
 import {
   clearAdminSession,
   getStoredPermissions,
@@ -70,6 +71,7 @@ export const App: React.FC = () => {
    */
   const handleLogout = () => {
     void logoutAdminSession(adminName, role);
+    stopPresenceSync();
     clearAdminSession();
     setToken(null);
     setPermissions([]);
@@ -86,6 +88,7 @@ export const App: React.FC = () => {
           status: 'SESSION_EXPIRED',
           reason: 'JWT token expiration reached in active portal session',
         });
+        stopPresenceSync();
         clearAdminSession();
         setToken(null);
         setPermissions([]);

@@ -150,18 +150,31 @@ export function getPlayerPresence(
   }
 
   // 2. Check if genuinely online (in Unity 3_MainMenu Sanctuary, LobbyHub WebSocket, or active Admin session)
-  const isRecentlyActive = isWithinMinutes(lastActivityTimestamp, 30);
+  const hasAuthoritativePresence =
+    typeof options.isOnlineExplicit === 'boolean' || Boolean(realtimeStatus);
+  const isExplicitlyOffline =
+    realtimeStatus === 'offline' ||
+    (!realtimeStatus && options.isOnlineExplicit === false);
+  const isRecentlyActive =
+    !hasAuthoritativePresence && isWithinMinutes(lastActivityTimestamp, 30);
   const isOnlineInLobby =
-    isOnlineExplicit ||
-    realtimeStatus === 'idle' ||
-    realtimeStatus === 'online' ||
-    isCurrentSessionUser ||
-    isRecentlyActive;
+    !isExplicitlyOffline &&
+    (isOnlineExplicit ||
+      realtimeStatus === 'idle' ||
+      realtimeStatus === 'online' ||
+      isCurrentSessionUser ||
+      isRecentlyActive);
 
   if (isOnlineInLobby) {
     let locationDescription = 'Lobby & Realm Sanctuary';
     if (isCurrentSessionUser) {
       locationDescription = 'High Counsel Admin Portal';
+    } else if (
+      isOnlineExplicit ||
+      realtimeStatus === 'idle' ||
+      realtimeStatus === 'online'
+    ) {
+      locationDescription = 'Lobby & Realm Sanctuary';
     } else if (isRecentlyActive && lastActivityTimestamp) {
       locationDescription = 'Lobby & Realm Explorer';
     }

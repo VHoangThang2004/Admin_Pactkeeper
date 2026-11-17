@@ -48,6 +48,7 @@ import { recordAuditEvent } from '../services/adminSecurityService';
 import {
   fetchUnifiedPlayerData,
   subscribeToUnifiedPresence,
+  type HubConnectionState,
   type TrackedPlayerPresence,
 } from '../services/playerPresenceService';
 import type { CounselRole, ServerState } from '../types';
@@ -105,6 +106,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   const [activeMatchesCount, setActiveMatchesCount] = useState<number>(0);
   const [totalMatchesCount, setTotalMatchesCount] = useState<number>(0);
   const [trackedPlayers, setTrackedPlayers] = useState<TrackedPlayerPresence[]>([]);
+  const [hubState, setHubState] = useState<HubConnectionState>('disconnected');
   const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -160,6 +162,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       setInMatchPlayersCount(snapshot.unified.counts.inBattle);
       setActiveMatchesCount(snapshot.unified.activeMatchesCount);
       setTotalMatchesCount(snapshot.unified.totalMatchesCount);
+      setHubState(snapshot.unified.hubState);
     }
 
     if (snapshot.systemState) {
@@ -217,6 +220,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       setInMatchPlayersCount(data.counts.inBattle);
       setActiveMatchesCount(data.activeMatchesCount);
       setTotalMatchesCount(data.totalMatchesCount);
+      setHubState(data.hubState);
     });
 
     return () => {
@@ -446,7 +450,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                 REAL-TIME HERO PRESENCE ROSTER
               </Heading>
               <Text type="supporting" size="xsm">
-                Verified across Realm Gateway &amp; SignalR Support Hub
+                Verified across Realm Gateway &amp; SignalR Lobby Hub
               </Text>
             </VStack>
           </HStack>
@@ -905,9 +909,26 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                   </HStack>
                   <HStack justify="between" vAlign="center">
                     <Text type="code" size="xsm" color="secondary">
-                      SignalR WebSocket
+                      SignalR LobbyHub
                     </Text>
-                    <Badge label="Connected" variant="success" />
+                    <Badge
+                      label={
+                        hubState === 'connected'
+                          ? 'Connected'
+                          : hubState === 'reconnecting'
+                            ? 'Reconnecting'
+                            : hubState === 'connecting'
+                              ? 'Connecting'
+                              : 'Polling Sync'
+                      }
+                      variant={
+                        hubState === 'connected'
+                          ? 'success'
+                          : hubState === 'reconnecting' || hubState === 'connecting'
+                            ? 'warning'
+                            : 'info'
+                      }
+                    />
                   </HStack>
                 </VStack>
               </Card>
