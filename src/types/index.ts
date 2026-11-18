@@ -44,38 +44,57 @@ export interface PlayerProfile {
   activeMatch?: { matchId: string; mode?: string; serverIp?: string; serverPort?: number };
 }
 
+export type GachaPullType = 'Single' | 'Five' | 'Ten';
+export type GachaRewardType = 'Unit' | 'Weapon' | 'Trinket' | 'Gems';
+
 export interface GachaPullOption {
-  pullType: number;
+  pullType: GachaPullType;
   price: number;
 }
 
+export interface GachaRewardDto {
+  type: GachaRewardType;
+  definitionId: number;
+  classId: number;
+  amount: number;
+}
+
 export interface GachaBannerItem {
-  reward?: {
-    definitionId?: string;
-    rewardType?: string | number;
-    name?: string;
-  };
-  isFeatured?: boolean;
-  dropRate?: number;
-  weight?: number;
-  rarity?: string;
+  reward: GachaRewardDto;
+  weight: number;
+  isFeatured: boolean;
+  rewardTier: 1 | 2 | 3;
 }
 
 export interface GachaBanner {
   id: string;
   title: string;
   description: string;
-  bannerImageUrl: string;
-  startTime: string;
-  endTime: string;
+  bannerImageUrl?: string;
+  startTime: string | null;
+  endTime: string | null;
+  isPermanent: boolean;
   costPerPull: number;
-  pullOptions?: GachaPullOption[];
-  pityThreshold?: number;
-  currencyType: string;
-  featuredUnitIds: string[];
-  featuredWeaponIds: string[];
-  items?: GachaBannerItem[];
-  isActive?: boolean;
+  pullOptions: GachaPullOption[];
+  pityThreshold: number | null;
+  currencyType: 'Gems';
+  featuredUnitIds: number[];
+  featuredWeaponIds: number[];
+  items: GachaBannerItem[];
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface GachaBannerStats {
+  bannerId: string;
+  bannerName: string;
+  totalPullTransactions: number;
+  totalDraws: number;
+  totalGemsSpent: number;
+  uniquePlayers: number;
+  duplicateDraws: number;
+  compensationGemsAwarded: number;
+  drawsByTier: Record<string, number>;
 }
 
 export interface ChapterConfig {
