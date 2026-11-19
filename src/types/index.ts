@@ -97,95 +97,84 @@ export interface GachaBannerStats {
   drawsByTier: Record<string, number>;
 }
 
+export type SceneType = 'Cutscene' | 'Dialogue' | 'Battle';
+
 export interface ChapterConfig {
   id?: string;
   chapterId: number;
-  title?: string;
-  chapterName?: string;
-  mapId?: string;
-  scenes?: SceneConfig[];
+  title: string;
+  mapId: string;
+  scenes: SceneConfig[];
 }
 
 export interface SceneConfig {
   sceneId: number;
-  sceneName?: string;
-  description?: string;
-  staminaCost?: number;
-  recommendedLevel?: number;
-  type?: string;
-  autoNext?: boolean;
-  autoResume?: boolean;
-  autoAdvance?: boolean;
-  mapId?: string;
+  type: SceneType | string;
+  autoResume: boolean;
+  autoAdvance: boolean;
+  description: string;
+  mapId: string;
+}
+
+export interface UnitGradeStats {
+  grade: number;
+  maxHP: number;
+  speed: number;
+  maxSkillPoint: number;
+  damageMultiplier: number;
+  damageReduction: number;
+}
+
+export interface EquipmentStatModifiers {
+  maxHP: number;
+  speed: number;
+  maxSkillPoint: number;
+  damageMultiplier: number;
+  damageReduction: number;
 }
 
 export interface UnitDefinition {
   id?: string;
-  uId?: number;
-  unitName?: string;
+  uId: number;
+  unitName: string;
   name?: string;
-  rarity?: string;
-  classId?: string | number;
-  classIds?: number[];
-  passiveSkillId?: number;
-  givenAtRegister?: boolean;
-  statsByGrade?: any[];
-  baseHp?: number;
-  baseAtk?: number;
-  baseDef?: number;
-  baseSpeed?: number;
-  avatarUrl?: string;
+  passiveSkillId: number;
+  classIds: number[];
+  givenAtRegister: boolean;
+  statsByGrade: UnitGradeStats[];
 }
 
 export interface WeaponDefinition {
   id?: string;
-  weaponId?: number;
-  name?: string;
-  weaponType?: string;
-  baseAtk?: number;
-  rarity?: string;
-  classId?: number;
-  skillId?: number;
-  givenAtRegister?: boolean;
-  statModifiers?: {
-    maxHP?: number;
-    maxSkillPoint?: number;
-    speed?: number;
-  };
+  weaponId: number;
+  name: string;
+  classId: number;
+  skillId: number;
+  statModifiers: EquipmentStatModifiers;
+  givenAtRegister: boolean;
 }
 
 export interface TrinketDefinition {
   id?: string;
-  trinketId?: number;
-  name?: string;
-  skillId?: number;
-  baseHp?: number;
-  baseDef?: number;
-  rarity?: string;
-  givenAtRegister?: boolean;
-  statModifiers?: {
-    maxHP?: number;
-    maxSkillPoint?: number;
-    speed?: number;
-  };
+  trinketId: number;
+  name: string;
+  skillId: number;
+  statModifiers: EquipmentStatModifiers;
+  givenAtRegister: boolean;
 }
 
 export interface ClassDefinition {
   id?: string;
-  classId?: number | string;
+  classId: number;
+  name: string;
   className?: string;
-  name?: string;
-  description?: string;
-  movementSkillId?: number;
-  classSkillId?: number;
+  movementSkillId: number;
+  classSkillId: number;
 }
 
 export interface SkillDefinition {
   id?: string;
-  skillId?: number | string;
-  skillName?: string;
-  description?: string;
-  spCost?: number;
+  skillId: number;
 }
 
 export interface TopUpPackDto {
