@@ -57,6 +57,10 @@ import {
   getPresenceDisplayLabel,
   getPresenceStatusDotVariant,
 } from '../utils/presenceAstryx';
+import {
+  isAiOrVirtualPlayerId,
+  isAiOrVirtualUsername,
+} from '../utils/presence';
 
 interface DashboardOverviewProps {
   role?: CounselRole;
@@ -316,21 +320,27 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
     }
   };
 
+  const validTrackedPlayers = useMemo(() => {
+    return trackedPlayers.filter(
+      (p) => !isAiOrVirtualPlayerId(p.playerId) && !isAiOrVirtualUsername(p.username)
+    );
+  }, [trackedPlayers]);
+
   const presenceCounts = useMemo(() => {
     let online = 0;
     let battle = 0;
     let offline = 0;
-    for (const p of trackedPlayers) {
+    for (const p of validTrackedPlayers) {
       if (p.presence.state === 'Online') online += 1;
       else if (p.presence.state === 'InBattle') battle += 1;
       else offline += 1;
     }
     return { online, battle, offline };
-  }, [trackedPlayers]);
+  }, [validTrackedPlayers]);
 
   const filteredPlayers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return trackedPlayers.filter((p) => {
+    return validTrackedPlayers.filter((p) => {
       if (presenceFilter === 'ONLINE' && p.presence.state !== 'Online') return false;
       if (presenceFilter === 'BATTLE' && p.presence.state !== 'InBattle') return false;
       if (presenceFilter === 'OFFLINE' && p.presence.state !== 'Offline') return false;
@@ -339,7 +349,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       }
       return true;
     });
-  }, [trackedPlayers, presenceFilter, searchQuery]);
+  }, [validTrackedPlayers, presenceFilter, searchQuery]);
 
   const presenceColumns: TableColumn<PresenceTableRow>[] = [
     {
@@ -473,7 +483,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               onChange={(val) => setPresenceFilter(val as PresenceFilter)}
               size="sm"
             >
-              <SegmentedControlItem value="ALL" label={`All (${trackedPlayers.length})`} />
+              <SegmentedControlItem value="ALL" label={`All (${validTrackedPlayers.length})`} />
               <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
               <SegmentedControlItem
                 value="BATTLE"
@@ -487,7 +497,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           </HStack>
         </HStack>
 
-        {trackedPlayers.length === 0 ? (
+        {validTrackedPlayers.length === 0 ? (
           <EmptyState
             icon={<Icon icon={Users} size="lg" color="accent" />}
             title="No active player sessions currently detected"
@@ -527,7 +537,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
 
         <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
           <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-            Showing {filteredPlayers.length} of {trackedPlayers.length} Heroes across Realm
+            Showing {filteredPlayers.length} of {validTrackedPlayers.length} Heroes across Realm
           </Text>
           <Link href="/players">
             <HStack gap={1} vAlign="center">
@@ -801,7 +811,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             value="roster"
             label="Live Hero Roster"
             icon={<Icon icon={Users} />}
-            endContent={<Badge label={trackedPlayers.length} variant="neutral" />}
+            endContent={<Badge label={validTrackedPlayers.length} variant="neutral" />}
           />
           <Tab
             value="controls"
@@ -941,7 +951,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                         IN-MATCH PLAYERS
                       </Text>
                       <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                        {inMatchPlayersCount} Combatants
+                        {inMatchPlayersCount} {inMatchPlayersCount === 1 ? 'Hero' : 'Heroes'}
                       </Text>
                     </VStack>
                     <Icon icon={Swords} size="lg" color="info" />

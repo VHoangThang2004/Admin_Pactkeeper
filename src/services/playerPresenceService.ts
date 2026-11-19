@@ -3,6 +3,8 @@ import type { PlayerProfile } from '../types';
 import {
   getPlayerPresence,
   isActiveMatchStatus,
+  isAiOrVirtualPlayerId,
+  isAiOrVirtualUsername,
   type ActiveMatchInfo,
   type PlayerPresenceInfo,
 } from '../utils/presence';
@@ -77,6 +79,8 @@ function normalizePresencePayload(raw: unknown): {
   const obj = raw as Record<string, unknown>;
   const rawId = obj.playerId ?? obj.PlayerId;
   if (typeof rawId !== 'string' || !rawId.trim()) return null;
+  const trimmedId = rawId.trim();
+  if (isAiOrVirtualPlayerId(trimmedId)) return null;
   const rawOnline = obj.isOnline ?? obj.IsOnline;
   const rawStatus = obj.status ?? obj.Status;
   const isOnline = typeof rawOnline === 'boolean' ? rawOnline : rawStatus !== 'offline';
@@ -87,7 +91,7 @@ function normalizePresencePayload(raw: unknown): {
         ? 'idle'
         : 'offline';
 
-  return { playerId: rawId.trim(), isOnline, status };
+  return { playerId: trimmedId, isOnline, status };
 }
 
 function extractOnlineSnapshotMap(raw: unknown): Map<string, string> | null {
@@ -102,7 +106,7 @@ function extractOnlineSnapshotMap(raw: unknown): Map<string, string> | null {
 
   const map = new Map<string, string>();
   for (const [pid, val] of Object.entries(candidate)) {
-    if (!pid || pid === 'count' || pid === 'Count') continue;
+    if (!pid || pid === 'count' || pid === 'Count' || isAiOrVirtualPlayerId(pid)) continue;
     if (typeof val === 'string' && val.trim()) {
       map.set(pid, val.trim().toLowerCase());
     } else if (val === true) {
@@ -124,6 +128,9 @@ function buildUnifiedSnapshot(
   const trackedList: TrackedPlayerPresence[] = [];
 
   for (const p of basePlayers) {
+    if (isAiOrVirtualPlayerId(p.playerId) || isAiOrVirtualUsername(p.username)) {
+      continue;
+    }
     const isCurrentSessionUser = Boolean(localPlayerId && p.playerId === localPlayerId);
     const realtimeEntry = realtimePresenceMap.get(p.playerId);
 
@@ -224,14 +231,16 @@ function recomputeCachedData(onlineSnapshotMap: Map<string, string> | null = nul
   if (!cachedData) return;
 
   // Preserve base profile metadata, dropping cached derived fields unless explicit snapshot replaces them
-  const basePlayers = cachedData.players.map((p) => ({
-    ...p,
-    isOnline: onlineSnapshotMap !== null ? onlineSnapshotMap.has(p.playerId) : p.isOnline,
-    presenceStatus:
-      onlineSnapshotMap !== null
-        ? onlineSnapshotMap.get(p.playerId) || 'offline'
-        : p.presenceStatus,
-  }));
+  const basePlayers = cachedData.players
+    .filter((p) => !isAiOrVirtualPlayerId(p.playerId) && !isAiOrVirtualUsername(p.username))
+    .map((p) => ({
+      ...p,
+      isOnline: onlineSnapshotMap !== null ? onlineSnapshotMap.has(p.playerId) : p.isOnline,
+      presenceStatus:
+        onlineSnapshotMap !== null
+          ? onlineSnapshotMap.get(p.playerId) || 'offline'
+          : p.presenceStatus,
+    }));
 
   cachedData = buildUnifiedSnapshot(
     basePlayers,
@@ -280,8 +289,12 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
             serverPort: m.serverPort,
             status: m.status,
           };
-          if (m.player1Id) activeMatchPlayerMap.set(m.player1Id, info);
-          if (m.player2Id) activeMatchPlayerMap.set(m.player2Id, info);
+          if (m.player1Id && !isAiOrVirtualPlayerId(m.player1Id)) {
+            activeMatchPlayerMap.set(m.player1Id, info);
+          }
+          if (m.player2Id && !isAiOrVirtualPlayerId(m.player2Id)) {
+            activeMatchPlayerMap.set(m.player2Id, info);
+          }
         }
       });
     }
@@ -326,7 +339,7 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
     // 5. Seed with ground-truth players from /player/all
     if (allPlayersRes.status === 'fulfilled' && Array.isArray(allPlayersRes.value.data)) {
       allPlayersRes.value.data.forEach((p: any) => {
-        if (!p.playerId) return;
+        if (!p.playerId || isAiOrVirtualPlayerId(p.playerId) || isAiOrVirtualUsername(p.username)) return;
         const sInfo = supportMap.get(p.playerId);
         const pTime = paymentMap.get(p.playerId);
 
@@ -378,6 +391,7 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
 
     // 6. Include any players from support chat not yet in /player/all
     supportMap.forEach((sInfo, pid) => {
+      if (isAiOrVirtualPlayerId(pid) || isAiOrVirtualUsername(sInfo.playerName)) return;
       if (!foundMap.has(pid)) {
         foundMap.set(pid, {
           id: pid,
@@ -397,13 +411,14 @@ export async function fetchUnifiedPlayerData(): Promise<UnifiedPlayerData> {
       }
     });
 
-    // 7. Include any active match combatants not yet recorded
+    // 7. Include any genuine match participants not yet recorded in /player/all (human players only, never AI/virtual entities)
     activeMatchPlayerMap.forEach((_match, pid) => {
+      if (isAiOrVirtualPlayerId(pid)) return;
       if (!foundMap.has(pid)) {
         foundMap.set(pid, {
           id: pid,
           playerId: pid,
-          username: `Combatant #${pid.slice(-4).toUpperCase()}`,
+          username: `Traveler #${pid.slice(-4).toUpperCase()}`,
           level: 1,
           experience: 0,
           gold: 0,

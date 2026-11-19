@@ -48,7 +48,11 @@ import {
   subscribeToUnifiedPresence,
 } from '../services/playerPresenceService';
 import type { CounselRole, PlayerProfile } from '../types';
-import { getPlayerPresence } from '../utils/presence';
+import {
+  getPlayerPresence,
+  isAiOrVirtualPlayerId,
+  isAiOrVirtualUsername,
+} from '../utils/presence';
 import {
   getPresenceBadgeVariant,
   getPresenceDisplayLabel,
@@ -330,23 +334,29 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     }
   };
 
+  const validPlayers = useMemo(() => {
+    return players.filter(
+      (p) => !isAiOrVirtualPlayerId(p.playerId) && !isAiOrVirtualUsername(p.username)
+    );
+  }, [players]);
+
   const presenceCounts = useMemo(() => {
     let online = 0;
     let battle = 0;
     let offline = 0;
     let banned = 0;
-    for (const p of players) {
+    for (const p of validPlayers) {
       if (p.isBanned) banned += 1;
       if (p.presence === 'Online') online += 1;
       else if (p.presence === 'InBattle') battle += 1;
       else offline += 1;
     }
     return { online, battle, offline, banned };
-  }, [players]);
+  }, [validPlayers]);
 
   const sortedPlayers = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    const filtered = players.filter((p) => {
+    const filtered = validPlayers.filter((p) => {
       const matchesSearch =
         !q || p.username.toLowerCase().includes(q) || p.playerId.toLowerCase().includes(q);
       if (!matchesSearch) return false;
@@ -641,7 +651,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
             {role === 'Moderator' ? 'User Directory' : 'Accounts Management'}
           </Text>
           <Badge
-            label={`${players.length} Accounts • ${presenceCounts.online + presenceCounts.battle} Active`}
+            label={`${validPlayers.length} Accounts • ${presenceCounts.online + presenceCounts.battle} Active`}
             variant="info"
           />
           {presenceCounts.banned > 0 && (
@@ -744,7 +754,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
               }}
               size="sm"
             >
-              <SegmentedControlItem value="ALL" label={`All (${players.length})`} />
+              <SegmentedControlItem value="ALL" label={`All (${validPlayers.length})`} />
               <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
               <SegmentedControlItem value="BATTLE" label={`In Battle (${presenceCounts.battle})`} />
               <SegmentedControlItem value="OFFLINE" label={`Offline (${presenceCounts.offline})`} />
