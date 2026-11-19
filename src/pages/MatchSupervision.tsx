@@ -42,6 +42,7 @@ import { LogTerminalView } from '../components/LogTerminalView';
 import { MatchLogInspector } from '../components/MatchLogInspector';
 import type { LogFileInfo, MatchHistoryItem, MatchLogLevel, MatchLogResponse } from '../types';
 import { downloadLogText, filterMatchLogLines, formatLogDateTime } from '../utils/logFormat';
+import { isAiOrVirtualPlayerId } from '../utils/presence';
 
 type MatchStatusFilter = 'ALL' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
 type MatchModeFilter = 'ALL' | 'PVP' | 'RANKED' | 'FRIENDLY';
@@ -114,7 +115,7 @@ export const MatchSupervision: React.FC = () => {
     if (playerRes.status === 'fulfilled' && Array.isArray(playerRes.value.data)) {
       pMap = new Map<string, string>();
       playerRes.value.data.forEach((p: any) => {
-        if (p.playerId) {
+        if (p.playerId && !isAiOrVirtualPlayerId(p.playerId)) {
           const name =
             (p.username || '').trim() || `Traveler #${p.playerId.slice(-4).toUpperCase()}`;
           pMap!.set(p.playerId, name);
@@ -374,12 +375,14 @@ export const MatchSupervision: React.FC = () => {
       header: 'Combatants (P1 vs P2)',
       width: proportional(2),
       renderCell: (m) => {
-        const p1Name =
-          playerNamesMap.get(m.player1Id || '') ||
-          (m.player1Id ? `Traveler #${m.player1Id.slice(-4).toUpperCase()}` : 'Player 1');
-        const p2Name =
-          playerNamesMap.get(m.player2Id || '') ||
-          (m.player2Id ? `Traveler #${m.player2Id.slice(-4).toUpperCase()}` : 'Player 2');
+        const p1Name = isAiOrVirtualPlayerId(m.player1Id)
+          ? 'AI Opponent'
+          : playerNamesMap.get(m.player1Id || '') ||
+            (m.player1Id ? `Traveler #${m.player1Id.slice(-4).toUpperCase()}` : 'Player 1');
+        const p2Name = isAiOrVirtualPlayerId(m.player2Id)
+          ? 'AI Opponent'
+          : playerNamesMap.get(m.player2Id || '') ||
+            (m.player2Id ? `Traveler #${m.player2Id.slice(-4).toUpperCase()}` : 'Player 2');
         return (
           <VStack gap={0.5}>
             <HStack gap={2} vAlign="center" wrap="wrap">
@@ -392,7 +395,7 @@ export const MatchSupervision: React.FC = () => {
               </Text>
             </HStack>
             <Text type="code" size="2xs" color="secondary" maxLines={1}>
-              P1: {m.player1Id?.slice(0, 10)}... • P2: {m.player2Id?.slice(0, 10)}...
+              P1: {isAiOrVirtualPlayerId(m.player1Id) ? 'AI' : `${m.player1Id?.slice(0, 10)}...`} • P2: {isAiOrVirtualPlayerId(m.player2Id) ? 'AI' : `${m.player2Id?.slice(0, 10)}...`}
             </Text>
           </VStack>
         );
@@ -734,9 +737,11 @@ export const MatchSupervision: React.FC = () => {
                     </Text>
                   </HStack>
                   <Text type="code" size="xsm">
-                    {playerNamesMap.get(inspectingMatch.player2Id || '') ||
-                      inspectingMatch.player2Id ||
-                      'N/A'}
+                    {isAiOrVirtualPlayerId(inspectingMatch.player2Id)
+                      ? 'AI Opponent (PvE / Story)'
+                      : playerNamesMap.get(inspectingMatch.player2Id || '') ||
+                        inspectingMatch.player2Id ||
+                        'N/A'}
                   </Text>
                 </HStack>
               </VStack>
@@ -791,7 +796,7 @@ export const MatchSupervision: React.FC = () => {
           title={`Match #${inspectingLogMatch?.matchId ?? ''}`}
           subtitle={
             inspectingLogMatch
-              ? `Combatants: ${playerNamesMap.get(inspectingLogMatch.player1Id || '') || inspectingLogMatch.player1Id || 'P1'} vs ${playerNamesMap.get(inspectingLogMatch.player2Id || '') || inspectingLogMatch.player2Id || 'P2'} • Server: ${inspectingLogMatch.serverIp || 'VPS'}:${inspectingLogMatch.serverPort || '7777'}`
+              ? `Combatants: ${isAiOrVirtualPlayerId(inspectingLogMatch.player1Id) ? 'AI Opponent' : (playerNamesMap.get(inspectingLogMatch.player1Id || '') || inspectingLogMatch.player1Id || 'P1')} vs ${isAiOrVirtualPlayerId(inspectingLogMatch.player2Id) ? 'AI Opponent' : (playerNamesMap.get(inspectingLogMatch.player2Id || '') || inspectingLogMatch.player2Id || 'P2')} • Server: ${inspectingLogMatch.serverIp || 'VPS'}:${inspectingLogMatch.serverPort || '7777'}`
               : undefined
           }
           startContent={<Icon icon={Terminal} size="md" color="accent" />}

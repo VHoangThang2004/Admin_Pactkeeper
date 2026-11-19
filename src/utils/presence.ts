@@ -59,6 +59,72 @@ export function isActiveMatchStatus(status?: string | number | null): boolean {
 }
 
 /**
+ * Checks whether a given identifier represents an AI, bot, NPC, or virtual non-human combatant.
+ * Used to ensure mock/virtual combatants are never registered as real players or shown in presence rosters.
+ */
+export function isAiOrVirtualPlayerId(playerId?: string | null): boolean {
+  if (!playerId) return true;
+  const normalized = playerId.trim().toLowerCase();
+  if (!normalized) return true;
+
+  if (
+    [
+      'ai',
+      'bot',
+      'npc',
+      'cpu',
+      'system',
+      'server',
+      'none',
+      'null',
+      'undefined',
+    ].includes(normalized)
+  ) {
+    return true;
+  }
+
+  if (
+    normalized.startsWith('ai_') ||
+    normalized.startsWith('ai-') ||
+    normalized.startsWith('ai#') ||
+    normalized.startsWith('bot_') ||
+    normalized.startsWith('bot-') ||
+    normalized.startsWith('bot#') ||
+    normalized.startsWith('npc_') ||
+    normalized.startsWith('npc-') ||
+    normalized.startsWith('cpu_') ||
+    normalized.startsWith('cpu-') ||
+    normalized.startsWith('combatant')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether a given username represents an AI or virtual combatant placeholder.
+ */
+export function isAiOrVirtualUsername(username?: string | null): boolean {
+  if (!username) return false;
+  const normalized = username.trim().toLowerCase();
+  if (
+    normalized === 'ai' ||
+    normalized === 'bot' ||
+    normalized === 'npc' ||
+    normalized === 'cpu' ||
+    normalized.includes('combatant #ai') ||
+    normalized.includes('combatant ai') ||
+    normalized.includes('combatant#ai') ||
+    normalized.startsWith('combatant #') ||
+    normalized.startsWith('combatant ')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Calculates a clean, human-readable relative time string in English.
  */
 export function formatRelativeTime(timestamp?: string | Date | null): string {
@@ -114,6 +180,20 @@ export function getPlayerPresence(
   lastActivityTimestamp?: string | Date | null,
   optionsOrSessionUser?: boolean | PresenceEvaluationOptions
 ): PlayerPresenceInfo {
+  // Never classify AI or virtual placeholders as InBattle or Online
+  if (isAiOrVirtualPlayerId(playerId)) {
+    return {
+      state: 'Offline',
+      label: 'OFFLINE',
+      dotColor: 'bg-[#78644e]',
+      badgeBg: 'bg-[#2b1b11]/30',
+      badgeBorder: 'border-[#523e2b]/50',
+      badgeText: 'text-[#a89984]',
+      relativeTime: 'Offline',
+      activityDescription: 'Inactive',
+    };
+  }
+
   const options: PresenceEvaluationOptions =
     typeof optionsOrSessionUser === 'boolean'
       ? { isCurrentSessionUser: optionsOrSessionUser }
