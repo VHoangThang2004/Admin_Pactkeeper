@@ -21,6 +21,74 @@ export interface ServerState {
 
 export type PlayerPresenceState = 'Online' | 'InBattle' | 'Offline';
 
+export interface OwnedUnitRecord {
+  ownedUnitId: string;
+  unitDefinitionUId: number;
+  grade: number;
+  unlockedClassIds: number[];
+  equippedMovementSkillId: number;
+  equippedOwnedWeaponId: string;
+  equippedOwnedTrinketId: string;
+  equippedClassSkillId: number;
+}
+
+export interface OwnedWeaponRecord {
+  ownedWeaponId: string;
+  weaponDefinitionId: number;
+}
+
+export interface OwnedTrinketRecord {
+  ownedTrinketId: string;
+  trinketDefinitionId: number;
+}
+
+export interface GachaPityStateRecord {
+  pullsSinceRare: number;
+  guaranteedFeatured: boolean;
+}
+
+export interface StoryProgressRecord {
+  chapterId: number;
+  sceneId: number;
+  isCompleted: boolean;
+  isChapterCompleted: boolean;
+  startedAt?: string;
+  updatedAt?: string;
+  completedAt?: string | null;
+}
+
+export interface RewardProgressRecord {
+  id: string;
+  ruleId: string;
+  ruleTitle?: string;
+  currentCount: number;
+  targetCount?: number;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  isReceived: boolean;
+  receivedAt?: string | null;
+}
+
+export interface PlayerAdminDetails extends PlayerProfile {
+  rating?: number;
+  rankTier?: number;
+  rankWins?: number;
+  rankLosses?: number;
+  banDuration?: string | null;
+  ownedUnitsCount?: number;
+  ownedWeaponsCount?: number;
+  ownedTrinketsCount?: number;
+  ownedUnits?: OwnedUnitRecord[];
+  ownedWeapons?: OwnedWeaponRecord[];
+  ownedTrinkets?: OwnedTrinketRecord[];
+  gachaPityByBanner?: Record<string, GachaPityStateRecord>;
+  storyProgress?: StoryProgressRecord[];
+  currentStoryChapterId?: number;
+  currentStorySceneId?: number;
+  teamLoadoutUIds?: number[];
+  rewardProgress?: RewardProgressRecord[];
+}
+
 export interface PlayerProfile {
   id?: string;
   playerId: string;
@@ -183,6 +251,9 @@ export interface TopUpPackDto {
   priceVnd: number;
   gemsAmount: number;
   isAvailable: boolean;
+  unitDefinitionIds?: number[];
+  weaponDefinitionIds?: number[];
+  trinketDefinitionIds?: number[];
   unitNames?: string[];
   weaponNames?: string[];
   trinketNames?: string[];
