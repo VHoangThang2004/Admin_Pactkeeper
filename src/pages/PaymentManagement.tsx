@@ -57,7 +57,8 @@ import { GemArt } from '../components/GemArt';
 import { WEB_TOPUP_URL } from '../constants/links';
 import { useThemeMode } from '../hooks/useThemeMode';
 import { recordAuditEvent } from '../services/adminSecurityService';
-import type { PurchaseOrder, TopUpPackDto } from '../types';
+import type { AdminPermissionKey, CounselRole, PurchaseOrder, TopUpPackDto } from '../types';
+import { hasPermission } from '../utils/permissions';
 
 type PackCategoryFilter = 'all' | 'gems' | 'bundles';
 type OrderStatusFilter = 'ALL' | 'PAID' | 'PENDING' | 'CANCELLED';
@@ -278,7 +279,16 @@ const RevenueTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }
  */
 type TreasuryTab = 'overview' | 'ledger' | 'catalog';
 
-export const PaymentManagement: React.FC = () => {
+interface PaymentManagementProps {
+  role?: CounselRole;
+  permissions?: AdminPermissionKey[];
+}
+
+export const PaymentManagement: React.FC<PaymentManagementProps> = ({
+  role = 'Admin',
+  permissions,
+}) => {
+  const canManagePacks = hasPermission(role, 'payments.manage', permissions);
   const navigate = useNavigate();
   const { mode } = useThemeMode();
   const isDark = mode === 'dark';
@@ -385,7 +395,7 @@ export const PaymentManagement: React.FC = () => {
   };
 
   const togglePackAvailability = async (pack: TopUpPackDto) => {
-    if (togglingPackId) return;
+    if (togglingPackId || !canManagePacks) return;
     const nextState = !pack.isAvailable;
     setTogglingPackId(pack.id);
     try {
@@ -1338,7 +1348,7 @@ export const PaymentManagement: React.FC = () => {
                               variant={pack.isAvailable ? 'destructive' : 'secondary'}
                               size="sm"
                               icon={<Power size={13} />}
-                              isDisabled={togglingPackId !== null}
+                              isDisabled={togglingPackId !== null || !canManagePacks}
                               isLoading={isToggling}
                               onClick={() => void togglePackAvailability(pack)}
                             />

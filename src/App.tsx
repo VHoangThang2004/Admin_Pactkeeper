@@ -18,7 +18,7 @@ import {
   isTokenExpired,
   setStoredPermissions,
 } from './utils/authSession';
-import { hasPermission } from './utils/permissions';
+import { getDefaultLandingPath, hasPermission } from './utils/permissions';
 import type { AdminPermissionKey, CounselRole } from './types';
 
 /**
@@ -29,10 +29,9 @@ import type { AdminPermissionKey, CounselRole } from './types';
  *    - Stores JWT Bearer token ('adminToken'), display name ('adminName'),
  *      and authenticated role ('adminRole') in sessionStorage (cleared upon tab close).
  * 2. Role-Based Access Control (RBAC) Route Guards:
- *    - Support (CSKH): Automatically redirected to Counsel Board (/support) on login;
- *      restricted from accessing financial, gacha, and definition modules.
- *    - Moderator: Automatically redirected to Heroes & Players (/players) on login;
- *      restricted from modifying server economy and SRPG definitions.
+ *    - Technical Support: Lands on System Monitor & Status (/) by default.
+ *    - Moderator: Lands on Player Management (/players) by default;
+ *      restricted from server/economy/content defaults unless granted by Admin.
  *    - Admin / Server: Full access to treasury overview and all configuration modules.
  * 3. Graceful Fallback: Any unauthorized or non-existent route safely navigates
  *    to the role's permitted landing page.
@@ -104,25 +103,12 @@ export const App: React.FC = () => {
   }, [token, adminName, role]);
 
   /**
-   * Resolves the primary landing path tailored to the user's privilege tier.
-   * Based on Context Diagram and Use Case Diagram:
+   * Resolves the primary landing path tailored to the user's privilege tier and active permissions.
+   * - Moderator: Lands on Player Management (/players)
    * - Technical Support: Lands on System Monitor & Status (/)
-   * - Moderator: Lands on Gacha Summon Banners (/gacha)
    * - Admin: Lands on Admin Dashboard (/)
    */
-  const getDefaultPath = (): string => {
-    switch (role) {
-      case 'Technical Support':
-      case 'Support':
-        return '/';
-      case 'Moderator':
-        return '/matches';
-      case 'Server':
-      case 'Admin':
-      default:
-        return '/';
-    }
-  };
+  const defaultLandingPath = getDefaultLandingPath(role, permissions);
 
   const canAccess = (perm: AdminPermissionKey) => hasPermission(role, perm, permissions);
   const canSecurity =
@@ -133,7 +119,7 @@ export const App: React.FC = () => {
       <Routes>
         <Route
           path="/login"
-          element={!token ? <Login onLoginSuccess={handleLoginSuccess} /> : <Navigate to={getDefaultPath()} replace />}
+          element={!token ? <Login onLoginSuccess={handleLoginSuccess} /> : <Navigate to={defaultLandingPath} replace />}
         />
         <Route
           element={
@@ -147,43 +133,67 @@ export const App: React.FC = () => {
           {/* Dashboard / System Status: Admin & Technical Support */}
           <Route
             path="/"
-            element={canAccess('dashboard.view') ? <DashboardOverview role={role} /> : <Navigate to="/matches" replace />}
+            element={
+              canAccess('dashboard.view') ? (
+                <DashboardOverview role={role} permissions={permissions} />
+              ) : (
+                <Navigate to={defaultLandingPath} replace />
+              )
+            }
           />
 
-          {/* User Accounts & Directory: Admin & Moderator */}
+          {/* User Accounts & Directory: Admin & Moderator (or custom-granted roles) */}
           <Route
             path="/players"
-            element={canAccess('players.view') ? <PlayerManagement role={role} /> : <Navigate to={getDefaultPath()} replace />}
+            element={
+              canAccess('players.view') ? (
+                <PlayerManagement role={role} permissions={permissions} />
+              ) : (
+                <Navigate to={defaultLandingPath} replace />
+              )
+            }
           />
 
-          {/* Match Supervision & Combat Action Logs: Admin, Moderator & Technical Support (Screen 33 & 34) */}
+          {/* Match Supervision & Combat Action Logs: Admin, Moderator (view) & Technical Support */}
           <Route
             path="/matches"
-            element={canAccess('matches.view') ? <MatchSupervision /> : <Navigate to={getDefaultPath()} replace />}
+            element={
+              canAccess('matches.view') ? (
+                <MatchSupervision role={role} permissions={permissions} />
+              ) : (
+                <Navigate to={defaultLandingPath} replace />
+              )
+            }
           />
 
-          {/* Logs, Alerts & Support: Technical Support & Admin */}
+          {/* Logs, Alerts & Support: Technical Support & Admin (or custom-granted roles) */}
           <Route
             path="/support"
-            element={canAccess('support.chat') ? <LiveSupport /> : <Navigate to={getDefaultPath()} replace />}
+            element={canAccess('support.chat') ? <LiveSupport /> : <Navigate to={defaultLandingPath} replace />}
           />
 
-          {/* Gacha / Story Config: Moderator & Admin */}
+          {/* Gacha / Story Config: Admin (or custom-granted roles) */}
           <Route
             path="/gacha"
-            element={canAccess('gacha.manage') ? <GachaManagement /> : <Navigate to={getDefaultPath()} replace />}
+            element={canAccess('gacha.manage') ? <GachaManagement /> : <Navigate to={defaultLandingPath} replace />}
           />
 
-          {/* Item & Combat Reward Config (SRPG Definitions): Moderator & Admin */}
+          {/* Item & Combat Reward Config (SRPG Definitions): Admin (or custom-granted roles) */}
           <Route
             path="/content"
-            element={canAccess('content.manage') ? <ContentManagement /> : <Navigate to={getDefaultPath()} replace />}
+            element={canAccess('content.manage') ? <ContentManagement /> : <Navigate to={defaultLandingPath} replace />}
           />
 
-          {/* PayOS Financial Ledger: Admin Only */}
+          {/* PayOS Financial Ledger: Admin Only (or custom-granted roles) */}
           <Route
             path="/payments"
-            element={canAccess('payments.view') ? <PaymentManagement /> : <Navigate to={getDefaultPath()} replace />}
+            element={
+              canAccess('payments.view') ? (
+                <PaymentManagement role={role} permissions={permissions} />
+              ) : (
+                <Navigate to={defaultLandingPath} replace />
+              )
+            }
           />
 
           {/* Admin Accounts, Roles & Security Audit Center: Admin / Security Roles */}
@@ -193,12 +203,12 @@ export const App: React.FC = () => {
               canSecurity ? (
                 <SecurityGovernance currentUsername={adminName} currentRole={role} />
               ) : (
-                <Navigate to={getDefaultPath()} replace />
+                <Navigate to={defaultLandingPath} replace />
               )
             }
           />
         </Route>
-        <Route path="*" element={<Navigate to={getDefaultPath()} replace />} />
+        <Route path="*" element={<Navigate to={defaultLandingPath} replace />} />
       </Routes>
     </BrowserRouter>
   );

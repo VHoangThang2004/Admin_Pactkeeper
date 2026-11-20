@@ -47,7 +47,8 @@ import {
   fetchUnifiedPlayerData,
   subscribeToUnifiedPresence,
 } from '../services/playerPresenceService';
-import type { CounselRole, PlayerProfile } from '../types';
+import type { AdminPermissionKey, CounselRole, PlayerProfile } from '../types';
+import { hasPermission } from '../utils/permissions';
 import {
   getPlayerPresence,
   isAiOrVirtualPlayerId,
@@ -61,6 +62,7 @@ import {
 
 interface PlayerManagementProps {
   role?: CounselRole;
+  permissions?: AdminPermissionKey[];
 }
 
 type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE' | 'BANNED';
@@ -83,7 +85,10 @@ const SORT_OPTIONS: { value: PlayerSortOrder; label: string }[] = [
   { value: 'NAME_ASC', label: 'Sort: Name (A–Z)' },
 ];
 
-export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admin' }) => {
+export const PlayerManagement: React.FC<PlayerManagementProps> = ({
+  role = 'Admin',
+  permissions,
+}) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const querySearch = searchParams.get('search') || '';
@@ -392,7 +397,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           );
       }
     });
-  }, [players, searchTerm, presenceFilter, sortBy]);
+  }, [validPlayers, searchTerm, presenceFilter, sortBy]);
 
   const numericPageSize = pageSize === 'ALL' ? Math.max(sortedPlayers.length, 1) : Number(pageSize);
   const totalPages = Math.max(1, Math.ceil(sortedPlayers.length / numericPageSize));
@@ -445,8 +450,11 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     URL.revokeObjectURL(url);
   };
 
-  const isSupport = role === 'Technical Support' || role === 'Support';
-  const isAdmin = role === 'Admin' || role === 'Server';
+  const canAdjustTreasury = hasPermission(role, 'treasury.adjust', permissions);
+  const canBanPlayers = hasPermission(role, 'players.ban', permissions);
+  const canInspectLogs =
+    hasPermission(role, 'matches.logs', permissions) ||
+    hasPermission(role, 'matches.view', permissions);
 
   const columns: TableColumn<PlayerTableRow>[] = [
     {
@@ -537,7 +545,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
               variant={getPresenceBadgeVariant(player.presence || 'Offline')}
               icon={player.presence === 'InBattle' ? <Icon icon={Swords} /> : undefined}
             />
-            {player.presence === 'InBattle' && (
+            {player.presence === 'InBattle' && canInspectLogs && (
               <Button
                 href="/matches"
                 variant="ghost"
@@ -575,32 +583,30 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       header: 'Actions',
       width: pixel(180),
       align: 'end',
-      renderCell: (player) =>
-        isSupport ? (
-          <Badge label="Read-Only" variant="neutral" />
-        ) : (
-          <HStack gap={2} hAlign="end" vAlign="center">
+      renderCell: (player) => (
+        <HStack gap={2} hAlign="end" vAlign="center">
+          <IconButton
+            label={`Inspect profile for ${player.username}`}
+            tooltip="Quick Inspect"
+            variant="secondary"
+            size="sm"
+            icon={<Icon icon={Eye} />}
+            onClick={() => setInspectPlayer(player)}
+          />
+          {canAdjustTreasury && (
             <IconButton
-              label={`Inspect profile for ${player.username}`}
-              tooltip="Quick Inspect"
+              label={`Adjust currencies for ${player.username}`}
+              tooltip="Adjust Currencies"
               variant="secondary"
               size="sm"
-              icon={<Icon icon={Eye} />}
-              onClick={() => setInspectPlayer(player)}
+              icon={<Icon icon={Edit3} />}
+              onClick={() => {
+                setModalError(null);
+                setSelectedPlayer(player);
+              }}
             />
-            {isAdmin && (
-              <IconButton
-                label={`Adjust currencies for ${player.username}`}
-                tooltip="Adjust Currencies"
-                variant="secondary"
-                size="sm"
-                icon={<Icon icon={Edit3} />}
-                onClick={() => {
-                  setModalError(null);
-                  setSelectedPlayer(player);
-                }}
-              />
-            )}
+          )}
+          {canBanPlayers && (
             <Button
               variant={player.isBanned ? 'secondary' : 'destructive'}
               size="sm"
@@ -614,8 +620,9 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                 }
               }}
             />
-          </HStack>
-        ),
+          )}
+        </HStack>
+      ),
     },
   ];
 
@@ -1153,19 +1160,21 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                       {inspectPlayer.activeMatch.matchId}
                     </Text>
                   </VStack>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Icon icon={Terminal} />}
-                    label="Inspect Match Log"
-                    onClick={() => {
-                      const targetId = inspectPlayer.activeMatch?.matchId;
-                      setInspectPlayer(null);
-                      if (targetId) {
-                        navigate(`/matches?matchId=${encodeURIComponent(targetId)}`);
-                      }
-                    }}
-                  />
+                  {canInspectLogs && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Icon icon={Terminal} />}
+                      label="Inspect Match Log"
+                      onClick={() => {
+                        const targetId = inspectPlayer.activeMatch?.matchId;
+                        setInspectPlayer(null);
+                        if (targetId) {
+                          navigate(`/matches?matchId=${encodeURIComponent(targetId)}`);
+                        }
+                      }}
+                    />
+                  )}
                 </HStack>
               </Card>
             )}
@@ -1174,7 +1183,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
 
             <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
               <HStack gap={2}>
-                {isAdmin && (
+                {canAdjustTreasury && (
                   <Button
                     variant="secondary"
                     size="sm"
@@ -1188,19 +1197,21 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                     }}
                   />
                 )}
-                <Button
-                  variant={inspectPlayer.isBanned ? 'secondary' : 'destructive'}
-                  size="sm"
-                  icon={<Icon icon={inspectPlayer.isBanned ? UserCheck : UserX} />}
-                  label={inspectPlayer.isBanned ? 'Unban' : 'Ban'}
-                  onClick={() => {
-                    const target = inspectPlayer;
-                    setInspectPlayer(null);
-                    setModalError(null);
-                    if (target.isBanned) setUnbanTargetPlayer(target);
-                    else setBanTargetPlayer(target);
-                  }}
-                />
+                {canBanPlayers && (
+                  <Button
+                    variant={inspectPlayer.isBanned ? 'secondary' : 'destructive'}
+                    size="sm"
+                    icon={<Icon icon={inspectPlayer.isBanned ? UserCheck : UserX} />}
+                    label={inspectPlayer.isBanned ? 'Unban' : 'Ban'}
+                    onClick={() => {
+                      const target = inspectPlayer;
+                      setInspectPlayer(null);
+                      setModalError(null);
+                      if (target.isBanned) setUnbanTargetPlayer(target);
+                      else setBanTargetPlayer(target);
+                    }}
+                  />
+                )}
               </HStack>
               <Button variant="primary" size="sm" label="Close" onClick={() => setInspectPlayer(null)} />
             </HStack>

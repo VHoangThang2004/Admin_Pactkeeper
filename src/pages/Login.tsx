@@ -79,16 +79,16 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
   Moderator: {
     id: 'Moderator',
     label: 'Realm Moderator',
-    roleSubtitle: 'Gacha, Story, Items & Spectator',
+    roleSubtitle: 'Player Directory, Standing & Moderation',
     icon: ScrollText,
-    badgeText: 'GACHA, ITEMS & MATCHES',
-    landingPath: 'Match Supervision (/matches)',
+    badgeText: 'PLAYER MODERATION',
+    landingPath: 'Player Management (/players)',
     defaultUsername: 'moderator',
     defaultPasswordHint: 'mod123',
     badgeVariant: 'cyan',
     cardVariant: 'cyan',
     scopeSummary:
-      'Direct responsibility for Gacha/Story Config, Item/Combat Reward Config, and Inspect PvP Matches (Team Formation & Logs).',
+      'Direct responsibility for Player Directory, Profile Inspection, Ban/Unban Sanctions, and Match Behavior Review (no server/content config).',
   },
   'Technical Support': {
     id: 'Technical Support',
