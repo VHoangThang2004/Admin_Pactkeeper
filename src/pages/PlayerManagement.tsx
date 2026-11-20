@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowDownUp,
+  Bell,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -11,6 +13,7 @@ import {
   Eye,
   Gem,
   Inbox,
+  Megaphone,
   RefreshCw,
   Search,
   Shield,
@@ -41,13 +44,15 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { ConsolePage } from '../components/ConsolePage';
+import { PlayerInspectorModal } from '../components/PlayerInspectorModal';
 import { adminClient } from '../api/adminClient';
 import { recordAuditEvent } from '../services/adminSecurityService';
 import {
   fetchUnifiedPlayerData,
   subscribeToUnifiedPresence,
 } from '../services/playerPresenceService';
-import type { CounselRole, PlayerProfile } from '../types';
+import type { AdminPermissionKey, CounselRole, PlayerProfile } from '../types';
+import { hasPermission } from '../utils/permissions';
 import {
   getPlayerPresence,
   isAiOrVirtualPlayerId,
@@ -61,13 +66,59 @@ import {
 
 interface PlayerManagementProps {
   role?: CounselRole;
+  permissions?: AdminPermissionKey[];
 }
 
 type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE' | 'BANNED';
 type PlayerSortOrder = 'PRESENCE' | 'GEMS_DESC' | 'GOLD_DESC' | 'LEVEL_DESC' | 'NAME_ASC';
 type PageSizeOption = '20' | '50' | 'ALL';
 type BanDuration = 'TEMPORARY_24H' | 'TEMPORARY_7D' | 'PERMANENT';
+type NotificationTypeOption = 'Warning' | 'Moderation' | 'System' | 'Announcement';
+type NotificationExpiryOption = 'NEVER' | '24H' | '7D' | '30D';
 type PlayerTableRow = PlayerProfile & Record<string, unknown>;
+
+const NOTIFICATION_TYPE_OPTIONS = [
+  { value: 'Warning', label: 'Warning (Disciplinary Alert)' },
+  { value: 'Moderation', label: 'Moderation Notice' },
+  { value: 'System', label: 'System Notification' },
+  { value: 'Announcement', label: 'Realm Announcement' },
+];
+
+const NOTIFICATION_EXPIRY_OPTIONS = [
+  { value: 'NEVER', label: 'No Expiration' },
+  { value: '24H', label: 'Expires in 24 Hours' },
+  { value: '7D', label: 'Expires in 7 Days' },
+  { value: '30D', label: 'Expires in 30 Days' },
+];
+
+const NOTIFICATION_PRESETS: Array<{
+  label: string;
+  type: NotificationTypeOption;
+  title: string;
+  message: string;
+}> = [
+  {
+    label: 'AFK / Match Warning',
+    type: 'Warning',
+    title: 'Match Conduct Warning',
+    message:
+      'Our moderation team detected repeated match abandonment or AFK behavior on your account. Further violations may result in a temporary suspension.',
+  },
+  {
+    label: 'Fair Play Reminder',
+    type: 'Moderation',
+    title: 'Fair Play Policy Reminder',
+    message:
+      'Please ensure your gameplay complies with PactKeeper community & combat integrity guidelines.',
+  },
+  {
+    label: 'Maintenance Notice',
+    type: 'System',
+    title: 'Scheduled Realm Maintenance',
+    message:
+      'Realm servers will undergo brief scheduled maintenance soon. Please complete active battles beforehand.',
+  },
+];
 
 const BAN_DURATION_OPTIONS = [
   { value: 'TEMPORARY_24H', label: 'Temporary Suspension (24 Hours)' },
@@ -83,8 +134,10 @@ const SORT_OPTIONS: { value: PlayerSortOrder; label: string }[] = [
   { value: 'NAME_ASC', label: 'Sort: Name (A–Z)' },
 ];
 
-export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admin' }) => {
-  const navigate = useNavigate();
+export const PlayerManagement: React.FC<PlayerManagementProps> = ({
+  role = 'Admin',
+  permissions,
+}) => {
   const [searchParams] = useSearchParams();
   const querySearch = searchParams.get('search') || '';
   const [prevQuerySearch, setPrevQuerySearch] = useState(querySearch);
@@ -114,6 +167,14 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
   const [banDuration, setBanDuration] = useState<BanDuration>('PERMANENT');
 
   const [unbanTargetPlayer, setUnbanTargetPlayer] = useState<PlayerProfile | null>(null);
+
+  const [notifyTarget, setNotifyTarget] = useState<'GLOBAL' | PlayerProfile | null>(null);
+  const [notifyType, setNotifyType] = useState<NotificationTypeOption>('Warning');
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [notifyExpiry, setNotifyExpiry] = useState<NotificationExpiryOption>('7D');
+  const [notifyError, setNotifyError] = useState<string | null>(null);
+  const [notifySubmitting, setNotifySubmitting] = useState(false);
 
   const [notification, setNotification] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -334,6 +395,81 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     }
   };
 
+  const openNotifyModal = (target: 'GLOBAL' | PlayerProfile) => {
+    setNotifyTarget(target);
+    setNotifyType(target === 'GLOBAL' ? 'Announcement' : 'Warning');
+    setNotifyTitle('');
+    setNotifyMessage('');
+    setNotifyExpiry('7D');
+    setNotifyError(null);
+  };
+
+  const handleSendNotification = async () => {
+    if (!notifyTarget) return;
+    if (!notifyTitle.trim()) {
+      setNotifyError('Notification title is required.');
+      return;
+    }
+    if (!notifyMessage.trim()) {
+      setNotifyError('Notification message body is required.');
+      return;
+    }
+
+    let expiresAt: string | null = null;
+    if (notifyExpiry !== 'NEVER') {
+      const hours = notifyExpiry === '24H' ? 24 : notifyExpiry === '7D' ? 24 * 7 : 24 * 30;
+      expiresAt = new Date(Date.now() + hours * 3600_000).toISOString();
+    }
+
+    const targetPlayerId = notifyTarget === 'GLOBAL' ? null : notifyTarget.playerId;
+    const targetLabel =
+      notifyTarget === 'GLOBAL' ? 'All Players (Global Broadcast)' : notifyTarget.username;
+
+    setNotifyError(null);
+    setNotifySubmitting(true);
+    try {
+      await adminClient.post('/game-notification', {
+        playerId: targetPlayerId,
+        type: notifyType,
+        title: notifyTitle.trim(),
+        message: notifyMessage.trim(),
+        expiresAt,
+      });
+      void recordAuditEvent({
+        action:
+          notifyTarget === 'GLOBAL'
+            ? 'GLOBAL_NOTIFICATION_BROADCAST'
+            : notifyType === 'Warning'
+              ? 'PLAYER_WARNING_SENT'
+              : 'PLAYER_NOTIFICATION_SENT',
+        category: 'PLAYER',
+        severity: notifyType === 'Warning' ? 'HIGH' : 'MEDIUM',
+        targetType: notifyTarget === 'GLOBAL' ? 'RealmBroadcast' : 'PlayerAccount',
+        targetId: targetPlayerId || undefined,
+        targetLabel,
+        rationale: `${notifyType}: ${notifyTitle.trim()}`,
+        afterState: {
+          type: notifyType,
+          title: notifyTitle.trim(),
+          expiresAt,
+        },
+      });
+      setNotification(
+        notifyTarget === 'GLOBAL'
+          ? `Broadcast announcement "${notifyTitle.trim()}" dispatched to all players.`
+          : `Sent ${notifyType.toLowerCase()} "${notifyTitle.trim()}" to ${notifyTarget.username}.`
+      );
+      setNotifyTarget(null);
+    } catch (err: any) {
+      setNotifyError(
+        err.response?.data?.message ||
+          'Failed to dispatch game notification. Verify role permissions on /api/game-notification.'
+      );
+    } finally {
+      setNotifySubmitting(false);
+    }
+  };
+
   const validPlayers = useMemo(() => {
     return players.filter(
       (p) => !isAiOrVirtualPlayerId(p.playerId) && !isAiOrVirtualUsername(p.username)
@@ -392,7 +528,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
           );
       }
     });
-  }, [players, searchTerm, presenceFilter, sortBy]);
+  }, [validPlayers, searchTerm, presenceFilter, sortBy]);
 
   const numericPageSize = pageSize === 'ALL' ? Math.max(sortedPlayers.length, 1) : Number(pageSize);
   const totalPages = Math.max(1, Math.ceil(sortedPlayers.length / numericPageSize));
@@ -445,8 +581,13 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     URL.revokeObjectURL(url);
   };
 
-  const isSupport = role === 'Technical Support' || role === 'Support';
-  const isAdmin = role === 'Admin' || role === 'Server';
+  const canAdjustTreasury = hasPermission(role, 'treasury.adjust', permissions);
+  const canBanPlayers = hasPermission(role, 'players.ban', permissions);
+  const canSendNotification = canBanPlayers || role === 'Admin' || role === 'Server' || role === 'Moderator';
+  const canBroadcast = role === 'Admin' || role === 'Server';
+  const canInspectLogs =
+    hasPermission(role, 'matches.logs', permissions) ||
+    hasPermission(role, 'matches.view', permissions);
 
   const columns: TableColumn<PlayerTableRow>[] = [
     {
@@ -537,7 +678,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
               variant={getPresenceBadgeVariant(player.presence || 'Offline')}
               icon={player.presence === 'InBattle' ? <Icon icon={Swords} /> : undefined}
             />
-            {player.presence === 'InBattle' && (
+            {player.presence === 'InBattle' && canInspectLogs && (
               <Button
                 href="/matches"
                 variant="ghost"
@@ -573,34 +714,42 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
     {
       key: 'actions',
       header: 'Actions',
-      width: pixel(180),
+      width: pixel(220),
       align: 'end',
-      renderCell: (player) =>
-        isSupport ? (
-          <Badge label="Read-Only" variant="neutral" />
-        ) : (
-          <HStack gap={2} hAlign="end" vAlign="center">
+      renderCell: (player) => (
+        <HStack gap={2} hAlign="end" vAlign="center">
+          <IconButton
+            label={`Inspect profile for ${player.username}`}
+            tooltip="Quick Inspect"
+            variant="secondary"
+            size="sm"
+            icon={<Icon icon={Eye} />}
+            onClick={() => setInspectPlayer(player)}
+          />
+          {canSendNotification && (
             <IconButton
-              label={`Inspect profile for ${player.username}`}
-              tooltip="Quick Inspect"
+              label={`Send warning or notification to ${player.username}`}
+              tooltip="Warn / Notify Player"
               variant="secondary"
               size="sm"
-              icon={<Icon icon={Eye} />}
-              onClick={() => setInspectPlayer(player)}
+              icon={<Icon icon={Bell} />}
+              onClick={() => openNotifyModal(player)}
             />
-            {isAdmin && (
-              <IconButton
-                label={`Adjust currencies for ${player.username}`}
-                tooltip="Adjust Currencies"
-                variant="secondary"
-                size="sm"
-                icon={<Icon icon={Edit3} />}
-                onClick={() => {
-                  setModalError(null);
-                  setSelectedPlayer(player);
-                }}
-              />
-            )}
+          )}
+          {canAdjustTreasury && (
+            <IconButton
+              label={`Adjust currencies for ${player.username}`}
+              tooltip="Adjust Currencies"
+              variant="secondary"
+              size="sm"
+              icon={<Icon icon={Edit3} />}
+              onClick={() => {
+                setModalError(null);
+                setSelectedPlayer(player);
+              }}
+            />
+          )}
+          {canBanPlayers && (
             <Button
               variant={player.isBanned ? 'secondary' : 'destructive'}
               size="sm"
@@ -614,8 +763,9 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
                 }
               }}
             />
-          </HStack>
-        ),
+          )}
+        </HStack>
+      ),
     },
   ];
 
@@ -667,6 +817,15 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
       subtitle="Authoritative aggregation across Google OAuth sessions, Live Support Tickets, and In-Match Combatants."
       actions={
         <HStack gap={2} vAlign="center">
+          {canBroadcast && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Icon icon={Megaphone} />}
+              label="Broadcast Notice"
+              onClick={() => openNotifyModal('GLOBAL')}
+            />
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -1049,163 +1208,163 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({ role = 'Admi
         </VStack>
       </Dialog>
 
-      {/* Quick Player Inspector Dialog */}
-      <Dialog
-        isOpen={inspectPlayer !== null}
-        onOpenChange={(open) => {
-          if (!open) setInspectPlayer(null);
+      <PlayerInspectorModal
+        key={inspectPlayer?.playerId ?? 'closed'}
+        player={inspectPlayer}
+        canAdjustTreasury={canAdjustTreasury}
+        canBanPlayers={canBanPlayers}
+        canSendNotification={canSendNotification}
+        canInspectLogs={canInspectLogs}
+        onClose={() => setInspectPlayer(null)}
+        onOpenNotify={(target) => openNotifyModal(target)}
+        onOpenAdjustCurrencies={(target) => {
+          setModalError(null);
+          setSelectedPlayer(target);
         }}
-        purpose="info"
+        onOpenBanToggle={(target) => {
+          setModalError(null);
+          if (target.isBanned) setUnbanTargetPlayer(target);
+          else setBanTargetPlayer(target);
+        }}
+        onPlayerUpdated={() => void fetchPlayers()}
+        onStatusMessage={(msg) => setNotification(msg)}
+      />
+
+      {/* Send Warning / Game Notification Dialog */}
+      <Dialog
+        isOpen={notifyTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !notifySubmitting) {
+            setNotifyTarget(null);
+            setNotifyError(null);
+          }
+        }}
+        purpose="form"
         width={520}
+        maxHeight="88dvh"
         padding={5}
       >
-        <DialogHeader
-          title={inspectPlayer?.username || 'Player Profile'}
-          subtitle="Unified OAuth & Live Presence Dossier"
-          startContent={<Icon icon={Eye} size="md" color="accent" />}
-          onOpenChange={(open) => {
-            if (!open) setInspectPlayer(null);
-          }}
-        />
-        {inspectPlayer && (
-          <VStack gap={4}>
-            <Card variant="muted" padding={3}>
-              <VStack gap={2}>
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <Badge
-                    label={getPresenceDisplayLabel(inspectPlayer.presence || 'Offline', inspectPlayer.isBanned)}
-                    variant={getPresenceBadgeVariant(inspectPlayer.presence || 'Offline', inspectPlayer.isBanned)}
-                  />
-                  <Badge
-                    label={inspectPlayer.isBanned ? 'BANNED SANCTION' : 'STANDING: NORMAL'}
-                    variant={inspectPlayer.isBanned ? 'red' : 'green'}
-                  />
-                </HStack>
-
-                <Divider />
-
-                <HStack justify="between" vAlign="center" gap={2}>
-                  <Text type="label" size="xsm" color="secondary">
-                    FULL PLAYER ID
-                  </Text>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Icon icon={Copy} />}
-                    label="Copy ID"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(inspectPlayer.playerId);
-                      setNotification(`Copied Player ID for ${inspectPlayer.username}`);
-                    }}
-                  />
-                </HStack>
-                <Text type="code" size="xsm" className="break-all">
-                  {inspectPlayer.playerId}
-                </Text>
-              </VStack>
-            </Card>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Card variant="muted" padding={3}>
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary">
-                    PROGRESSION
-                  </Text>
-                  <Text type="display-3" weight="bold" hasTabularNumbers>
-                    Level {inspectPlayer.level}
-                  </Text>
-                  <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                    {(inspectPlayer.experience ?? 0).toLocaleString()} EXP
-                  </Text>
-                </VStack>
-              </Card>
-              <Card variant="muted" padding={3}>
-                <VStack gap={1}>
-                  <Text type="label" size="xsm" color="secondary">
-                    TREASURY BALANCES
-                  </Text>
-                  <HStack gap={3} vAlign="center" wrap="wrap">
-                    <HStack gap={1} vAlign="center">
-                      <Icon icon={Coins} size="sm" color="warning" />
-                      <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
-                        {(inspectPlayer.gold ?? 0).toLocaleString()}
-                      </Text>
-                    </HStack>
-                    <HStack gap={1} vAlign="center">
-                      <Icon icon={Gem} size="sm" color="accent" />
-                      <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
-                        {(inspectPlayer.gems ?? 0).toLocaleString()}
-                      </Text>
-                    </HStack>
-                  </HStack>
-                </VStack>
-              </Card>
-            </div>
-
-            {inspectPlayer.activeMatch?.matchId && (
-              <Card variant="muted" padding={3}>
-                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-                  <VStack gap={0.5}>
-                    <Text type="label" size="xsm" color="secondary">
-                      ACTIVE / RECENT MATCH ID
-                    </Text>
-                    <Text type="code" size="xsm">
-                      {inspectPlayer.activeMatch.matchId}
-                    </Text>
-                  </VStack>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Icon icon={Terminal} />}
-                    label="Inspect Match Log"
-                    onClick={() => {
-                      const targetId = inspectPlayer.activeMatch?.matchId;
-                      setInspectPlayer(null);
-                      if (targetId) {
-                        navigate(`/matches?matchId=${encodeURIComponent(targetId)}`);
-                      }
-                    }}
-                  />
-                </HStack>
-              </Card>
-            )}
-
-            <Divider />
-
-            <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-              <HStack gap={2}>
-                {isAdmin && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Icon icon={Edit3} />}
-                    label="Adjust Currencies"
-                    onClick={() => {
-                      const target = inspectPlayer;
-                      setInspectPlayer(null);
-                      setModalError(null);
-                      setSelectedPlayer(target);
-                    }}
-                  />
-                )}
-                <Button
-                  variant={inspectPlayer.isBanned ? 'secondary' : 'destructive'}
-                  size="sm"
-                  icon={<Icon icon={inspectPlayer.isBanned ? UserCheck : UserX} />}
-                  label={inspectPlayer.isBanned ? 'Unban' : 'Ban'}
-                  onClick={() => {
-                    const target = inspectPlayer;
-                    setInspectPlayer(null);
-                    setModalError(null);
-                    if (target.isBanned) setUnbanTargetPlayer(target);
-                    else setBanTargetPlayer(target);
-                  }}
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
+          <div className="shrink-0">
+            <DialogHeader
+              title={
+                notifyTarget === 'GLOBAL'
+                  ? 'BROADCAST REALM NOTIFICATION'
+                  : `SEND WARNING / NOTICE — ${notifyTarget?.username ?? ''}`
+              }
+              subtitle={
+                notifyTarget === 'GLOBAL'
+                  ? 'Dispatches a system-wide in-game notification via POST /api/game-notification'
+                  : notifyTarget
+                    ? `Target Player ID: ${notifyTarget.playerId}`
+                    : undefined
+              }
+              startContent={
+                <Icon
+                  icon={notifyTarget === 'GLOBAL' ? Megaphone : AlertTriangle}
+                  size="md"
+                  color={notifyType === 'Warning' ? 'error' : 'accent'}
                 />
-              </HStack>
-              <Button variant="primary" size="sm" label="Close" onClick={() => setInspectPlayer(null)} />
+              }
+              onOpenChange={(open) => {
+                if (!open && !notifySubmitting) {
+                  setNotifyTarget(null);
+                  setNotifyError(null);
+                }
+              }}
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <VStack gap={4}>
+              {notifyError && (
+                <Banner status="error" title="Dispatch Failed" description={notifyError} />
+              )}
+
+              <VStack gap={1.5}>
+                <Text type="label" size="xsm" color="secondary">
+                  QUICK TEMPLATES
+                </Text>
+                <HStack gap={1.5} wrap="wrap">
+                  {NOTIFICATION_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.label}
+                      variant="secondary"
+                      size="sm"
+                      label={preset.label}
+                      onClick={() => {
+                        setNotifyType(preset.type);
+                        setNotifyTitle(preset.title);
+                        setNotifyMessage(preset.message);
+                        setNotifyError(null);
+                      }}
+                    />
+                  ))}
+                </HStack>
+              </VStack>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Selector
+                  label="Notification Type"
+                  options={NOTIFICATION_TYPE_OPTIONS}
+                  value={notifyType}
+                  onChange={(val) => {
+                    if (val) setNotifyType(val as NotificationTypeOption);
+                  }}
+                  width="100%"
+                />
+                <Selector
+                  label="Expiration Window"
+                  options={NOTIFICATION_EXPIRY_OPTIONS}
+                  value={notifyExpiry}
+                  onChange={(val) => {
+                    if (val) setNotifyExpiry(val as NotificationExpiryOption);
+                  }}
+                  width="100%"
+                />
+              </div>
+
+              <TextInput
+                label="Title"
+                isRequired
+                value={notifyTitle}
+                onChange={setNotifyTitle}
+                placeholder="e.g. Match Conduct Warning"
+                width="100%"
+              />
+
+              <TextArea
+                label="Message Content"
+                isRequired
+                rows={4}
+                value={notifyMessage}
+                onChange={setNotifyMessage}
+                placeholder="Specify the warning details or announcement message delivered to the player..."
+                width="100%"
+              />
+            </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack gap={2} hAlign="end">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                isDisabled={notifySubmitting}
+                onClick={() => {
+                  setNotifyTarget(null);
+                  setNotifyError(null);
+                }}
+              />
+              <Button
+                variant={notifyType === 'Warning' ? 'destructive' : 'primary'}
+                label={notifyTarget === 'GLOBAL' ? 'Dispatch Broadcast' : 'Send Notification'}
+                icon={<Icon icon={notifyTarget === 'GLOBAL' ? Megaphone : Bell} />}
+                isLoading={notifySubmitting}
+                onClick={handleSendNotification}
+              />
             </HStack>
-          </VStack>
-        )}
+          </div>
+        </div>
       </Dialog>
     </ConsolePage>
   );

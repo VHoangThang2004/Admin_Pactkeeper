@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Activity,
@@ -40,8 +40,16 @@ import { fetchAvailableLogFiles, fetchMatchLogs } from '../api/matchLogApi';
 import { ConsolePage } from '../components/ConsolePage';
 import { LogTerminalView } from '../components/LogTerminalView';
 import { MatchLogInspector } from '../components/MatchLogInspector';
-import type { LogFileInfo, MatchHistoryItem, MatchLogLevel, MatchLogResponse } from '../types';
+import type {
+  AdminPermissionKey,
+  CounselRole,
+  LogFileInfo,
+  MatchHistoryItem,
+  MatchLogLevel,
+  MatchLogResponse,
+} from '../types';
 import { downloadLogText, filterMatchLogLines, formatLogDateTime } from '../utils/logFormat';
+import { hasPermission } from '../utils/permissions';
 import { isAiOrVirtualPlayerId } from '../utils/presence';
 
 type MatchStatusFilter = 'ALL' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
@@ -56,19 +64,30 @@ const MODE_OPTIONS = [
   { value: 'FRIENDLY', label: 'Friendly' },
 ];
 
-export const MatchSupervision: React.FC = () => {
+interface MatchSupervisionProps {
+  role?: CounselRole;
+  permissions?: AdminPermissionKey[];
+}
+
+export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
+  role = 'Admin',
+  permissions,
+}) => {
+  const canInspectLogs = hasPermission(role, 'matches.logs', permissions);
   const [searchParams] = useSearchParams();
   const queryMatchId = searchParams.get('matchId') || '';
   const [prevQueryMatchId, setPrevQueryMatchId] = useState<string>(queryMatchId);
 
-  const [activeTab, setActiveTab] = useState<'diagnostics' | 'sessions'>('diagnostics');
+  const [activeTab, setActiveTab] = useState<'diagnostics' | 'sessions'>(
+    canInspectLogs ? 'diagnostics' : 'sessions'
+  );
   const [targetMatchId, setTargetMatchId] = useState<string>(queryMatchId);
 
   if (queryMatchId !== prevQueryMatchId) {
     setPrevQueryMatchId(queryMatchId);
     if (queryMatchId) {
       setTargetMatchId(queryMatchId);
-      setActiveTab('diagnostics');
+      setActiveTab(canInspectLogs ? 'diagnostics' : 'sessions');
     }
   }
 
@@ -95,10 +114,10 @@ export const MatchSupervision: React.FC = () => {
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const loadMatchTelemetry = async () => {
+  const loadMatchTelemetry = useCallback(async () => {
     const [matchRes, logFilesData, playerRes] = await Promise.allSettled([
       adminClient.get('/Match/history'),
-      fetchAvailableLogFiles(200),
+      canInspectLogs ? fetchAvailableLogFiles(200) : Promise.resolve<LogFileInfo[]>([]),
       adminClient.get('/player/all'),
     ]);
 
@@ -124,7 +143,7 @@ export const MatchSupervision: React.FC = () => {
     }
 
     return { matchesList, filesList, pMap };
-  };
+  }, [canInspectLogs]);
 
   const applyMatchTelemetry = (snapshot: Awaited<ReturnType<typeof loadMatchTelemetry>>) => {
     if (snapshot.matchesList) setMatches(snapshot.matchesList);
@@ -159,7 +178,7 @@ export const MatchSupervision: React.FC = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadMatchTelemetry]);
 
   const logFileSet = useMemo(() => {
     const set = new Set<string>();
@@ -425,30 +444,34 @@ export const MatchSupervision: React.FC = () => {
         const hasLog = logFileSet.has(mId.toLowerCase());
         return (
           <HStack gap={1.5} hAlign="end" vAlign="center">
-            <IconButton
-              label={`Open ${mId} in Live Log Terminal`}
-              tooltip="Open in Live Log Terminal"
-              variant="secondary"
-              size="sm"
-              icon={<Icon icon={Terminal} />}
-              onClick={() => {
-                setTargetMatchId(mId);
-                setActiveTab('diagnostics');
-              }}
-            />
+            {canInspectLogs && (
+              <IconButton
+                label={`Open ${mId} in Live Log Terminal`}
+                tooltip="Open in Live Log Terminal"
+                variant="secondary"
+                size="sm"
+                icon={<Icon icon={Terminal} />}
+                onClick={() => {
+                  setTargetMatchId(mId);
+                  setActiveTab('diagnostics');
+                }}
+              />
+            )}
             <Button
               variant="secondary"
               size="sm"
               label="Details"
               onClick={() => setInspectingMatch(m)}
             />
-            <Button
-              variant={hasLog ? 'primary' : 'secondary'}
-              size="sm"
-              label="Inspect Log"
-              endContent={<Icon icon={ChevronRight} />}
-              onClick={() => openInspectLogModal(m)}
-            />
+            {canInspectLogs && (
+              <Button
+                variant={hasLog ? 'primary' : 'secondary'}
+                size="sm"
+                label="Inspect Log"
+                endContent={<Icon icon={ChevronRight} />}
+                onClick={() => openInspectLogModal(m)}
+              />
+            )}
           </HStack>
         );
       },
@@ -497,16 +520,18 @@ export const MatchSupervision: React.FC = () => {
         <VStack gap={2}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TabList
-              value={activeTab}
+              value={canInspectLogs ? activeTab : 'sessions'}
               onChange={(val) => setActiveTab(val as 'diagnostics' | 'sessions')}
               role="tablist"
             >
-              <Tab
-                value="diagnostics"
-                label="Dedicated Server Diagnostics"
-                icon={<Icon icon={Server} />}
-                panelId="match-panel-diagnostics"
-              />
+              {canInspectLogs && (
+                <Tab
+                  value="diagnostics"
+                  label="Dedicated Server Diagnostics"
+                  icon={<Icon icon={Server} />}
+                  panelId="match-panel-diagnostics"
+                />
+              )}
               <Tab
                 value="sessions"
                 label={`Match Sessions Directory (${matches.length})`}
@@ -520,7 +545,7 @@ export const MatchSupervision: React.FC = () => {
               />
             </TabList>
 
-            {activeTab === 'diagnostics' && (
+            {canInspectLogs && activeTab === 'diagnostics' && (
               <HStack gap={2} vAlign="center" wrap="wrap">
                 <Text type="code" size="xsm" color="secondary">
                   VPS disk retains {logFiles.length} recent logs; older files rotate.
@@ -537,7 +562,7 @@ export const MatchSupervision: React.FC = () => {
             )}
           </div>
 
-          {activeTab === 'sessions' && (
+          {(!canInspectLogs || activeTab === 'sessions') && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[var(--color-border-subtle)]">
               <div className="flex-1 min-w-[240px]">
                 <TextInput
@@ -612,7 +637,7 @@ export const MatchSupervision: React.FC = () => {
       }
     >
       {/* Tab 1: Dedicated Server Diagnostics (IDE Split Workbench) */}
-      {activeTab === 'diagnostics' && (
+      {canInspectLogs && activeTab === 'diagnostics' && (
         <div id="match-panel-diagnostics" className="flex-1 min-h-0 flex flex-col">
           <MatchLogInspector
             initialMatchId={targetMatchId}
@@ -623,7 +648,7 @@ export const MatchSupervision: React.FC = () => {
       )}
 
       {/* Tab 2: Match Sessions Directory */}
-      {activeTab === 'sessions' && (
+      {(!canInspectLogs || activeTab === 'sessions') && (
         <div id="match-panel-sessions">
           <Card padding={3}>
             {displayedMatches.length === 0 ? (
@@ -767,16 +792,18 @@ export const MatchSupervision: React.FC = () => {
 
             <HStack gap={2} hAlign="end">
               <Button variant="secondary" label="Close" onClick={() => setInspectingMatch(null)} />
-              <Button
-                variant="primary"
-                icon={<Icon icon={Terminal} />}
-                label="Inspect Logs"
-                onClick={() => {
-                  const m = inspectingMatch;
-                  setInspectingMatch(null);
-                  void openInspectLogModal(m);
-                }}
-              />
+              {canInspectLogs && (
+                <Button
+                  variant="primary"
+                  icon={<Icon icon={Terminal} />}
+                  label="Inspect Logs"
+                  onClick={() => {
+                    const m = inspectingMatch;
+                    setInspectingMatch(null);
+                    void openInspectLogModal(m);
+                  }}
+                />
+              )}
             </HStack>
           </VStack>
         )}

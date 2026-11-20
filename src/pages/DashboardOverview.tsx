@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BookOpen,
@@ -51,7 +51,8 @@ import {
   type HubConnectionState,
   type TrackedPlayerPresence,
 } from '../services/playerPresenceService';
-import type { CounselRole, ServerState } from '../types';
+import type { AdminPermissionKey, CounselRole, ServerState } from '../types';
+import { hasPermission } from '../utils/permissions';
 import {
   getPresenceBadgeVariant,
   getPresenceDisplayLabel,
@@ -64,16 +65,26 @@ import {
 
 interface DashboardOverviewProps {
   role?: CounselRole;
+  permissions?: AdminPermissionKey[];
 }
 
 type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE';
 
 type PresenceTableRow = TrackedPlayerPresence & Record<string, unknown>;
 
-export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Admin' }) => {
-  const isAdmin = role === 'Admin' || role === 'Server';
+export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
+  role = 'Admin',
+  permissions,
+}) => {
   const isTechSupport = role === 'Technical Support' || role === 'Support';
-  const canOverride = isAdmin || isTechSupport;
+  const canOverride = hasPermission(role, 'server.killswitch', permissions);
+  const canViewPayments = hasPermission(role, 'payments.view', permissions);
+  const canManageGacha = hasPermission(role, 'gacha.manage', permissions);
+  const canManageContent = hasPermission(role, 'content.manage', permissions);
+  const canViewPlayers = hasPermission(role, 'players.view', permissions);
+  const canViewMatches = hasPermission(role, 'matches.view', permissions);
+  const canViewLogs = hasPermission(role, 'matches.logs', permissions);
+  const canViewSupport = hasPermission(role, 'support.chat', permissions);
 
   const [serverState, setServerState] = useState<ServerState>(() => {
     const saved =
@@ -117,30 +128,37 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
   const [activeUnitsCount, setActiveUnitsCount] = useState<number>(0);
   const [bannersCount, setBannersCount] = useState<number>(0);
   const [chaptersCount, setChaptersCount] = useState<number>(0);
+  const [gatewayLive, setGatewayLive] = useState<boolean>(true);
   const [activeView, setActiveView] = useState<'overview' | 'roster' | 'controls'>('overview');
 
-  const loadTelemetrySnapshot = async () => {
+  const loadTelemetrySnapshot = useCallback(async () => {
     const [uRes, bRes, pRes, hRes, cRes, stateRes, unifiedData] = await Promise.allSettled([
       adminClient.get('/UnitDefinition'),
-      adminClient.get('/gachabanner'),
-      adminClient.get('/topuppack/all'),
-      adminClient.get('/payment/history'),
+      canManageGacha ? adminClient.get('/gachabanner') : Promise.resolve(null),
+      canViewPayments ? adminClient.get('/topuppack/all') : Promise.resolve(null),
+      canViewPayments ? adminClient.get('/payment/history') : Promise.resolve(null),
       adminClient.get('/ChapterConfig'),
       adminClient.get('/admin/system-state'),
       fetchUnifiedPlayerData(),
     ]);
 
     const orders =
-      hRes.status === 'fulfilled' && Array.isArray(hRes.value.data) ? hRes.value.data : [];
+      hRes.status === 'fulfilled' && hRes.value && Array.isArray(hRes.value.data)
+        ? hRes.value.data
+        : [];
     const paidOrders = orders.filter((o: any) => o.status === 'PAID');
 
     return {
       activeUnitsCount:
         uRes.status === 'fulfilled' && Array.isArray(uRes.value.data) ? uRes.value.data.length : 0,
       bannersCount:
-        bRes.status === 'fulfilled' && Array.isArray(bRes.value.data) ? bRes.value.data.length : 0,
+        bRes.status === 'fulfilled' && bRes.value && Array.isArray(bRes.value.data)
+          ? bRes.value.data.length
+          : 0,
       packsCount:
-        pRes.status === 'fulfilled' && Array.isArray(pRes.value.data) ? pRes.value.data.length : 0,
+        pRes.status === 'fulfilled' && pRes.value && Array.isArray(pRes.value.data)
+          ? pRes.value.data.length
+          : 0,
       chaptersCount:
         cRes.status === 'fulfilled' && Array.isArray(cRes.value.data) ? cRes.value.data.length : 0,
       totalOrdersCount: orders.length,
@@ -148,8 +166,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       totalRevenue: paidOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0),
       unified: unifiedData.status === 'fulfilled' ? unifiedData.value : null,
       systemState: stateRes.status === 'fulfilled' ? stateRes.value.data : null,
+      gatewayLive: stateRes.status === 'fulfilled' || unifiedData.status === 'fulfilled',
     };
-  };
+  }, [canManageGacha, canViewPayments]);
 
   const applyTelemetrySnapshot = (snapshot: Awaited<ReturnType<typeof loadTelemetrySnapshot>>) => {
     setActiveUnitsCount(snapshot.activeUnitsCount);
@@ -159,6 +178,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
     setTotalOrdersCount(snapshot.totalOrdersCount);
     setPaidOrdersCount(snapshot.paidOrdersCount);
     setTotalRevenue(snapshot.totalRevenue);
+    setGatewayLive(snapshot.gatewayLive);
 
     if (snapshot.unified) {
       setTrackedPlayers(snapshot.unified.trackedPlayers);
@@ -190,6 +210,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
     setActiveMatchesCount(0);
     setTotalMatchesCount(0);
     setTrackedPlayers([]);
+    setGatewayLive(false);
   };
 
   const fetchRealTelemetry = async () => {
@@ -231,7 +252,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       active = false;
       unsubscribe();
     };
-  }, []);
+  }, [loadTelemetrySnapshot]);
 
   const toggleLoginStatus = () => {
     setOverrideError(null);
@@ -410,7 +431,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               player.presence.state === 'InBattle' ? <Icon icon={Swords} /> : undefined
             }
           />
-          {player.presence.state === 'InBattle' && (
+          {player.presence.state === 'InBattle' && (canViewLogs || canViewMatches) && (
             <Button
               href="/matches"
               variant="ghost"
@@ -539,16 +560,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
           <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
             Showing {filteredPlayers.length} of {validTrackedPlayers.length} Heroes across Realm
           </Text>
-          <Link href="/players">
-            <HStack gap={1} vAlign="center">
-              <Text weight="semibold" size="xsm" color="accent" className="font-cinzel">
-                MANAGE IN ACCOUNTS
-              </Text>
-              <Text size="xsm" color="accent">
-                →
-              </Text>
-            </HStack>
-          </Link>
+          {canViewPlayers && (
+            <Link href="/players">
+              <HStack gap={1} vAlign="center">
+                <Text weight="semibold" size="xsm" color="accent" className="font-cinzel">
+                  MANAGE IN ACCOUNTS
+                </Text>
+                <Text size="xsm" color="accent">
+                  →
+                </Text>
+              </HStack>
+            </Link>
+          )}
         </HStack>
       </VStack>
     </Card>
@@ -690,11 +713,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
               <Text size="xl" weight="bold" type="code" hasTabularNumbers>
                 {activeUnitsCount}
               </Text>
-              <Link href="/content">
-                <Text size="xsm" color="accent">
-                  Open Codex →
+              {canManageContent ? (
+                <Link href="/content">
+                  <Text size="xsm" color="accent">
+                    Open Codex →
+                  </Text>
+                </Link>
+              ) : (
+                <Text type="code" size="xsm" color="secondary">
+                  Unit Codex
                 </Text>
-              </Link>
+              )}
             </VStack>
           </Card>
 
@@ -707,13 +736,19 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                 <Icon icon={Gem} size="sm" color="accent" />
               </HStack>
               <Text size="xl" weight="bold" type="code" hasTabularNumbers>
-                {bannersCount}
+                {canManageGacha ? bannersCount : '—'}
               </Text>
-              <Link href="/gacha">
-                <Text size="xsm" color="accent">
-                  View Banners →
+              {canManageGacha ? (
+                <Link href="/gacha">
+                  <Text size="xsm" color="accent">
+                    View Banners →
+                  </Text>
+                </Link>
+              ) : (
+                <Text type="code" size="xsm" color="secondary">
+                  Restricted
                 </Text>
-              </Link>
+              )}
             </VStack>
           </Card>
 
@@ -738,19 +773,31 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
             <VStack gap={0.5}>
               <HStack justify="between" vAlign="center">
                 <Text type="label" size="xsm" color="secondary">
-                  SignalR Hub
+                  Lobby Hub
                 </Text>
                 <Icon icon={Server} size="sm" color="info" />
               </HStack>
               <HStack gap={1} vAlign="center">
-                <StatusDot variant="success" isPulsing label="Hub Online" />
+                <StatusDot
+                  variant={hubState === 'connected' ? 'success' : 'warning'}
+                  isPulsing={hubState === 'connected'}
+                  label={hubState === 'connected' ? 'Hub Connected' : 'Polling Fallback'}
+                />
                 <Text size="sm" weight="bold" type="code">
-                  LIVE
+                  {hubState === 'connected' ? 'LIVE' : 'POLL'}
                 </Text>
               </HStack>
-              <Text type="code" size="xsm" color="secondary">
-                /hubs/support
-              </Text>
+              {canViewSupport ? (
+                <Link href="/support">
+                  <Text type="code" size="xsm" color="accent">
+                    Support Desk →
+                  </Text>
+                </Link>
+              ) : (
+                <Text type="code" size="xsm" color="secondary">
+                  /hubs/lobby
+                </Text>
+              )}
             </VStack>
           </Card>
         </Grid>
@@ -772,9 +819,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       meta={
         <HStack gap={2} vAlign="center" wrap="wrap">
           <HStack gap={1} vAlign="center">
-            <StatusDot variant="success" isPulsing label="Gateway Live" />
+            <StatusDot
+              variant={gatewayLive ? 'success' : 'error'}
+              isPulsing={gatewayLive}
+              label={gatewayLive ? 'Gateway Reachable' : 'Gateway Unreachable'}
+            />
             <Text type="code" size="xsm" color="secondary">
-              Gateway Live
+              {gatewayLive ? 'Gateway Live' : 'Gateway Offline'}
             </Text>
           </HStack>
           {serverState.loginBlocked && <Badge label="LOGIN BLOCKED" variant="error" />}
@@ -783,13 +834,15 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
       }
       actions={
         <HStack gap={2} vAlign="center">
-          <Button
-            href="/matches"
-            variant="secondary"
-            size="md"
-            icon={<Icon icon={Terminal} />}
-            label="Server Logs"
-          />
+          {(canViewLogs || canViewMatches) && (
+            <Button
+              href="/matches"
+              variant="secondary"
+              size="md"
+              icon={<Icon icon={Terminal} />}
+              label="Server Logs"
+            />
+          )}
           <Button
             variant="primary"
             size="md"
@@ -841,8 +894,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
         {activeView === 'overview' && (
           <>
             {/* Compact Executive Treasury / Cluster Strip */}
-            <Card variant={isTechSupport ? 'green' : 'yellow'} padding={4}>
-              {!isTechSupport ? (
+            <Card variant={canViewPayments ? 'yellow' : 'green'} padding={4}>
+              {canViewPayments ? (
                 <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
                   <VStack gap={0.5}>
                     <Text type="label" size="xsm" className="font-cinzel">
@@ -963,12 +1016,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                         {activeMatchesCount} Live / {totalMatchesCount} Total
                       </Text>
                     </HStack>
-                    <Button
-                      href="/matches"
-                      variant="ghost"
-                      size="sm"
-                      label="Inspect"
-                    />
+                    {canViewMatches && (
+                      <Button
+                        href="/matches"
+                        variant="ghost"
+                        size="sm"
+                        label="Inspect"
+                      />
+                    )}
                   </HStack>
                 </VStack>
               </Card>
@@ -996,7 +1051,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ role = 'Ad
                 </VStack>
               </Card>
 
-              {!isTechSupport ? (
+              {canViewPayments ? (
                 <Card variant="default" padding={4}>
                   <VStack gap={2}>
                     <HStack justify="between" vAlign="start">

@@ -11,15 +11,18 @@ import {
   Copy,
   CreditCard,
   Download,
+  Edit2,
   ExternalLink,
   Gem,
   Package,
+  Plus,
   Power,
   Receipt,
   RefreshCw,
   Search,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   TrendingUp,
   UserCheck,
   XCircle,
@@ -39,11 +42,13 @@ import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Grid } from '@astryxdesign/core/Grid';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
+import { NumberInput } from '@astryxdesign/core/NumberInput';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Selector, type SelectorOptionData } from '@astryxdesign/core/Selector';
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Stack';
@@ -54,10 +59,20 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { adminClient } from '../api/adminClient';
 import { ConsolePage } from '../components/ConsolePage';
 import { GemArt } from '../components/GemArt';
+import { SensitiveActionModal } from '../components/SensitiveActionModal';
 import { WEB_TOPUP_URL } from '../constants/links';
 import { useThemeMode } from '../hooks/useThemeMode';
 import { recordAuditEvent } from '../services/adminSecurityService';
-import type { PurchaseOrder, TopUpPackDto } from '../types';
+import type {
+  AdminPermissionKey,
+  CounselRole,
+  PurchaseOrder,
+  TopUpPackDto,
+  TrinketDefinition,
+  UnitDefinition,
+  WeaponDefinition,
+} from '../types';
+import { hasPermission } from '../utils/permissions';
 
 type PackCategoryFilter = 'all' | 'gems' | 'bundles';
 type OrderStatusFilter = 'ALL' | 'PAID' | 'PENDING' | 'CANCELLED';
@@ -278,7 +293,16 @@ const RevenueTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }
  */
 type TreasuryTab = 'overview' | 'ledger' | 'catalog';
 
-export const PaymentManagement: React.FC = () => {
+interface PaymentManagementProps {
+  role?: CounselRole;
+  permissions?: AdminPermissionKey[];
+}
+
+export const PaymentManagement: React.FC<PaymentManagementProps> = ({
+  role = 'Admin',
+  permissions,
+}) => {
+  const canManagePacks = hasPermission(role, 'payments.manage', permissions);
   const navigate = useNavigate();
   const { mode } = useThemeMode();
   const isDark = mode === 'dark';
@@ -306,10 +330,32 @@ export const PaymentManagement: React.FC = () => {
   const [chartView, setChartView] = useState<ChartViewMode>('daily');
 
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [orderActionLoading, setOrderActionLoading] = useState<'sync' | 'cancel' | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ text: string; status: 'success' | 'error' } | null>(
     null,
   );
+
+  // Create / Edit / Delete Top-Up Pack state
+  const [isPackModalOpen, setIsPackModalOpen] = useState(false);
+  const [editingPack, setEditingPack] = useState<TopUpPackDto | null>(null);
+  const [packName, setPackName] = useState('');
+  const [packPriceVnd, setPackPriceVnd] = useState<number>(20000);
+  const [packGemsAmount, setPackGemsAmount] = useState<number>(300);
+  const [packIsAvailable, setPackIsAvailable] = useState<boolean>(true);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<number[]>([]);
+  const [selectedWeaponIds, setSelectedWeaponIds] = useState<number[]>([]);
+  const [selectedTrinketIds, setSelectedTrinketIds] = useState<number[]>([]);
+  const [catalogUnits, setCatalogUnits] = useState<UnitDefinition[]>([]);
+  const [catalogWeapons, setCatalogWeapons] = useState<WeaponDefinition[]>([]);
+  const [catalogTrinkets, setCatalogTrinkets] = useState<TrinketDefinition[]>([]);
+  const [loadingCatalogItems, setLoadingCatalogItems] = useState(false);
+  const [packModalError, setPackModalError] = useState<string | null>(null);
+  const [savingPack, setSavingPack] = useState(false);
+
+  const [pendingDeletePack, setPendingDeletePack] = useState<TopUpPackDto | null>(null);
+  const [deletingPack, setDeletingPack] = useState(false);
+  const [deletePackError, setDeletePackError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -385,7 +431,7 @@ export const PaymentManagement: React.FC = () => {
   };
 
   const togglePackAvailability = async (pack: TopUpPackDto) => {
-    if (togglingPackId) return;
+    if (togglingPackId || !canManagePacks) return;
     const nextState = !pack.isAvailable;
     setTogglingPackId(pack.id);
     try {
@@ -414,6 +460,236 @@ export const PaymentManagement: React.FC = () => {
       showNotice(`Failed to update availability for ${pack.name}.`, 'error');
     } finally {
       setTogglingPackId(null);
+    }
+  };
+
+  const ensureCatalogDefinitionsLoaded = async () => {
+    if (catalogUnits.length === 0 && catalogWeapons.length === 0 && catalogTrinkets.length === 0) {
+      setLoadingCatalogItems(true);
+      try {
+        const [uRes, wRes, tRes] = await Promise.allSettled([
+          adminClient.get('/UnitDefinition'),
+          adminClient.get('/WeaponDefinition'),
+          adminClient.get('/TrinketDefinition'),
+        ]);
+        if (uRes.status === 'fulfilled' && Array.isArray(uRes.value.data)) {
+          setCatalogUnits(uRes.value.data);
+        }
+        if (wRes.status === 'fulfilled' && Array.isArray(wRes.value.data)) {
+          setCatalogWeapons(wRes.value.data);
+        }
+        if (tRes.status === 'fulfilled' && Array.isArray(tRes.value.data)) {
+          setCatalogTrinkets(tRes.value.data);
+        }
+      } finally {
+        setLoadingCatalogItems(false);
+      }
+    }
+  };
+
+  const openCreatePackDialog = async () => {
+    setEditingPack(null);
+    setPackName('');
+    setPackPriceVnd(20000);
+    setPackGemsAmount(300);
+    setPackIsAvailable(true);
+    setSelectedUnitIds([]);
+    setSelectedWeaponIds([]);
+    setSelectedTrinketIds([]);
+    setPackModalError(null);
+    setIsPackModalOpen(true);
+    await ensureCatalogDefinitionsLoaded();
+  };
+
+  const openEditPackDialog = async (pack: TopUpPackDto) => {
+    setEditingPack(pack);
+    setPackName(pack.name || '');
+    setPackPriceVnd(pack.priceVnd ?? 0);
+    setPackGemsAmount(pack.gemsAmount ?? 0);
+    setPackIsAvailable(Boolean(pack.isAvailable));
+    setSelectedUnitIds(pack.unitDefinitionIds ?? []);
+    setSelectedWeaponIds(pack.weaponDefinitionIds ?? []);
+    setSelectedTrinketIds(pack.trinketDefinitionIds ?? []);
+    setPackModalError(null);
+    setIsPackModalOpen(true);
+    await ensureCatalogDefinitionsLoaded();
+  };
+
+  const handleSavePack = async () => {
+    if (!canManagePacks) return;
+    const trimmedName = packName.trim();
+    if (!trimmedName) {
+      setPackModalError('Top-Up pack name is required.');
+      return;
+    }
+    if (!Number.isFinite(packPriceVnd) || packPriceVnd <= 0) {
+      setPackModalError('Price (VND) must be greater than 0.');
+      return;
+    }
+    if (!Number.isFinite(packGemsAmount) || packGemsAmount < 0) {
+      setPackModalError('Astral Gems amount cannot be negative.');
+      return;
+    }
+
+    setPackModalError(null);
+    setSavingPack(true);
+    const payload = {
+      name: trimmedName,
+      priceVnd: Math.round(packPriceVnd),
+      gemsAmount: Math.round(packGemsAmount),
+      isAvailable: packIsAvailable,
+      unitDefinitionIds: selectedUnitIds,
+      weaponDefinitionIds: selectedWeaponIds,
+      trinketDefinitionIds: selectedTrinketIds,
+    };
+
+    try {
+      if (editingPack) {
+        try {
+          await adminClient.put(`/topuppack/${editingPack.id}`, payload);
+        } catch (putErr: any) {
+          const status = putErr?.response?.status;
+          const sameCoreFields =
+            trimmedName === editingPack.name &&
+            payload.priceVnd === editingPack.priceVnd &&
+            payload.gemsAmount === editingPack.gemsAmount &&
+            JSON.stringify(selectedUnitIds) === JSON.stringify(editingPack.unitDefinitionIds ?? []) &&
+            JSON.stringify(selectedWeaponIds) === JSON.stringify(editingPack.weaponDefinitionIds ?? []) &&
+            JSON.stringify(selectedTrinketIds) === JSON.stringify(editingPack.trinketDefinitionIds ?? []);
+
+          if ((status === 404 || status === 405) && sameCoreFields && packIsAvailable !== editingPack.isAvailable) {
+            await adminClient.patch(`/topuppack/${editingPack.id}/availability`, {
+              isAvailable: packIsAvailable,
+            });
+          } else {
+            throw putErr;
+          }
+        }
+
+        void recordAuditEvent({
+          action: 'TOPUP_PACK_UPDATED',
+          category: 'PAYMENT',
+          severity: 'HIGH',
+          targetType: 'TopUpPack',
+          targetId: editingPack.id,
+          targetLabel: trimmedName,
+          beforeState: {
+            name: editingPack.name,
+            priceVnd: editingPack.priceVnd,
+            gemsAmount: editingPack.gemsAmount,
+            isAvailable: editingPack.isAvailable,
+          },
+          afterState: payload,
+        });
+        setIsPackModalOpen(false);
+        setEditingPack(null);
+        showNotice(`Updated Top-Up Pack "${trimmedName}".`);
+      } else {
+        const res = await adminClient.post('/topuppack', payload);
+        const created = res.data as TopUpPackDto;
+        if (!packIsAvailable && created?.id) {
+          await adminClient.patch(`/topuppack/${created.id}/availability`, {
+            isAvailable: false,
+          });
+        }
+        void recordAuditEvent({
+          action: 'TOPUP_PACK_CREATED',
+          category: 'PAYMENT',
+          severity: 'HIGH',
+          targetType: 'TopUpPack',
+          targetId: created?.id,
+          targetLabel: trimmedName,
+          afterState: payload,
+        });
+        setIsPackModalOpen(false);
+        showNotice(`Created new Top-Up Pack "${trimmedName}" (${formatVnd(payload.priceVnd)}).`);
+      }
+      await handleRefresh();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      setPackModalError(
+        editingPack && (status === 404 || status === 405)
+          ? 'Backend endpoint PUT /api/topuppack/{id} is not implemented yet on the server. Availability toggles work via PATCH; full field edits require adding PUT /api/topuppack/{id} on Backend.'
+          : err.response?.data?.message ||
+              (editingPack
+                ? 'Failed to update Top-Up Pack via PUT /api/topuppack/{id}.'
+                : 'Failed to create Top-Up Pack via POST /api/topuppack.'),
+      );
+    } finally {
+      setSavingPack(false);
+    }
+  };
+
+  const executeDeletePack = async (rationale: string) => {
+    if (!pendingDeletePack || !canManagePacks) return;
+    setDeletePackError(null);
+    setDeletingPack(true);
+    try {
+      await adminClient.delete(`/topuppack/${pendingDeletePack.id}`);
+      void recordAuditEvent({
+        action: 'TOPUP_PACK_DELETED',
+        category: 'PAYMENT',
+        severity: 'CRITICAL',
+        targetType: 'TopUpPack',
+        targetId: pendingDeletePack.id,
+        targetLabel: pendingDeletePack.name,
+        rationale,
+        beforeState: {
+          priceVnd: pendingDeletePack.priceVnd,
+          gemsAmount: pendingDeletePack.gemsAmount,
+        },
+      });
+      setPacks((prev) => prev.filter((item) => item.id !== pendingDeletePack.id));
+      showNotice(`Deleted Top-Up Pack "${pendingDeletePack.name}".`);
+      setPendingDeletePack(null);
+    } catch (err: any) {
+      setDeletePackError(
+        err.response?.data?.message || 'Failed to delete Top-Up Pack via DELETE /api/topuppack.',
+      );
+    } finally {
+      setDeletingPack(false);
+    }
+  };
+
+  const handleSyncOrder = async (order: PurchaseOrder) => {
+    setOrderActionLoading('sync');
+    try {
+      const res = await adminClient.post(`/Payment/sync/${order.orderCode}`);
+      const nextStatus = (res.data?.status || order.status) as PurchaseOrder['status'];
+      const msg = res.data?.message || `Reconciled order #${order.orderCode}: ${nextStatus}`;
+      setSelectedOrder((prev) => (prev && prev.id === order.id ? { ...prev, status: nextStatus } : prev));
+      showNotice(msg);
+      await handleRefresh();
+    } catch (err: any) {
+      showNotice(err.response?.data?.message || 'Failed to reconcile order with PayOS.', 'error');
+    } finally {
+      setOrderActionLoading(null);
+    }
+  };
+
+  const handleCancelPendingOrder = async (order: PurchaseOrder) => {
+    setOrderActionLoading('cancel');
+    try {
+      const res = await adminClient.post(`/Payment/cancel-order/${order.orderCode}`);
+      void recordAuditEvent({
+        action: 'PAYOS_ORDER_CANCELLED',
+        category: 'PAYMENT',
+        severity: 'HIGH',
+        targetType: 'PurchaseOrder',
+        targetId: String(order.orderCode),
+        targetLabel: `Order #${order.orderCode}`,
+        beforeState: { status: order.status },
+        afterState: { status: 'CANCELLED' },
+      });
+      setSelectedOrder((prev) =>
+        prev && prev.id === order.id ? { ...prev, status: 'CANCELLED' } : prev,
+      );
+      showNotice(res.data?.message || `Cancelled pending order #${order.orderCode}.`);
+      await handleRefresh();
+    } catch (err: any) {
+      showNotice(err.response?.data?.message || 'Failed to cancel pending order.', 'error');
+    } finally {
+      setOrderActionLoading(null);
     }
   };
 
@@ -1005,9 +1281,20 @@ export const PaymentManagement: React.FC = () => {
                 />
               </SegmentedControl>
 
-              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                {kpis.availablePacksCount} of {packs.length} packs active • PATCH /topuppack/&#123;id&#125;/availability
-              </Text>
+              <HStack gap={3} vAlign="center" wrap="wrap">
+                <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                  {kpis.availablePacksCount} of {packs.length} packs active
+                </Text>
+                {canManagePacks && (
+                  <Button
+                    label="Create Top-Up Pack"
+                    variant="primary"
+                    size="sm"
+                    icon={<Plus size={14} />}
+                    onClick={() => void openCreatePackDialog()}
+                  />
+                )}
+              </HStack>
             </div>
           )}
         </VStack>
@@ -1327,21 +1614,48 @@ export const PaymentManagement: React.FC = () => {
                             ID: {pack.id}
                           </Text>
                           <StackItem size="static">
-                            <Button
-                              label={
-                                isToggling
-                                  ? 'Updating...'
-                                  : pack.isAvailable
-                                    ? 'Disable Pack'
-                                    : 'Enable Pack'
-                              }
-                              variant={pack.isAvailable ? 'destructive' : 'secondary'}
-                              size="sm"
-                              icon={<Power size={13} />}
-                              isDisabled={togglingPackId !== null}
-                              isLoading={isToggling}
-                              onClick={() => void togglePackAvailability(pack)}
-                            />
+                            <HStack gap={1.5} vAlign="center">
+                              {canManagePacks && (
+                                <>
+                                  <IconButton
+                                    label={`Edit ${pack.name}`}
+                                    tooltip="Edit Pack"
+                                    variant="secondary"
+                                    size="sm"
+                                    icon={<Icon icon={Edit2} />}
+                                    isDisabled={togglingPackId !== null || deletingPack}
+                                    onClick={() => void openEditPackDialog(pack)}
+                                  />
+                                  <IconButton
+                                    label={`Delete ${pack.name}`}
+                                    tooltip="Delete Pack"
+                                    variant="ghost"
+                                    size="sm"
+                                    icon={<Icon icon={Trash2} color="error" />}
+                                    isDisabled={togglingPackId !== null || deletingPack}
+                                    onClick={() => {
+                                      setDeletePackError(null);
+                                      setPendingDeletePack(pack);
+                                    }}
+                                  />
+                                </>
+                              )}
+                              <Button
+                                label={
+                                  isToggling
+                                    ? 'Updating...'
+                                    : pack.isAvailable
+                                      ? 'Disable Pack'
+                                      : 'Enable Pack'
+                                }
+                                variant={pack.isAvailable ? 'destructive' : 'secondary'}
+                                size="sm"
+                                icon={<Power size={13} />}
+                                isDisabled={togglingPackId !== null || !canManagePacks}
+                                isLoading={isToggling}
+                                onClick={() => void togglePackAvailability(pack)}
+                              />
+                            </HStack>
                           </StackItem>
                         </HStack>
                       </div>
@@ -1362,20 +1676,27 @@ export const PaymentManagement: React.FC = () => {
         }}
         purpose="info"
         width={540}
+        maxHeight="88dvh"
+        padding={5}
       >
         {selectedOrder && (
-          <VStack gap={4}>
-            <DialogHeader
-              title={`Order #${selectedOrder.orderCode}`}
-              subtitle="PayOS Order Receipt & Webhook Audit"
-              endContent={
-                <Badge
-                  label={selectedOrder.status}
-                  variant={getOrderStatusBadge(selectedOrder.status).variant}
-                />
-              }
-              onOpenChange={() => setSelectedOrder(null)}
-            />
+          <div className="flex flex-col flex-1 min-h-0 gap-4">
+            <div className="shrink-0">
+              <DialogHeader
+                title={`Order #${selectedOrder.orderCode}`}
+                subtitle="PayOS Order Receipt & Webhook Audit"
+                endContent={
+                  <Badge
+                    label={selectedOrder.status}
+                    variant={getOrderStatusBadge(selectedOrder.status).variant}
+                  />
+                }
+                onOpenChange={() => setSelectedOrder(null)}
+              />
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <VStack gap={3}>
 
             <Card padding={4} variant="muted">
               <VStack gap={3}>
@@ -1492,29 +1813,295 @@ export const PaymentManagement: React.FC = () => {
                 )}
               </VStack>
             </Card>
+              </VStack>
+            </div>
 
-            <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+            <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                <HStack gap={2} wrap="wrap">
+                  <Button
+                    label="Inspect Player"
+                    variant="secondary"
+                    size="md"
+                    icon={<UserCheck size={14} />}
+                    onClick={() => {
+                      const targetPlayerId = selectedOrder.playerId;
+                      setSelectedOrder(null);
+                      navigate(`/players?search=${encodeURIComponent(targetPlayerId)}`);
+                    }}
+                  />
+                  {selectedOrder.status === 'PENDING' && (
+                    <>
+                      <Button
+                        label="Sync PayOS"
+                        variant="secondary"
+                        size="md"
+                        icon={<RefreshCw size={14} />}
+                        isLoading={orderActionLoading === 'sync'}
+                        isDisabled={orderActionLoading !== null}
+                        onClick={() => void handleSyncOrder(selectedOrder)}
+                      />
+                      {canManagePacks && (
+                        <Button
+                          label="Cancel Order"
+                          variant="destructive"
+                          size="md"
+                          icon={<XCircle size={14} />}
+                          isLoading={orderActionLoading === 'cancel'}
+                          isDisabled={orderActionLoading !== null}
+                          onClick={() => void handleCancelPendingOrder(selectedOrder)}
+                        />
+                      )}
+                    </>
+                  )}
+                </HStack>
+                <Button
+                  label="Close"
+                  variant="primary"
+                  size="md"
+                  onClick={() => setSelectedOrder(null)}
+                />
+              </HStack>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Create / Edit Top-Up Pack Dialog */}
+      <Dialog
+        isOpen={isPackModalOpen}
+        onOpenChange={(open) => {
+          if (!open && !savingPack) {
+            setIsPackModalOpen(false);
+            setEditingPack(null);
+            setPackModalError(null);
+          }
+        }}
+        purpose="form"
+        width={620}
+        maxHeight="88dvh"
+        padding={5}
+      >
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
+          <div className="shrink-0">
+            <DialogHeader
+              title={editingPack ? `EDIT TOP-UP PACK — ${editingPack.name}` : 'CREATE TOP-UP PACK'}
+              subtitle={
+                editingPack
+                  ? `Modify pack pricing, crystal amount, availability, or bundle items via PUT /api/topuppack/${editingPack.id}`
+                  : 'Register a new crystal denomination or hero/equipment bundle via POST /api/topuppack'
+              }
+              startContent={<Icon icon={Package} size="md" color="accent" />}
+              onOpenChange={(open) => {
+                if (!open && !savingPack) {
+                  setIsPackModalOpen(false);
+                  setEditingPack(null);
+                  setPackModalError(null);
+                }
+              }}
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <VStack gap={4}>
+              {packModalError && (
+                <Banner
+                  status="error"
+                  title={editingPack ? 'Update Failed' : 'Creation Failed'}
+                  description={packModalError}
+                />
+              )}
+
+              <TextInput
+                label="Pack Name"
+                isRequired
+                value={packName}
+                onChange={setPackName}
+                placeholder="e.g. Astral Starter Chest / 980 Astral Gems"
+                width="100%"
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <NumberInput
+                  label="Price (VND)"
+                  value={packPriceVnd}
+                  onChange={setPackPriceVnd}
+                  min={1000}
+                  step={10000}
+                  isIntegerOnly
+                  hasNumberSteppers
+                  units="VND"
+                  width="100%"
+                />
+                <NumberInput
+                  label="Astral Gems Amount"
+                  value={packGemsAmount}
+                  onChange={setPackGemsAmount}
+                  min={0}
+                  step={60}
+                  isIntegerOnly
+                  hasNumberSteppers
+                  units="Gems"
+                  width="100%"
+                />
+              </div>
+
+              <CheckboxInput
+                label="Available on Storefront (Active)"
+                description="Uncheck to keep this package saved in the catalog as Hidden."
+                value={packIsAvailable}
+                onChange={setPackIsAvailable}
+              />
+
+              <Card variant="muted" padding={3}>
+                <VStack gap={3}>
+                  <HStack justify="between" vAlign="center">
+                    <Text type="label" size="xsm" color="secondary">
+                      OPTIONAL BUNDLE ATTACHMENTS
+                    </Text>
+                    <Badge
+                      label={`${selectedUnitIds.length + selectedWeaponIds.length + selectedTrinketIds.length} Selected`}
+                      variant="info"
+                    />
+                  </HStack>
+
+                  {loadingCatalogItems ? (
+                    <Text type="supporting" size="xsm">
+                      Loading Units, Weapons &amp; Trinkets from CMS...
+                    </Text>
+                  ) : (
+                    <div className="max-h-52 overflow-y-auto pr-1 flex flex-col gap-3">
+                      {catalogUnits.length > 0 && (
+                        <VStack gap={1}>
+                          <Text type="code" size="xsm" color="secondary">
+                            Units ({catalogUnits.length})
+                          </Text>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {catalogUnits.map((u) => {
+                              const checked = selectedUnitIds.includes(u.uId);
+                              return (
+                                <CheckboxInput
+                                  key={u.uId}
+                                  label={`${u.unitName || u.name || 'Unit'} (#${u.uId})`}
+                                  value={checked}
+                                  onChange={(next) =>
+                                    setSelectedUnitIds((prev) =>
+                                      next ? [...prev, u.uId] : prev.filter((id) => id !== u.uId),
+                                    )
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        </VStack>
+                      )}
+
+                      {catalogWeapons.length > 0 && (
+                        <VStack gap={1}>
+                          <Text type="code" size="xsm" color="secondary">
+                            Weapons ({catalogWeapons.length})
+                          </Text>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {catalogWeapons.map((w) => {
+                              const checked = selectedWeaponIds.includes(w.weaponId);
+                              return (
+                                <CheckboxInput
+                                  key={w.weaponId}
+                                  label={`${w.name} (#${w.weaponId})`}
+                                  value={checked}
+                                  onChange={(next) =>
+                                    setSelectedWeaponIds((prev) =>
+                                      next
+                                        ? [...prev, w.weaponId]
+                                        : prev.filter((id) => id !== w.weaponId),
+                                    )
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        </VStack>
+                      )}
+
+                      {catalogTrinkets.length > 0 && (
+                        <VStack gap={1}>
+                          <Text type="code" size="xsm" color="secondary">
+                            Trinkets ({catalogTrinkets.length})
+                          </Text>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {catalogTrinkets.map((t) => {
+                              const checked = selectedTrinketIds.includes(t.trinketId);
+                              return (
+                                <CheckboxInput
+                                  key={t.trinketId}
+                                  label={`${t.name} (#${t.trinketId})`}
+                                  value={checked}
+                                  onChange={(next) =>
+                                    setSelectedTrinketIds((prev) =>
+                                      next
+                                        ? [...prev, t.trinketId]
+                                        : prev.filter((id) => id !== t.trinketId),
+                                    )
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        </VStack>
+                      )}
+                    </div>
+                  )}
+                </VStack>
+              </Card>
+            </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack gap={2} hAlign="end">
               <Button
-                label="Inspect Player"
                 variant="secondary"
-                size="md"
-                icon={<UserCheck size={14} />}
+                label="Cancel"
+                isDisabled={savingPack}
                 onClick={() => {
-                  const targetPlayerId = selectedOrder.playerId;
-                  setSelectedOrder(null);
-                  navigate(`/players?search=${encodeURIComponent(targetPlayerId)}`);
+                  setIsPackModalOpen(false);
+                  setEditingPack(null);
+                  setPackModalError(null);
                 }}
               />
               <Button
-                label="Close"
                 variant="primary"
-                size="md"
-                onClick={() => setSelectedOrder(null)}
+                label={editingPack ? 'Save Pack Changes' : 'Create Pack'}
+                icon={editingPack ? <Edit2 size={14} /> : <Plus size={14} />}
+                isLoading={savingPack}
+                onClick={() => void handleSavePack()}
               />
             </HStack>
-          </VStack>
-        )}
+          </div>
+        </div>
       </Dialog>
+
+      {/* Delete Top-Up Pack Confirmation */}
+      <SensitiveActionModal
+        isOpen={pendingDeletePack !== null}
+        title={`Delete Top-Up Pack — ${pendingDeletePack?.name ?? ''}`}
+        description="Permanently removes this top-up package from the storefront catalog via DELETE /api/topuppack/{id}. Historical payment orders keep their recorded amounts."
+        severity="CRITICAL"
+        actionLabel="Delete Pack"
+        targetSummary={
+          pendingDeletePack
+            ? `${pendingDeletePack.name} (${formatVnd(pendingDeletePack.priceVnd)} • ${pendingDeletePack.gemsAmount} Gems)`
+            : undefined
+        }
+        requireKeyword="DELETE"
+        loading={deletingPack}
+        error={deletePackError}
+        onCancel={() => {
+          if (!deletingPack) {
+            setPendingDeletePack(null);
+            setDeletePackError(null);
+          }
+        }}
+        onConfirm={executeDeletePack}
+      />
     </ConsolePage>
   );
 };

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { WEB_TOPUP_URL } from '../constants/links';
 import type { AdminPermissionKey } from '../types';
-import { hasPermission } from '../utils/permissions';
+import { hasAnyPermission } from '../utils/permissions';
 
 interface SidebarProps {
   role: string;
@@ -39,7 +39,7 @@ interface NavItemDef {
   path: string;
   label: string;
   icon: typeof LayoutDashboard;
-  permission: AdminPermissionKey;
+  permissions: AdminPermissionKey[];
   group: 'operations' | 'liveops' | 'governance';
 }
 
@@ -48,56 +48,56 @@ const NAV_ITEMS: NavItemDef[] = [
     path: '/',
     label: 'Dashboard Overview',
     icon: LayoutDashboard,
-    permission: 'dashboard.view',
+    permissions: ['dashboard.view'],
     group: 'operations',
   },
   {
     path: '/players',
     label: 'Player Management',
     icon: Users,
-    permission: 'players.view',
+    permissions: ['players.view'],
     group: 'operations',
   },
   {
     path: '/matches',
     label: 'Match Supervision',
     icon: Swords,
-    permission: 'matches.view',
+    permissions: ['matches.view'],
     group: 'operations',
   },
   {
     path: '/support',
     label: 'Live Support Desk',
     icon: LifeBuoy,
-    permission: 'support.chat',
+    permissions: ['support.chat'],
     group: 'operations',
   },
   {
     path: '/gacha',
     label: 'Gacha & Banners',
     icon: Sparkles,
-    permission: 'gacha.manage',
+    permissions: ['gacha.manage'],
     group: 'liveops',
   },
   {
     path: '/content',
     label: 'Game Content Codex',
     icon: Database,
-    permission: 'content.manage',
+    permissions: ['content.manage'],
     group: 'liveops',
   },
   {
     path: '/payments',
     label: 'PayOS & Top-Up Vault',
     icon: CreditCard,
-    permission: 'payments.view',
+    permissions: ['payments.view'],
     group: 'liveops',
   },
   {
     path: '/security',
     label: 'Security & RBAC',
     icon: ShieldAlert,
-    permission: 'security.accounts',
+    permissions: ['security.accounts', 'security.roles', 'security.audit'],
     group: 'governance',
   },
 ];
@@ -121,7 +121,9 @@ function getRoleBadgeVariant(role: string): 'yellow' | 'cyan' | 'purple' | 'blue
 export const Sidebar: React.FC<SidebarProps> = ({ role, permissions, onLogout }) => {
   const location = useLocation();
 
-  const visibleItems = NAV_ITEMS.filter((item) => hasPermission(role, item.permission, permissions));
+  const visibleItems = NAV_ITEMS.filter((item) =>
+    hasAnyPermission(role, item.permissions, permissions)
+  );
   const opItems = visibleItems.filter((item) => item.group === 'operations');
   const liveOpsItems = visibleItems.filter((item) => item.group === 'liveops');
   const govItems = visibleItems.filter((item) => item.group === 'governance');

@@ -135,7 +135,7 @@ export const DEFAULT_ROLE_DEFINITIONS: RoleDefinition[] = [
     id: 'role-admin',
     name: 'Admin',
     description:
-      'High Counsel sovereign authority across treasury, accounts, security governance, and emergency controls.',
+      'High Counsel sovereign authority across treasury, accounts, security governance, game content, and emergency controls.',
     permissions: ALL_PERMISSIONS,
     isSystemDefault: true,
     source: 'SYSTEM_DEFAULT',
@@ -144,14 +144,11 @@ export const DEFAULT_ROLE_DEFINITIONS: RoleDefinition[] = [
     id: 'role-moderator',
     name: 'Moderator',
     description:
-      'Realm Game Master supervising PvP matches, Gacha banners, SRPG definitions, and player disciplinary actions.',
+      'Player Moderation specialist managing player directory, profile inspection, match behavior review, and disciplinary sanctions (no server/content config by default; Admin may assign extra permissions).',
     permissions: [
       'players.view',
       'players.ban',
       'matches.view',
-      'matches.logs',
-      'gacha.manage',
-      'content.manage',
     ],
     isSystemDefault: true,
     source: 'SYSTEM_DEFAULT',
@@ -160,7 +157,7 @@ export const DEFAULT_ROLE_DEFINITIONS: RoleDefinition[] = [
     id: 'role-tech-support',
     name: 'Technical Support',
     description:
-      'Infrastructure & live support specialist monitoring dedicated nodes, VPS combat logs, emergency overrides, and live player chat.',
+      'Technical Operations specialist monitoring infrastructure status, dedicated match diagnostics, emergency overrides, and live player support.',
     permissions: [
       'dashboard.view',
       'server.killswitch',
@@ -204,4 +201,54 @@ export function hasPermission(
     return explicitPermissions.includes(permission);
   }
   return resolveDefaultRolePermissions(role).includes(permission);
+}
+
+export function hasAnyPermission(
+  role: CounselRole | string,
+  requiredPermissions: AdminPermissionKey[],
+  explicitPermissions?: AdminPermissionKey[] | null
+): boolean {
+  return requiredPermissions.some((perm) => hasPermission(role, perm, explicitPermissions));
+}
+
+const LANDING_ROUTE_ORDER: Array<{ path: string; permissions: AdminPermissionKey[] }> = [
+  { path: '/', permissions: ['dashboard.view'] },
+  { path: '/players', permissions: ['players.view'] },
+  { path: '/matches', permissions: ['matches.view'] },
+  { path: '/support', permissions: ['support.chat'] },
+  { path: '/gacha', permissions: ['gacha.manage'] },
+  { path: '/content', permissions: ['content.manage'] },
+  { path: '/payments', permissions: ['payments.view'] },
+  { path: '/security', permissions: ['security.accounts', 'security.roles', 'security.audit'] },
+];
+
+export function getDefaultLandingPath(
+  role: CounselRole | string,
+  explicitPermissions?: AdminPermissionKey[] | null
+): string {
+  const lower = role.trim().toLowerCase();
+  if (lower === 'moderator' || lower === 'mod') {
+    if (hasPermission(role, 'players.view', explicitPermissions)) {
+      return '/players';
+    }
+  } else if (
+    lower === 'admin' ||
+    lower === 'server' ||
+    lower === 'technical support' ||
+    lower === 'technicalsupport' ||
+    lower === 'techsupport' ||
+    lower === 'support' ||
+    lower === 'cskh'
+  ) {
+    if (hasPermission(role, 'dashboard.view', explicitPermissions)) {
+      return '/';
+    }
+  }
+
+  for (const candidate of LANDING_ROUTE_ORDER) {
+    if (hasAnyPermission(role, candidate.permissions, explicitPermissions)) {
+      return candidate.path;
+    }
+  }
+  return '/login';
 }
