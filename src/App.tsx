@@ -9,6 +9,7 @@ import { ContentManagement } from './pages/ContentManagement';
 import { PaymentManagement } from './pages/PaymentManagement';
 import { LiveSupport } from './pages/LiveSupport';
 import { MatchSupervision } from './pages/MatchSupervision';
+import { BalanceAnalytics } from './pages/BalanceAnalytics';
 import { SecurityGovernance } from './pages/SecurityGovernance';
 import { logoutAdminSession, recordLoginAttempt } from './services/adminSecurityService';
 import { stopPresenceSync } from './services/playerPresenceService';
@@ -160,6 +161,18 @@ export const App: React.FC = () => {
             element={
               canAccess('matches.view') ? (
                 <MatchSupervision role={role} permissions={permissions} />
+              ) : (
+                <Navigate to={defaultLandingPath} replace />
+              )
+            }
+          />
+
+          {/* Flow 5: Match Telemetry, AI Balance Advisor & Game Version Releases */}
+          <Route
+            path="/balance"
+            element={
+              canAccess('balance.view') || canAccess('balance.manage') ? (
+                <BalanceAnalytics role={role} permissions={permissions} />
               ) : (
                 <Navigate to={defaultLandingPath} replace />
               )

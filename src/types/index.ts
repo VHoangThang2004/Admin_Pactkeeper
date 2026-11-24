@@ -342,6 +342,8 @@ export type AdminPermissionKey =
   | 'treasury.adjust'
   | 'matches.view'
   | 'matches.logs'
+  | 'balance.view'
+  | 'balance.manage'
   | 'gacha.manage'
   | 'content.manage'
   | 'payments.view'
@@ -442,5 +444,82 @@ export interface CreateAdminAccountRequest {
   email?: string;
   role: string;
 }
+
+export type BalanceEntityType = 'unit' | 'weapon' | 'trinket' | 'skill';
+
+export type BalanceModeFilter = 'ALL' | 'PVP' | 'RANKED' | 'FRIENDLY';
+
+export interface BalanceTelemetryMetric {
+  entityType: BalanceEntityType;
+  entityId: string;
+  name: string;
+  pickCount: number;
+  pickRate: number;
+  winCount: number;
+  winRate: number;
+  avgDamage: number;
+  avgDamageTaken?: number;
+  avgHealing?: number;
+  survivalRate?: number;
+  avgKills?: number;
+  sampleMatches: number;
+}
+
+export interface BalanceTelemetryResponse {
+  patchVersion: string;
+  availablePatchVersions: string[];
+  mode: string;
+  totalMatches: number;
+  generatedAt: string;
+  units: BalanceTelemetryMetric[];
+  weapons: BalanceTelemetryMetric[];
+  trinkets: BalanceTelemetryMetric[];
+  skills: BalanceTelemetryMetric[];
+}
+
+export type AiBalanceChangeType = 'DB_ONLY' | 'REBUILD_REQUIRED';
+export type AiBalanceAction = 'BUFF' | 'NERF' | 'ADJUST' | 'MONITOR';
+export type AiBalancePriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface AiBalanceSuggestion {
+  id: string;
+  entityType: BalanceEntityType;
+  entityId?: string;
+  entityName: string;
+  action: AiBalanceAction;
+  changeType: AiBalanceChangeType;
+  priority: AiBalancePriority;
+  currentWinRate?: number;
+  currentPickRate?: number;
+  rationale: string;
+  suggestedChanges: string;
+}
+
+export interface AiBalanceAnalysisResponse {
+  reportId?: string;
+  model?: string;
+  generatedAt: string;
+  patchVersion?: string;
+  mode?: string;
+  summary: string;
+  suggestions: AiBalanceSuggestion[];
+}
+
+export interface GameVersionConfig {
+  latestVersion: string;
+  minSupportedVersion: string;
+  downloadUrl: string;
+  patchNotes: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface UpdateGameVersionPayload {
+  latestVersion: string;
+  minSupportedVersion: string;
+  downloadUrl: string;
+  patchNotes: string;
+}
+
 
 

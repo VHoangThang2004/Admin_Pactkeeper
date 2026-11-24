@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   LogOut,
+  Scale,
   ShieldAlert,
   Sparkles,
   Swords,
@@ -71,6 +72,13 @@ const NAV_ITEMS: NavItemDef[] = [
     icon: LifeBuoy,
     permissions: ['support.chat'],
     group: 'operations',
+  },
+  {
+    path: '/balance',
+    label: 'Balance & Releases',
+    icon: Scale,
+    permissions: ['balance.view', 'balance.manage'],
+    group: 'liveops',
   },
   {
     path: '/gacha',
