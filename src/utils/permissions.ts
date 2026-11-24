@@ -12,6 +12,7 @@ export interface PermissionDescriptor {
     | 'Command & Infrastructure'
     | 'Players & Treasury'
     | 'Matches & Diagnostics'
+    | 'Balance & Releases'
     | 'Gacha & Content CMS'
     | 'PayOS Finance'
     | 'Player Support'
@@ -69,6 +70,20 @@ export const PERMISSION_CATALOG: PermissionDescriptor[] = [
     group: 'Matches & Diagnostics',
     description: 'Stream and filter VPS NGO battle logs for crash/desync diagnostics.',
     risk: 'MEDIUM',
+  },
+  {
+    key: 'balance.view',
+    label: 'View Balance Telemetry & AI Advisor',
+    group: 'Balance & Releases',
+    description: 'Inspect winrate, pickrate, damage telemetry, AI balance suggestions, and active client version.',
+    risk: 'LOW',
+  },
+  {
+    key: 'balance.manage',
+    label: 'Publish Game Versions & Releases',
+    group: 'Balance & Releases',
+    description: 'Trigger AI balance reports and publish latest/min supported game versions & patch notes.',
+    risk: 'CRITICAL',
   },
   {
     key: 'gacha.manage',
@@ -149,6 +164,7 @@ export const DEFAULT_ROLE_DEFINITIONS: RoleDefinition[] = [
       'players.view',
       'players.ban',
       'matches.view',
+      'balance.view',
     ],
     isSystemDefault: true,
     source: 'SYSTEM_DEFAULT',
@@ -215,6 +231,7 @@ const LANDING_ROUTE_ORDER: Array<{ path: string; permissions: AdminPermissionKey
   { path: '/', permissions: ['dashboard.view'] },
   { path: '/players', permissions: ['players.view'] },
   { path: '/matches', permissions: ['matches.view'] },
+  { path: '/balance', permissions: ['balance.view', 'balance.manage'] },
   { path: '/support', permissions: ['support.chat'] },
   { path: '/gacha', permissions: ['gacha.manage'] },
   { path: '/content', permissions: ['content.manage'] },

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
@@ -446,9 +447,40 @@ const ClassMultiSelector: React.FC<ClassMultiSelectorProps> = ({
   </VStack>
 );
 
+const VALID_CONTENT_TABS: ContentTab[] = [
+  'units',
+  'weapons',
+  'trinkets',
+  'chapters',
+  'classes',
+  'skills',
+];
+
+function parseContentTabParam(value: string | null): ContentTab | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase() as ContentTab;
+  return VALID_CONTENT_TABS.includes(normalized) ? normalized : null;
+}
+
 export const ContentManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<ContentTab>('units');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams] = useSearchParams();
+  const queryTab = parseContentTabParam(searchParams.get('tab'));
+  const querySearch = searchParams.get('search') || '';
+  const [prevQueryKey, setPrevQueryKey] = useState(`${queryTab ?? ''}|${querySearch}`);
+
+  const [activeTab, setActiveTab] = useState<ContentTab>(queryTab ?? 'units');
+  const [searchTerm, setSearchTerm] = useState(querySearch);
+
+  const currentQueryKey = `${queryTab ?? ''}|${querySearch}`;
+  if (currentQueryKey !== prevQueryKey) {
+    setPrevQueryKey(currentQueryKey);
+    if (queryTab) {
+      setActiveTab(queryTab);
+    }
+    if (querySearch) {
+      setSearchTerm(querySearch);
+    }
+  }
   const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'STARTER' | 'GACHA'>('ALL');
   const [units, setUnits] = useState<UnitDefinition[]>([]);
   const [chapters, setChapters] = useState<ChapterConfig[]>([]);
