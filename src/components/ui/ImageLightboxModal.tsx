@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ExternalLink, X } from 'lucide-react';
 import { Button } from '@astryxdesign/core/Button';
 import { Icon } from '@astryxdesign/core/Icon';
@@ -32,13 +33,13 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
 
   if (!src) return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 sm:p-6"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 sm:p-6"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -76,6 +77,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.querySelector('[data-astryx-theme]') ?? document.body,
   );
 };

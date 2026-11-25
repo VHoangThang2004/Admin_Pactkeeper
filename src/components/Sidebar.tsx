@@ -143,12 +143,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, permissions, onLogout })
     <SideNav
       aria-label="Admin Portal Navigation"
       topContent={
-        <HStack vAlign="center" justify="between" gap={2}>
-          <Text type="supporting" size="sm" weight="semibold" color="secondary">
-            COUNCIL TIER
-          </Text>
-          <Badge variant={getRoleBadgeVariant(role)} label={getRoleDeskLabel(role)} />
-        </HStack>
+        <div className="pk-sidebar-brand-card pk-gold-frame p-3">
+          <img
+            src="/game-assets/mainmenu-bg.jpg"
+            alt=""
+            aria-hidden="true"
+            className="pk-sidebar-brand-bg"
+          />
+          <div className="relative z-10 flex flex-col gap-2">
+            <HStack vAlign="center" gap={2}>
+              <img
+                src="/logo.png"
+                alt="PactKeeper Crest"
+                className="w-8 h-8 object-contain shrink-0 drop-shadow"
+              />
+              <div className="min-w-0">
+                <div className="font-cinzel pk-gold-text text-xs font-bold tracking-wider truncate">
+                  PACTKEEPER
+                </div>
+                <Text type="supporting" size="sm" color="secondary" maxLines={1}>
+                  Tactical SRPG Realm
+                </Text>
+              </div>
+            </HStack>
+            <HStack vAlign="center" justify="between" gap={2}>
+              <Text type="supporting" size="sm" weight="semibold" color="secondary">
+                COUNCIL TIER
+              </Text>
+              <Badge variant={getRoleBadgeVariant(role)} label={getRoleDeskLabel(role)} />
+            </HStack>
+          </div>
+        </div>
       }
       footer={
         <VStack gap={3}>

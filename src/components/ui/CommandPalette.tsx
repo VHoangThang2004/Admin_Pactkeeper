@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   CreditCard,
@@ -8,6 +9,8 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Moon,
+  Rows2,
+  Rows3,
   Scale,
   Search,
   ShieldAlert,
@@ -21,6 +24,7 @@ import { Badge } from '@astryxdesign/core/Badge';
 import { Icon } from '@astryxdesign/core/Icon';
 import { Text } from '@astryxdesign/core/Text';
 import { WEB_TOPUP_URL } from '../../constants/links';
+import { useWorkspacePrefs } from '../../context/WorkspacePrefsContext';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import type { AdminPermissionKey } from '../../types';
 import { hasAnyPermission } from '../../utils/permissions';
@@ -56,6 +60,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 }) => {
   const navigate = useNavigate();
   const { mode, toggleMode } = useThemeMode();
+  const { density, toggleDensity, ambientFx, toggleAmbientFx } = useWorkspacePrefs();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -184,6 +189,37 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         },
       },
       {
+        id: 'act-density',
+        label:
+          density === 'compact'
+            ? 'Switch Table Density to Comfortable'
+            : 'Switch Table Density to Compact (High-Density)',
+        description: 'Adjust row height and table compactness across all data consoles',
+        group: 'Quick Actions',
+        icon: density === 'compact' ? Rows2 : Rows3,
+        badge: density === 'compact' ? 'Compact' : 'Comfortable',
+        keywords: 'density compact comfortable table rows zoom',
+        action: () => {
+          toggleDensity();
+          onClose();
+        },
+      },
+      {
+        id: 'act-ambient-fx',
+        label: ambientFx
+          ? 'Disable Workspace Ambient FX (Clean Mode)'
+          : 'Enable Citadel Ambient FX (Embers & Sweep)',
+        description: 'Toggle floating golden embers and route light sweep inside the workspace',
+        group: 'Quick Actions',
+        icon: Sparkles,
+        badge: ambientFx ? 'FX: ON' : 'FX: OFF',
+        keywords: 'fx embers particles animation atmosphere motion',
+        action: () => {
+          toggleAmbientFx();
+          onClose();
+        },
+      },
+      {
         id: 'act-password',
         label: 'Change Own Passcode',
         description: 'Rotate your current counselor credentials',
@@ -212,7 +248,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     ];
 
     return [...visibleNav, ...quickActions];
-  }, [role, permissions, mode, navigate, onClose, toggleMode, onOpenChangePassword]);
+  }, [
+    role,
+    permissions,
+    mode,
+    density,
+    ambientFx,
+    navigate,
+    onClose,
+    toggleMode,
+    toggleDensity,
+    toggleAmbientFx,
+    onOpenChangePassword,
+  ]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -266,13 +314,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label="High Counsel Command Palette"
       onClick={handleClose}
-      className="fixed inset-0 z-[110] flex items-start justify-center bg-black/65 backdrop-blur-md pt-[10dvh] px-4"
+      className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/65 backdrop-blur-md pt-[10dvh] px-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -338,10 +386,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         </div>
 
         <div className="flex items-center justify-between border-t border-[var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-background-muted)_45%,transparent)] px-4 py-2 text-xs text-[var(--color-text-secondary)]">
-          <span>↑↓ Navigate • Enter Open</span>
-          <span className="font-mono">PactKeeper Command Palette</span>
+          <span>↑↓ Navigate • Enter Open • / Focus Search</span>
+          <span className="font-mono">PactKeeper Workbench</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.querySelector('[data-astryx-theme]') ?? document.body,
   );
 };

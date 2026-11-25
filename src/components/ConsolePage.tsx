@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { HStack, VStack } from '@astryxdesign/core/Stack';
@@ -21,9 +22,23 @@ export interface ConsolePageProps {
   children: React.ReactNode;
 }
 
+function resolveHeaderArt(pathname: string): string {
+  if (pathname === '/') return '/game-assets/hero-briefing.png';
+  if (pathname.startsWith('/players') || pathname.startsWith('/matches')) {
+    return '/game-assets/hall-bg.png';
+  }
+  if (pathname.startsWith('/support') || pathname.startsWith('/security')) {
+    return '/game-assets/hero-eye.png';
+  }
+  if (pathname.startsWith('/gacha') || pathname.startsWith('/payments')) {
+    return '/game-assets/hero-awaken.png';
+  }
+  return '/game-assets/mainmenu-bg.jpg';
+}
+
 /**
- * Shared workspace shell for Admin Portal pages: keeps the title, action bar,
- * and tab/filter toolbar pinned below TopNav while scrolling page content below.
+ * Shared workspace shell for Admin Portal pages: keeps the PactKeeper scene-ribbon title,
+ * action bar, and tab/filter toolbar pinned below TopNav while scrolling page content below.
  */
 export const ConsolePage: React.FC<ConsolePageProps> = ({
   badge,
@@ -38,11 +53,22 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
   fillBody = false,
   children,
 }) => {
+  const location = useLocation();
+  const headerArtSrc = resolveHeaderArt(location.pathname);
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* Pinned Top Command Header */}
-      <header className="shrink-0 z-10 pk-console-header shadow-xs">
-        <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 pt-3 pb-2.5">
+      {/* Pinned Top Command Header with Unity_Pactkeeper Scene Ribbon */}
+      <header className="shrink-0 z-10 pk-console-header pk-console-header-art shadow-xs">
+        <img
+          src={headerArtSrc}
+          alt=""
+          aria-hidden="true"
+          className="pk-console-header-bg"
+        />
+        <div className="pk-console-header-scrim" aria-hidden="true" />
+
+        <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 sm:px-6 pt-3 pb-2.5">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
             <HStack gap={3} vAlign="center" className="min-w-0 flex-1">
               {icon && (
@@ -81,6 +107,8 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
             </div>
           )}
         </div>
+
+        <div className="relative z-10 pk-ornate-divider" aria-hidden="true" />
       </header>
 
       {banner && (

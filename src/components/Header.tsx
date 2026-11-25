@@ -16,12 +16,15 @@ import {
   KeyRound,
   LogOut,
   Moon,
+  Rows2,
+  Rows3,
   Search,
   ShieldAlert,
   Sun,
   UserCheck,
 } from 'lucide-react';
 import { WEB_TOPUP_URL } from '../constants/links';
+import { useWorkspacePrefs } from '../context/WorkspacePrefsContext';
 import { useThemeMode } from '../hooks/useThemeMode';
 import type { AdminPermissionKey } from '../types';
 import { hasPermission } from '../utils/permissions';
@@ -106,13 +109,24 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const navigate = useNavigate();
   const { mode, toggleMode } = useThemeMode();
+  const { density, toggleDensity } = useWorkspacePrefs();
+  const isDevEnv = import.meta.env.DEV;
   const resolvedToken = resolveSessionToken(adminToken);
 
   const [serverTime, setServerTime] = useState<string>(() => formatServerTimeUtc7(new Date()));
-  const [sessionTtl, setSessionTtl] = useState<string>(() => {
+  const [sessionRemainingMs, setSessionRemainingMs] = useState<number | null>(() => {
     const exp = getTokenExpiryMs(resolvedToken);
-    return exp ? formatRemainingDuration(exp - Date.now()) : 'Active';
+    return exp ? exp - Date.now() : null;
   });
+  const sessionTtl = sessionRemainingMs !== null ? formatRemainingDuration(sessionRemainingMs) : 'Active';
+  const ttlBadgeVariant =
+    sessionRemainingMs === null
+      ? 'neutral'
+      : sessionRemainingMs <= 5 * 60_000
+        ? 'error'
+        : sessionRemainingMs <= 15 * 60_000
+          ? 'warning'
+          : 'neutral';
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
 
@@ -133,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
       setServerTime(formatServerTimeUtc7(now));
       const token = resolveSessionToken(adminToken);
       const exp = getTokenExpiryMs(token);
-      setSessionTtl(exp ? formatRemainingDuration(exp - now.getTime()) : 'Active');
+      setSessionRemainingMs(exp ? exp - now.getTime() : null);
     }, 1000);
     return () => window.clearInterval(timer);
   }, [adminToken]);
@@ -201,6 +215,10 @@ export const Header: React.FC<HeaderProps> = ({
         startContent={
           <div className="hidden md:flex items-center gap-2">
             <Badge
+              variant={isDevEnv ? 'yellow' : 'success'}
+              label={isDevEnv ? 'DEV' : 'LIVE'}
+            />
+            <Badge
               variant="neutral"
               icon={<Clock className="w-3 h-3" />}
               label={<span className="pk-tabular">{serverTime} UTC+7</span>}
@@ -232,6 +250,15 @@ export const Header: React.FC<HeaderProps> = ({
             <IconButton
               variant="secondary"
               size="sm"
+              label={density === 'compact' ? 'Switch to comfortable density' : 'Switch to compact density'}
+              tooltip={density === 'compact' ? 'Density: Compact (Click for Comfortable)' : 'Density: Comfortable (Click for Compact)'}
+              icon={<Icon icon={density === 'compact' ? Rows3 : Rows2} />}
+              onClick={toggleDensity}
+            />
+
+            <IconButton
+              variant="secondary"
+              size="sm"
               label={mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
               tooltip={mode === 'light' ? 'Dark Mode (Obsidian Gold)' : 'Light Mode (Parchment)'}
               icon={<Icon icon={mode === 'light' ? Moon : Sun} />}
@@ -240,7 +267,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div className="hidden sm:block">
               <Badge
-                variant="neutral"
+                variant={ttlBadgeVariant}
                 label={<span className="pk-tabular">TTL {sessionTtl}</span>}
               />
             </div>

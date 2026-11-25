@@ -31,6 +31,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { adminClient } from '../api/adminClient';
+import { EmberAtmosphere } from '../components/ui/EmberAtmosphere';
 import { useThemeMode } from '../hooks/useThemeMode';
 import { recordAuditEvent, recordLoginAttempt } from '../services/adminSecurityService';
 import type { AdminPermissionKey, CounselRole } from '../types';
@@ -345,6 +346,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         ))}
       </div>
       <div className="pk-login-scrim" aria-hidden="true" />
+      <EmberAtmosphere />
 
       <div className="relative z-10 w-full max-w-2xl pk-page-enter flex flex-col gap-3">
         <Card elevation="high" padding={6} className="pk-login-card pk-spotlight">
