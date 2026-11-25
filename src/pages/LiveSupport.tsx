@@ -299,11 +299,22 @@ export const LiveSupport: React.FC = () => {
   }, [selectedPlayerId]);
 
   useEffect(() => {
+    // Vercel Rewrites do not proxy WebSocket upgrades; use SSE/LongPolling on relative prod URLs
+    const useProxySafeTransports = !import.meta.env.DEV;
+
     const connection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/support', {
         accessTokenFactory: () => sessionStorage.getItem('adminToken') || '',
+        ...(useProxySafeTransports
+          ? {
+              transport:
+                signalR.HttpTransportType.ServerSentEvents |
+                signalR.HttpTransportType.LongPolling,
+            }
+          : {}),
       })
       .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Warning)
       .build();
 
     connection
