@@ -347,7 +347,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="pk-login-scrim" aria-hidden="true" />
 
       <div className="relative z-10 w-full max-w-2xl pk-page-enter flex flex-col gap-3">
-        <Card elevation="high" padding={6} className="pk-login-card">
+        <Card elevation="high" padding={6} className="pk-login-card pk-spotlight">
           <VStack gap={5}>
             {/* Top Bar + Brand Crest */}
             <VStack gap={3}>

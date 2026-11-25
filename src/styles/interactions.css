@@ -1,0 +1,350 @@
+@layer product {
+  /* ==========================================================================
+     Interactive Component Polish — 4-State Tactile Loop
+     Covers Astryx StyleX primitives (Buttons, IconButtons, SideNav, Tabs,
+     SegmentedControl, Selectors, DropdownMenus, Dialogs, Inputs, Tables, Cards)
+     ========================================================================== */
+
+  @keyframes pkClickRipple {
+    0% {
+      transform: translate(-50%, -50%) scale(0.15);
+      opacity: 0.42;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.6);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pkMenuPopIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes pkModalSpring {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.965);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* --------------------------------------------------------------------------
+     1. Universal Pointer Cursor, Focus Ring & Multi-Property Transitions
+     -------------------------------------------------------------------------- */
+  button:not(:disabled),
+  a[href],
+  [role='button']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']),
+  [role='radio']:not([aria-disabled='true']),
+  [role='option']:not([aria-disabled='true']),
+  [role='menuitem']:not([aria-disabled='true']),
+  [role='menuitemcheckbox']:not([aria-disabled='true']),
+  [role='combobox']:not([aria-disabled='true']),
+  [role='switch']:not([aria-disabled='true']),
+  summary {
+    cursor: pointer !important;
+    transition:
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      filter 180ms ease,
+      opacity 180ms ease !important;
+  }
+
+  button:not(:disabled):focus-visible,
+  a[href]:focus-visible,
+  [role='button']:focus-visible,
+  [role='tab']:focus-visible,
+  [role='radio']:focus-visible,
+  [role='combobox']:focus-visible,
+  [role='switch']:focus-visible {
+    outline: 2px solid var(--color-accent) !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent) !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     2. Tactile Buttons & IconButtons (Rest -> Hover -> Active/Press)
+     -------------------------------------------------------------------------- */
+  button:not(:disabled):not([role='tab']):not([role='radio']):not([role='option']):not([role='menuitem']):hover,
+  [role='button']:not([aria-disabled='true']):hover {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+    box-shadow:
+      0 6px 18px -6px color-mix(in srgb, var(--color-accent) 34%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 36%, transparent);
+  }
+
+  button:not(:disabled):not([role='tab']):not([role='radio']):not([role='option']):not([role='menuitem']):active,
+  button:not(:disabled)[data-astryx-press='on'],
+  [role='button']:not([aria-disabled='true']):active {
+    transform: translateY(0) scale(0.965) !important;
+    filter: brightness(0.96);
+    box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--color-accent) 28%, transparent) !important;
+    transition-duration: 95ms !important;
+  }
+
+  /* Shimmer sweep on submit / primary buttons */
+  button[type='submit']:not(:disabled):hover,
+  .pk-primary-cta button:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 10px 26px -6px color-mix(in srgb, var(--color-accent) 48%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  /* Subtle icon micro-motion inside buttons */
+  button:not(:disabled) svg,
+  a[href] svg {
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms ease;
+  }
+
+  button:not(:disabled):hover svg {
+    transform: scale(1.08);
+  }
+
+  button[aria-label*='Close' i]:not(:disabled):hover svg,
+  button[aria-label*='close' i]:not(:disabled):hover svg {
+    transform: rotate(90deg) scale(1.08);
+  }
+
+  button[aria-label*='dark mode' i]:not(:disabled):hover svg,
+  button[aria-label*='light mode' i]:not(:disabled):hover svg {
+    transform: rotate(18deg) scale(1.1);
+  }
+
+  /* Tactile Click Ripple Wave (spawned by useInteractiveFeel) */
+  .pk-ripple-host {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pk-ripple-wave {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--color-accent) 55%, var(--color-on-accent)) 0%,
+      color-mix(in srgb, var(--color-accent) 18%, transparent) 60%,
+      transparent 100%
+    );
+    animation: pkClickRipple 460ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    z-index: 30;
+  }
+
+  /* --------------------------------------------------------------------------
+     3. Sidebar Navigation, Tabs & Segmented Controls
+     -------------------------------------------------------------------------- */
+  nav[aria-label='Admin Portal Navigation'] a,
+  nav[aria-label='Admin Portal Navigation'] button {
+    position: relative;
+    border-radius: var(--radius-md);
+  }
+
+  nav[aria-label='Admin Portal Navigation'] a:hover,
+  nav[aria-label='Admin Portal Navigation'] button:hover {
+    transform: translateX(4px);
+    background-color: color-mix(in srgb, var(--color-accent) 11%, transparent);
+    box-shadow: none;
+    filter: none;
+  }
+
+  nav[aria-label='Admin Portal Navigation'] a:active,
+  nav[aria-label='Admin Portal Navigation'] button:active {
+    transform: translateX(2px) scale(0.985) !important;
+  }
+
+  nav[aria-label='Admin Portal Navigation'] a[aria-current='page'],
+  nav[aria-label='Admin Portal Navigation'] [data-selected='true'],
+  nav[aria-label='Admin Portal Navigation'] [aria-selected='true'] {
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    box-shadow: inset 3px 0 0 0 var(--color-accent);
+  }
+
+  /* Tabs */
+  .astryx-tab-list [role='tab'],
+  [data-tab-value] {
+    position: relative;
+    border-radius: var(--radius-md);
+  }
+
+  .astryx-tab-list [role='tab']:hover,
+  [data-tab-value]:hover {
+    transform: none !important;
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-text-primary);
+    box-shadow: none !important;
+  }
+
+  .astryx-tab-list [role='tab']:active,
+  [data-tab-value]:active {
+    transform: scale(0.975) !important;
+  }
+
+  /* Segmented Control */
+  [role='radiogroup'] [role='radio']:hover,
+  [role='radiogroup'] button:hover {
+    transform: none !important;
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    box-shadow: none !important;
+  }
+
+  [role='radiogroup'] [role='radio']:active,
+  [role='radiogroup'] button:active {
+    transform: scale(0.97) !important;
+  }
+
+  [role='radiogroup'] [aria-checked='true'],
+  [role='radiogroup'] [data-selected='true'] {
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--color-accent) 32%, transparent);
+  }
+
+  /* --------------------------------------------------------------------------
+     4. Inputs, Textareas, Selectors, Dropdowns & Modals
+     -------------------------------------------------------------------------- */
+  input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+  textarea,
+  select,
+  [role='combobox'] {
+    transition:
+      border-color 180ms ease,
+      box-shadow 200ms ease,
+      background-color 180ms ease;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not(:disabled):hover,
+  textarea:not(:disabled):hover,
+  select:not(:disabled):hover,
+  [role='combobox']:not([aria-disabled='true']):hover {
+    border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border-emphasized));
+  }
+
+  input:not([type='checkbox']):not([type='radio']):focus,
+  textarea:focus,
+  select:focus,
+  [role='combobox']:focus-visible {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  }
+
+  [role='combobox'][aria-expanded='true'] svg:last-child {
+    transform: rotate(180deg);
+  }
+
+  /* Dropdown Menus & Select Listboxes (safe: never override floating transform) */
+  [role='menu'],
+  [role='listbox'] {
+    animation: pkMenuPopIn 170ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  [role='menuitem']:hover,
+  [role='menuitemcheckbox']:hover,
+  [role='option']:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    transform: translateX(2px) !important;
+    box-shadow: none !important;
+  }
+
+  [role='menuitem']:active,
+  [role='menuitemcheckbox']:active,
+  [role='option']:active {
+    transform: translateX(1px) scale(0.985) !important;
+  }
+
+  /* Dialogs & Modals */
+  [role='dialog'] {
+    animation: pkModalSpring 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* --------------------------------------------------------------------------
+     5. Mouse-Follow Spotlight Cards & Table Row Micro-Feedback
+     -------------------------------------------------------------------------- */
+  .pk-spotlight {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pk-spotlight::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(
+      320px circle at var(--pk-mx, 50%) var(--pk-my, 50%),
+      color-mix(in srgb, var(--color-accent) 16%, transparent),
+      transparent 70%
+    );
+    transition: opacity 240ms ease;
+    z-index: 1;
+  }
+
+  .pk-spotlight:hover::after {
+    opacity: 1;
+  }
+
+  .pk-interactive-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+    box-shadow:
+      0 14px 28px -14px color-mix(in srgb, var(--color-accent) 32%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+
+  .pk-interactive-card:hover .pk-icon-emblem {
+    transform: scale(1.08);
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+    box-shadow: 0 0 14px -4px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  }
+
+  .pk-icon-emblem {
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 220ms ease,
+      box-shadow 220ms ease;
+  }
+
+  /* Data Table Rows: crisp hover highlight + left accent rail */
+  tbody tr {
+    transition:
+      background-color 160ms ease,
+      box-shadow 160ms ease !important;
+  }
+
+  tbody tr:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 7%, var(--color-overlay-hover)) !important;
+    box-shadow: inset 3px 0 0 0 var(--color-accent);
+  }
+
+  /* --------------------------------------------------------------------------
+     6. Accessibility: Reduced Motion
+     -------------------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce) {
+    .pk-ripple-wave,
+    .pk-spotlight::after {
+      display: none !important;
+    }
+
+    button:not(:disabled):hover,
+    button:not(:disabled):active,
+    nav[aria-label='Admin Portal Navigation'] a:hover,
+    [role='menuitem']:hover,
+    [role='option']:hover,
+    .pk-interactive-card:hover {
+      transform: none !important;
+    }
+  }
+}

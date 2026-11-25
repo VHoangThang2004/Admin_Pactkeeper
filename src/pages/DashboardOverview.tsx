@@ -894,7 +894,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         {activeView === 'overview' && (
           <div key="dash-tab-overview" className="pk-tab-panel flex flex-col gap-4">
             {/* Executive Key-Art Command Hero Stage */}
-            <div className="pk-hero-stage p-4 sm:p-5">
+            <div className="pk-hero-stage pk-spotlight p-4 sm:p-5">
               <div className="pk-hero-bg-layer" aria-hidden="true">
                 <img
                   src="/game-assets/hero-briefing.png"

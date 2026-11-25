@@ -47,8 +47,8 @@ export const KpiSummaryStrip: React.FC<KpiSummaryStripProps> = ({
           padding={4}
           className={
             item.highlight
-              ? 'pk-interactive-card pk-gold-frame'
-              : 'pk-interactive-card'
+              ? 'pk-interactive-card pk-gold-frame pk-spotlight'
+              : 'pk-interactive-card pk-spotlight'
           }
         >
           <VStack gap={2}>
