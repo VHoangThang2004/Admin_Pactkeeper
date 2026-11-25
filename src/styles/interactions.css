@@ -1,0 +1,772 @@
+@layer product {
+  /* ==========================================================================
+     Interactive Component Polish — 4-State Tactile Loop
+     Covers Astryx StyleX primitives (Buttons, IconButtons, SideNav, Tabs,
+     SegmentedControl, Selectors, DropdownMenus, Dialogs, Inputs, Tables, Cards)
+     ========================================================================== */
+
+  @keyframes pkClickRipple {
+    0% {
+      transform: translate(-50%, -50%) scale(0.18);
+      opacity: 0.26;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.4);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pkMenuPopIn {
+    from {
+      opacity: 0;
+      transform: translateY(-3px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes pkModalSpring {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.975);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* --------------------------------------------------------------------------
+     1. Universal Pointer Cursor, Focus Ring & Multi-Property Transitions
+     -------------------------------------------------------------------------- */
+  button:not(:disabled),
+  a[href],
+  [role='button']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']),
+  [role='radio']:not([aria-disabled='true']),
+  [role='option']:not([aria-disabled='true']),
+  [role='menuitem']:not([aria-disabled='true']),
+  [role='menuitemcheckbox']:not([aria-disabled='true']),
+  [role='combobox']:not([aria-disabled='true']),
+  [role='switch']:not([aria-disabled='true']),
+  summary {
+    cursor: pointer !important;
+    transition:
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      filter 180ms ease,
+      opacity 180ms ease !important;
+  }
+
+  button:not(:disabled):focus-visible,
+  a[href]:focus-visible,
+  [role='button']:focus-visible,
+  [role='tab']:focus-visible,
+  [role='radio']:focus-visible,
+  [role='combobox']:focus-visible,
+  [role='switch']:focus-visible {
+    outline: 2px solid var(--color-accent) !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent) !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     2. Tactile Buttons & IconButtons (Precision Engineer Feel: 100-180ms)
+     -------------------------------------------------------------------------- */
+  button:not(:disabled):not([role='tab']):not([role='radio']):not([role='option']):not([role='menuitem']):hover,
+  [role='button']:not([aria-disabled='true']):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+    box-shadow:
+      0 4px 12px -4px color-mix(in srgb, var(--color-accent) 28%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 34%, transparent);
+  }
+
+  button:not(:disabled):not([role='tab']):not([role='radio']):not([role='option']):not([role='menuitem']):active,
+  button:not(:disabled)[data-astryx-press='on'],
+  [role='button']:not([aria-disabled='true']):active {
+    transform: translateY(0) scale(0.975) !important;
+    filter: brightness(0.97);
+    box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--color-accent) 24%, transparent) !important;
+    transition-duration: 90ms !important;
+  }
+
+  /* Shimmer sweep on submit / primary buttons */
+  button[type='submit']:not(:disabled):hover,
+  .pk-primary-cta button:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 10px 26px -6px color-mix(in srgb, var(--color-accent) 48%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  /* Subtle icon micro-motion inside buttons */
+  button:not(:disabled) svg,
+  a[href] svg {
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms ease;
+  }
+
+  button:not(:disabled):hover svg {
+    transform: scale(1.08);
+  }
+
+  button[aria-label*='Close' i]:not(:disabled):hover svg,
+  button[aria-label*='close' i]:not(:disabled):hover svg {
+    transform: rotate(90deg) scale(1.08);
+  }
+
+  button[aria-label*='dark mode' i]:not(:disabled):hover svg,
+  button[aria-label*='light mode' i]:not(:disabled):hover svg {
+    transform: rotate(18deg) scale(1.1);
+  }
+
+  /* Tactile Click Ripple Wave (spawned by useInteractiveFeel) */
+  .pk-ripple-host {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pk-ripple-wave {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--color-accent) 55%, var(--color-on-accent)) 0%,
+      color-mix(in srgb, var(--color-accent) 18%, transparent) 60%,
+      transparent 100%
+    );
+    animation: pkClickRipple 460ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    z-index: 30;
+  }
+
+  /* --------------------------------------------------------------------------
+     3. Sidebar Navigation, Tabs & Segmented Controls
+     -------------------------------------------------------------------------- */
+  nav[aria-label='Admin Portal Navigation'] a,
+  nav[aria-label='Admin Portal Navigation'] button {
+    position: relative;
+    border-radius: var(--radius-md);
+  }
+
+  nav[aria-label='Admin Portal Navigation'] a:hover,
+  nav[aria-label='Admin Portal Navigation'] button:hover {
+    transform: translateX(4px);
+    background-color: color-mix(in srgb, var(--color-accent) 11%, transparent);
+    box-shadow: none;
+    filter: none;
+  }
+
+  nav[aria-label='Admin Portal Navigation'] a:active,
+  nav[aria-label='Admin Portal Navigation'] button:active {
+    transform: translateX(2px) scale(0.985) !important;
+  }
+
+  nav[aria-label='Admin Portal Navigation'] a[aria-current='page'],
+  nav[aria-label='Admin Portal Navigation'] [data-selected='true'],
+  nav[aria-label='Admin Portal Navigation'] [aria-selected='true'] {
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    box-shadow: inset 3px 0 0 0 var(--color-accent);
+  }
+
+  /* Tabs */
+  .astryx-tab-list [role='tab'],
+  [data-tab-value] {
+    position: relative;
+    border-radius: var(--radius-md);
+  }
+
+  .astryx-tab-list [role='tab']:hover,
+  [data-tab-value]:hover {
+    transform: none !important;
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-text-primary);
+    box-shadow: none !important;
+  }
+
+  .astryx-tab-list [role='tab']:active,
+  [data-tab-value]:active {
+    transform: scale(0.975) !important;
+  }
+
+  /* Segmented Control */
+  [role='radiogroup'] [role='radio']:hover,
+  [role='radiogroup'] button:hover {
+    transform: none !important;
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    box-shadow: none !important;
+  }
+
+  [role='radiogroup'] [role='radio']:active,
+  [role='radiogroup'] button:active {
+    transform: scale(0.97) !important;
+  }
+
+  [role='radiogroup'] [aria-checked='true'],
+  [role='radiogroup'] [data-selected='true'] {
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--color-accent) 32%, transparent);
+  }
+
+  /* --------------------------------------------------------------------------
+     4. Inputs, Textareas, Selectors, Dropdowns & Modals
+     -------------------------------------------------------------------------- */
+  input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+  textarea,
+  select,
+  [role='combobox'] {
+    transition:
+      border-color 180ms ease,
+      box-shadow 200ms ease,
+      background-color 180ms ease;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not(:disabled):hover,
+  textarea:not(:disabled):hover,
+  select:not(:disabled):hover,
+  [role='combobox']:not([aria-disabled='true']):hover {
+    border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border-emphasized));
+  }
+
+  input:not([type='checkbox']):not([type='radio']):focus,
+  textarea:focus,
+  select:focus,
+  [role='combobox']:focus-visible {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  }
+
+  [role='combobox'][aria-expanded='true'] svg:last-child {
+    transform: rotate(180deg);
+  }
+
+  /* Dropdown Menus & Select Listboxes (Engineer-Grade Precision Popovers) */
+  [role='combobox'][aria-expanded='true'],
+  button[aria-haspopup][aria-expanded='true'] {
+    border-color: var(--color-accent) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 22%, transparent) !important;
+  }
+
+  [role='menu'],
+  [role='listbox'] {
+    animation: pkMenuPopIn 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 32%, var(--color-border-emphasized)) !important;
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-accent) 16%, transparent),
+      0 18px 40px -14px rgba(0, 0, 0, 0.42) !important;
+  }
+
+  [role='menuitem'],
+  [role='menuitemcheckbox'],
+  [role='option'] {
+    border-radius: 6px;
+    position: relative;
+  }
+
+  [role='menuitem']:hover,
+  [role='menuitemcheckbox']:hover,
+  [role='option']:hover,
+  [role='menuitem'][data-highlighted='true'],
+  [role='option'][data-highlighted='true'] {
+    background-color: color-mix(in srgb, var(--color-accent) 13%, transparent) !important;
+    box-shadow: inset 2px 0 0 0 var(--color-accent) !important;
+    transform: none !important;
+  }
+
+  [role='option'][aria-selected='true'],
+  [role='menuitemcheckbox'][aria-checked='true'] {
+    background-color: color-mix(in srgb, var(--color-accent) 16%, transparent);
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+
+  [role='menuitem']:active,
+  [role='menuitemcheckbox']:active,
+  [role='option']:active {
+    transform: scale(0.99) !important;
+    background-color: color-mix(in srgb, var(--color-accent) 20%, transparent) !important;
+  }
+
+  /* Dialogs & Modals */
+  [role='dialog'] {
+    animation: pkModalSpring 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* --------------------------------------------------------------------------
+     5. Mouse-Follow Spotlight Cards & Table Row Micro-Feedback
+     -------------------------------------------------------------------------- */
+  .pk-spotlight {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pk-spotlight::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(
+      320px circle at var(--pk-mx, 50%) var(--pk-my, 50%),
+      color-mix(in srgb, var(--color-accent) 16%, transparent),
+      transparent 70%
+    );
+    transition: opacity 240ms ease;
+    z-index: 1;
+  }
+
+  .pk-spotlight:hover::after {
+    opacity: 1;
+  }
+
+  .pk-interactive-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+    box-shadow:
+      0 14px 28px -14px color-mix(in srgb, var(--color-accent) 32%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+
+  .pk-interactive-card:hover .pk-icon-emblem {
+    transform: scale(1.08);
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+    box-shadow: 0 0 14px -4px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  }
+
+  .pk-icon-emblem {
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 220ms ease,
+      box-shadow 220ms ease;
+  }
+
+  /* Data Table Rows: crisp hover highlight + left accent rail */
+  tbody tr {
+    transition:
+      background-color 160ms ease,
+      box-shadow 160ms ease !important;
+  }
+
+  tbody tr:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 7%, var(--color-overlay-hover)) !important;
+    box-shadow: inset 3px 0 0 0 var(--color-accent);
+  }
+
+  /* --------------------------------------------------------------------------
+     6. AAA Portal Framing, Directional Tabs, Zoom Showcase & Skeletons
+     -------------------------------------------------------------------------- */
+  @keyframes pkTabSlideRight {
+    from {
+      opacity: 0;
+      transform: translateX(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes pkTabSlideLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes pkSkeletonShimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .pk-tab-slide-right {
+    animation: pkTabSlideRight 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .pk-tab-slide-left {
+    animation: pkTabSlideLeft 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Scroll-triggered Reveal */
+  .pk-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .pk-reveal-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Subtle Clean Corner Accent (disabled visual noise in modern workbench) */
+  .pk-corner-frame {
+    position: relative;
+  }
+
+  /* Artwork Zoom-on-Hover Showcase Cards */
+  .pk-zoom-card {
+    overflow: hidden;
+  }
+
+  .pk-zoom-img {
+    transition: transform 460ms cubic-bezier(0.22, 1, 0.36, 1), filter 320ms ease;
+  }
+
+  .pk-zoom-card:hover .pk-zoom-img {
+    transform: scale(1.07);
+    filter: brightness(1.06) saturate(1.08);
+  }
+
+  /* Cashier Storefront Pack Card */
+  .pk-cashier-stage {
+    position: relative;
+    background: radial-gradient(
+      circle at 50% 45%,
+      color-mix(in srgb, var(--color-accent) 24%, transparent),
+      color-mix(in srgb, var(--color-background-body) 85%, #070a14) 76%
+    );
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+    transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease;
+  }
+
+  .pk-interactive-card:hover .pk-cashier-stage {
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--color-accent) 42%, transparent);
+  }
+
+  /* Gold Shimmer Skeleton Loader */
+  .pk-skeleton {
+    background: linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--color-background-muted) 85%, transparent) 25%,
+      color-mix(in srgb, var(--color-accent) 16%, var(--color-background-muted)) 50%,
+      color-mix(in srgb, var(--color-background-muted) 85%, transparent) 75%
+    );
+    background-size: 200% 100%;
+    animation: pkSkeletonShimmer 1.45s ease-in-out infinite;
+  }
+
+  /* --------------------------------------------------------------------------
+     7. PactKeeper Game-World Identity, Scene Sweep & Ember Atmosphere
+     -------------------------------------------------------------------------- */
+  @keyframes pkSceneSweep {
+    0% {
+      transform: translateX(-110%) skewX(-18deg);
+      opacity: 0;
+    }
+    25% {
+      opacity: 0.75;
+    }
+    100% {
+      transform: translateX(130%) skewX(-18deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pkScenePageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pkEmberRise {
+    0% {
+      transform: translateY(100vh) translateX(0) scale(0.6);
+      opacity: 0;
+    }
+    15% {
+      opacity: 0.65;
+    }
+    75% {
+      opacity: 0.45;
+    }
+    100% {
+      transform: translateY(-12vh) translateX(22px) scale(1.1);
+      opacity: 0;
+    }
+  }
+
+  /* Non-blocking golden diagonal light sweep on route transition */
+  .pk-scene-sweep {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 90;
+    overflow: hidden;
+  }
+
+  .pk-scene-sweep::before {
+    content: '';
+    position: absolute;
+    top: -10%;
+    bottom: -10%;
+    left: 0;
+    width: 42%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-accent) 18%, transparent),
+      color-mix(in srgb, var(--color-accent) 34%, transparent),
+      color-mix(in srgb, var(--color-accent) 12%, transparent),
+      transparent
+    );
+    animation: pkSceneSweep 460ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .pk-page-scene-enter {
+    animation: pkScenePageEnter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* Precision 1px Gold Hairline Divider with Subtle 5px Diamond Crest */
+  /* Compact Engineering Density Mode */
+  html[data-density='compact'] table th,
+  html[data-density='compact'] table td {
+    padding-top: 0.38rem !important;
+    padding-bottom: 0.38rem !important;
+    font-size: 0.84rem;
+  }
+
+  html[data-density='compact'] .pk-scrollable-panel {
+    max-height: min(68dvh, 44rem);
+  }
+
+  .pk-id-chip {
+    transition: border-color 140ms ease, background-color 140ms ease, transform 100ms ease;
+  }
+
+  .pk-id-chip:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 10%, var(--color-background-card));
+  }
+
+  /* Atmospheric PactKeeper Citadel Backdrop behind Workspace */
+  .pk-realm-backdrop {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  .pk-realm-backdrop-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    opacity: 0.12;
+    filter: saturate(1.1) contrast(1.06);
+  }
+
+  [data-theme='light'] .pk-realm-backdrop-img {
+    opacity: 0.08;
+    filter: sepia(0.28) saturate(0.9);
+  }
+
+  .pk-realm-backdrop-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse 80% 72% at 50% 35%,
+      transparent 0%,
+      color-mix(in srgb, var(--color-background-body) 84%, transparent) 100%
+    );
+  }
+
+  /* Floating Golden Ember Motes */
+  .pk-ember-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden;
+  }
+
+  .pk-ember-mote {
+    position: absolute;
+    bottom: -10px;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--color-accent) 95%, #fff6d6) 0%,
+      color-mix(in srgb, var(--color-accent) 40%, transparent) 60%,
+      transparent 100%
+    );
+    box-shadow: 0 0 8px 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
+    animation: pkEmberRise 12s linear infinite;
+    opacity: 0;
+  }
+
+  [data-theme='light'] .pk-ember-mote {
+    opacity: 0;
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+
+  /* ConsolePage PactKeeper Scene Ribbon Header */
+  .pk-console-header-art {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pk-console-header-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 32%;
+    opacity: 0.22;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  [data-theme='light'] .pk-console-header-bg {
+    opacity: 0.14;
+    filter: sepia(0.2);
+  }
+
+  .pk-console-header-scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-background-surface) 92%, transparent) 0%,
+      color-mix(in srgb, var(--color-background-surface) 78%, transparent) 55%,
+      color-mix(in srgb, var(--color-background-surface) 92%, transparent) 100%
+    );
+  }
+
+  /* Medieval Ornamental Gold Bottom Line with Center Diamond Crest */
+  .pk-ornate-divider {
+    position: relative;
+    height: 2px;
+    width: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-accent) 45%, transparent) 22%,
+      var(--color-accent) 50%,
+      color-mix(in srgb, var(--color-accent) 45%, transparent) 78%,
+      transparent 100%
+    );
+  }
+
+  .pk-ornate-divider::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    background-color: var(--color-accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 65%, transparent);
+  }
+
+  /* Animated Gold Tab Underline (Active + Hover) */
+  .astryx-tab-list [role='tab']::after,
+  [data-tab-value]::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 0;
+    height: 2.5px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 55%, transparent),
+      var(--color-accent),
+      color-mix(in srgb, var(--color-accent) 55%, transparent)
+    );
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .astryx-tab-list [role='tab']:hover::after,
+  [data-tab-value]:hover::after {
+    transform: scaleX(0.55);
+    opacity: 0.65;
+  }
+
+  .astryx-tab-list [role='tab'][aria-selected='true']::after,
+  [data-tab-value][aria-selected='true']::after {
+    transform: scaleX(1);
+    opacity: 1;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  /* Sidebar PactKeeper Game Identity Crest Card */
+  .pk-sidebar-brand-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 44%, var(--color-border));
+    background-color: var(--color-background-card);
+  }
+
+  .pk-sidebar-brand-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.28;
+    pointer-events: none;
+  }
+
+  [data-theme='light'] .pk-sidebar-brand-bg {
+    opacity: 0.16;
+  }
+
+  /* --------------------------------------------------------------------------
+     8. Accessibility: Reduced Motion
+     -------------------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce) {
+    .pk-ripple-wave,
+    .pk-spotlight::after,
+    .pk-ember-layer,
+    .pk-scene-sweep {
+      display: none !important;
+    }
+
+    .pk-reveal {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
+    button:not(:disabled):hover,
+    button:not(:disabled):active,
+    nav[aria-label='Admin Portal Navigation'] a:hover,
+    [role='menuitem']:hover,
+    [role='option']:hover,
+    .pk-interactive-card:hover,
+    .pk-zoom-card:hover .pk-zoom-img {
+      transform: none !important;
+    }
+  }
+}

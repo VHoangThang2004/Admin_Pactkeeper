@@ -1,9 +1,10 @@
 import React from 'react';
-import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
-import { Heading, Text } from '@astryxdesign/core/Text';
-import { HStack, VStack } from '@astryxdesign/core/Stack';
+import { type BadgeVariant } from '@astryxdesign/core/Badge';
+import { Heading } from '@astryxdesign/core/Text';
+import { HStack } from '@astryxdesign/core/Stack';
 
 export interface ConsolePageProps {
+  /** Retained for backwards compatibility; intentionally hidden to keep headers clean */
   badge?: string;
   badgeVariant?: BadgeVariant;
   meta?: React.ReactNode;
@@ -22,16 +23,13 @@ export interface ConsolePageProps {
 }
 
 /**
- * Shared workspace shell for Admin Portal pages: keeps the title, action bar,
- * and tab/filter toolbar pinned below TopNav while scrolling page content below.
+ * Clean, minimal ConsolePage shell:
+ * displays only the page icon, crisp title, primary actions, and optional toolbar,
+ * maximizing vertical and horizontal space for data tables and controls.
  */
 export const ConsolePage: React.FC<ConsolePageProps> = ({
-  badge,
-  badgeVariant = 'yellow',
-  meta,
   icon,
   title,
-  subtitle,
   actions,
   toolbar,
   banner,
@@ -40,32 +38,24 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
 }) => {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* Pinned Top Command Header */}
-      <header className="shrink-0 z-10 border-b border-[var(--color-border-subtle)] bg-[var(--color-background-surface)] shadow-xs">
-        <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 pt-3 pb-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
-            <HStack gap={3} vAlign="center" className="min-w-0 flex-1">
+      {/* Compact Single-Row Page Header */}
+      <header className="shrink-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-background-surface)]">
+        <div className="w-full px-5 sm:px-6 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <HStack gap={2} vAlign="center" className="min-w-0 flex-1">
               {icon && (
-                <div className="w-10 h-10 rounded-xl bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-background-card))] border border-[color-mix(in_srgb,var(--color-accent)_26%,var(--color-border))] flex items-center justify-center shrink-0">
                   {icon}
                 </div>
               )}
-              <VStack gap={0.5} className="min-w-0">
-                {(badge || meta) && (
-                  <HStack gap={2} vAlign="center" wrap="wrap">
-                    {badge && <Badge label={badge} variant={badgeVariant} />}
-                    {meta}
-                  </HStack>
-                )}
-                <Heading level={1} type="display-3" className="font-cinzel pk-gold-text truncate">
-                  {title}
-                </Heading>
-                {subtitle && (
-                  <Text type="supporting" size="xsm" maxLines={1}>
-                    {subtitle}
-                  </Text>
-                )}
-              </VStack>
+              <Heading
+                level={1}
+                weight="bold"
+                className="text-xl sm:text-[22px] tracking-tight truncate"
+                style={{ fontFamily: 'var(--font-family-body)' }}
+              >
+                {title}
+              </Heading>
             </HStack>
 
             {actions && (
@@ -84,20 +74,20 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
       </header>
 
       {banner && (
-        <div className="shrink-0 mx-auto w-full max-w-[1600px] px-4 sm:px-6 pt-3">
+        <div className="shrink-0 w-full px-5 sm:px-6 pt-3">
           {banner}
         </div>
       )}
 
       {fillBody ? (
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-4 sm:px-6 py-4">
-          <div className="mx-auto flex h-full w-full max-w-[1600px] min-h-0 flex-col">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-5 sm:px-6 py-3.5">
+          <div className="flex h-full w-full min-h-0 flex-col">
             {children}
           </div>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4">
-          <div className="mx-auto w-full max-w-[1600px] pb-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-3.5">
+          <div className="w-full pb-5">
             {children}
           </div>
         </div>

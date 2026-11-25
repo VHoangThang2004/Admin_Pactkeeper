@@ -4,11 +4,47 @@ import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { HStack } from '@astryxdesign/core/HStack';
+import { Selector } from '@astryxdesign/core/Selector';
 import { Text } from '@astryxdesign/core/Text';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
+
+const AUDIT_REASON_PRESETS = [
+  {
+    value: 'CUSTOM',
+    label: 'Custom reason (write below)...',
+  },
+  {
+    value: 'Scheduled server maintenance window',
+    label: 'Scheduled server maintenance window',
+  },
+  {
+    value: 'Emergency hotfix / critical incident mitigation',
+    label: 'Emergency hotfix / critical incident mitigation',
+  },
+  {
+    value: 'Investigating combat desync, exploit, or abnormal behavior',
+    label: 'Investigating combat desync, exploit, or abnormal behavior',
+  },
+  {
+    value: 'Suspicious account activity / security policy enforcement',
+    label: 'Suspicious account activity / security policy enforcement',
+  },
+  {
+    value: 'LiveOps balance, gacha, or content rotation update',
+    label: 'LiveOps balance, gacha, or content rotation update',
+  },
+  {
+    value: 'Player billing verification or compensation adjustment',
+    label: 'Player billing verification or compensation adjustment',
+  },
+  {
+    value: 'Routine QA / staging environment verification',
+    label: 'Routine QA / staging environment verification',
+  },
+];
 
 export interface SensitiveActionModalProps {
   isOpen: boolean;
@@ -45,6 +81,7 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
   error: propError,
   externalError,
 }) => {
+  const [selectedPreset, setSelectedPreset] = useState<string>('CUSTOM');
   const [rationale, setRationale] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [internalLoading, setInternalLoading] = useState(false);
@@ -56,11 +93,21 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
 
   const closeHandler = () => {
     if (busy) return;
+    setSelectedPreset('CUSTOM');
     setRationale('');
     setKeywordInput('');
     setValidationError(null);
     onCancel?.();
     onClose?.();
+  };
+
+  const handlePresetChange = (val: string | number | null) => {
+    const next = String(val || 'CUSTOM');
+    setSelectedPreset(next);
+    if (next !== 'CUSTOM') {
+      setRationale(next);
+      if (validationError) setValidationError(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +126,7 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
     setInternalLoading(true);
     try {
       await onConfirm(trimmedReason);
+      setSelectedPreset('CUSTOM');
       setRationale('');
       setKeywordInput('');
     } catch (err: unknown) {
@@ -101,7 +149,7 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
         if (!open) closeHandler();
       }}
       purpose="form"
-      width={500}
+      width={520}
     >
       <VStack gap={4}>
         <DialogHeader
@@ -145,16 +193,27 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <VStack gap={3}>
+            <Selector
+              label="Quick Audit Reason Preset"
+              options={AUDIT_REASON_PRESETS}
+              value={selectedPreset}
+              onChange={handlePresetChange}
+              width="100%"
+            />
+
             <TextArea
               label="Mandatory Audit Reason (min 5 chars)"
               value={rationale}
               onChange={(val) => {
                 setRationale(val);
+                if (selectedPreset !== 'CUSTOM' && val !== selectedPreset) {
+                  setSelectedPreset('CUSTOM');
+                }
                 if (validationError) setValidationError(null);
               }}
               rows={3}
               isRequired
-              placeholder="Explain why this sensitive action is being executed (recorded to Security Audit Log)..."
+              placeholder="Select a preset above or explain why this sensitive action is being executed..."
             />
 
             {requireKeyword && (

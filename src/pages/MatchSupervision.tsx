@@ -38,6 +38,7 @@ import { VStack } from '@astryxdesign/core/VStack';
 import { adminClient } from '../api/adminClient';
 import { fetchAvailableLogFiles, fetchMatchLogs } from '../api/matchLogApi';
 import { ConsolePage } from '../components/ConsolePage';
+import { ScrollableDataPanel } from '../components/ui/ScrollableDataPanel';
 import { LogTerminalView } from '../components/LogTerminalView';
 import { MatchLogInspector } from '../components/MatchLogInspector';
 import type {
@@ -349,7 +350,7 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
             </HStack>
             <HStack gap={2} vAlign="center">
               <Badge label={String(m.mode || 'PVP').toUpperCase()} variant="yellow" />
-              <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+              <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                 {dt.date} {dt.time}
               </Text>
             </HStack>
@@ -413,7 +414,7 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
                 {p2Name}
               </Text>
             </HStack>
-            <Text type="code" size="2xs" color="secondary" maxLines={1}>
+            <Text type="code" size="sm" color="secondary" maxLines={1}>
               P1: {isAiOrVirtualPlayerId(m.player1Id) ? 'AI' : `${m.player1Id?.slice(0, 10)}...`} • P2: {isAiOrVirtualPlayerId(m.player2Id) ? 'AI' : `${m.player2Id?.slice(0, 10)}...`}
             </Text>
           </VStack>
@@ -649,15 +650,20 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
 
       {/* Tab 2: Match Sessions Directory */}
       {(!canInspectLogs || activeTab === 'sessions') && (
-        <div id="match-panel-sessions">
-          <Card padding={3}>
-            {displayedMatches.length === 0 ? (
+        <div key="match-panel-sessions" id="match-panel-sessions" className="pk-tab-panel">
+          {displayedMatches.length === 0 ? (
+            <Card padding={6}>
               <EmptyState
                 icon={<Icon icon={Swords} size="lg" color="secondary" />}
                 title="No match sessions found matching your filters"
                 description="Try clearing search criteria or switching status filters."
               />
-            ) : (
+            </Card>
+          ) : (
+            <ScrollableDataPanel
+              footerLeft={`Showing ${displayedMatches.length} match session${displayedMatches.length === 1 ? '' : 's'}`}
+              footerRight={`VPS Logs Indexed: ${logFileSet.size}`}
+            >
               <Table
                 data={displayedMatches as MatchTableRow[]}
                 columns={columns}
@@ -666,8 +672,8 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
                 dividers="rows"
                 hasHover
               />
-            )}
-          </Card>
+            </ScrollableDataPanel>
+          )}
         </div>
       )}
 

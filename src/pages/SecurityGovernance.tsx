@@ -1165,7 +1165,7 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
 
           {/* TAB 1: STAFF ACCOUNTS */}
           {activeTab === 'accounts' && (
-            <div role="tabpanel" id="panel-accounts">
+            <div key="panel-accounts" role="tabpanel" id="panel-accounts" className="pk-tab-panel">
               <VStack gap={4}>
                 <HStack justify="between" vAlign="end" gap={3} wrap="wrap">
                   <HStack gap={3} vAlign="end" wrap="wrap" className="flex-1 min-w-[260px]">
@@ -1501,14 +1501,16 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                     icon={<FileClock className="w-8 h-8" />}
                   />
                 ) : (
-                  <Table
-                    columns={auditColumns}
-                    data={filteredAudits}
-                    idKey="id"
-                    density="compact"
-                    hasHover
-                    aria-label="Security Audit Log"
-                  />
+                  <div className="pk-scrollable-panel pk-sticky-table rounded-lg border border-[var(--color-border-subtle)]">
+                    <Table
+                      columns={auditColumns}
+                      data={filteredAudits}
+                      idKey="id"
+                      density="compact"
+                      hasHover
+                      aria-label="Security Audit Log"
+                    />
+                  </div>
                 )}
               </VStack>
             </div>
@@ -1516,7 +1518,7 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
 
           {/* TAB 4: LOGIN HISTORY */}
           {activeTab === 'logins' && (
-            <div role="tabpanel" id="panel-logins">
+            <div key="panel-logins" role="tabpanel" id="panel-logins" className="pk-tab-panel">
               <VStack gap={4}>
                 <Grid columns={{ minWidth: 190, max: 4, repeat: 'fit' }} gap={3}>
                   <TextInput

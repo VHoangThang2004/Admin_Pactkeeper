@@ -2041,7 +2041,7 @@ export const ContentManagement: React.FC = () => {
       <Card padding={4}>
         {/* 1. HERO UNITS TAB */}
         {activeTab === 'units' && (
-          <div role="tabpanel" id="panel-units">
+          <div key="panel-units" role="tabpanel" id="panel-units" className="pk-tab-panel">
             {filteredUnitRows.length === 0 ? (
               <EmptyState
                 title={
@@ -2081,7 +2081,7 @@ export const ContentManagement: React.FC = () => {
 
         {/* 2. CHAPTERS TAB */}
         {activeTab === 'chapters' && (
-          <div role="tabpanel" id="panel-chapters">
+          <div key="panel-chapters" role="tabpanel" id="panel-chapters" className="pk-tab-panel">
             {filteredChapterRows.length === 0 ? (
               <EmptyState
                 title={
@@ -2121,7 +2121,7 @@ export const ContentManagement: React.FC = () => {
 
         {/* 3. WEAPONS TAB */}
         {activeTab === 'weapons' && (
-          <div role="tabpanel" id="panel-weapons">
+          <div key="panel-weapons" role="tabpanel" id="panel-weapons" className="pk-tab-panel">
             {filteredWeaponRows.length === 0 ? (
               <EmptyState
                 title={

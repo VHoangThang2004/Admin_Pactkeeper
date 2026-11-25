@@ -139,24 +139,31 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
     };
   }, [applyAvailableFiles]);
 
-  const loadLogs = useCallback(async (matchIdToLoad: string) => {
+  const loadLogs = useCallback(async (matchIdToLoad: string, silent = false) => {
     if (!matchIdToLoad) return;
-    setManualLoading(true);
-    setErrorMessage(null);
+    if (!silent) {
+      setManualLoading(true);
+      setErrorMessage(null);
+    }
 
     try {
       const data = await fetchMatchLogs(matchIdToLoad);
       setLogData(data);
+      setErrorMessage(null);
     } catch (err: any) {
-      setLogData(null);
-      if (err.response?.status === 404) {
-        setErrorMessage(`No server log found for Match ID "${matchIdToLoad}".`);
-      } else {
-        setErrorMessage(err.message || 'Network error: Unable to reach backend gateway API.');
+      if (!silent) {
+        setLogData(null);
+        if (err.response?.status === 404) {
+          setErrorMessage(`No server log found for Match ID "${matchIdToLoad}".`);
+        } else {
+          setErrorMessage(err.message || 'Network error: Unable to reach backend gateway API.');
+        }
       }
     } finally {
       setResolvedMatchId(matchIdToLoad);
-      setManualLoading(false);
+      if (!silent) {
+        setManualLoading(false);
+      }
     }
   }, []);
 
@@ -188,17 +195,28 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
 
   useEffect(() => {
     if (!autoRefresh || !selectedMatchId) return;
+    // Immediately jump to latest lines when TAIL -F is enabled, then poll silently without resetting scroll
+    const el = terminalBodyRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
     const interval = setInterval(() => {
-      void loadLogs(selectedMatchId);
+      void loadLogs(selectedMatchId, true);
     }, 3000);
     return () => clearInterval(interval);
   }, [autoRefresh, selectedMatchId, loadLogs]);
 
   useEffect(() => {
-    if (autoScroll && terminalBodyRef.current) {
-      terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
+    const el = terminalBodyRef.current;
+    if (!el) return;
+    if (autoScroll || autoRefresh) {
+      window.requestAnimationFrame(() => {
+        if (terminalBodyRef.current) {
+          terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
+        }
+      });
     }
-  }, [logData, autoScroll]);
+  }, [logData, autoScroll, autoRefresh]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,7 +401,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                           <Text type="code" size="xsm" weight="semibold" maxLines={1}>
                             {file.fileName}
                           </Text>
-                          <Text type="code" size="2xs" color="secondary" maxLines={1}>
+                          <Text type="code" size="sm" color="secondary" maxLines={1}>
                             {file.matchId}
                           </Text>
                         </div>
@@ -413,11 +431,11 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
             <HStack gap={1.5} vAlign="center" justify="between">
               <HStack gap={1.5} vAlign="center">
                 <Icon icon={Clock} size="xsm" color="accent" />
-                <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+                <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                   Showing {filteredDirectoryFiles.length} of {currentTotal} (Newest First)
                 </Text>
               </HStack>
-              <Text type="code" size="2xs" color="accent" weight="bold">
+              <Text type="code" size="sm" color="accent" weight="bold">
                 {selectedMatchId ? `#${selectedMatchId.slice(0, 8)}` : 'None'}
               </Text>
             </HStack>
