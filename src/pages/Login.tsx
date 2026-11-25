@@ -9,15 +9,12 @@ import {
   Lock,
   Moon,
   ScrollText,
-  ShieldCheck,
-  Sparkles,
   Sun,
   User,
 } from 'lucide-react';
-import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
-import { Card, type CardVariant } from '@astryxdesign/core/Card';
+import { Card } from '@astryxdesign/core/Card';
 import { Divider } from '@astryxdesign/core/Divider';
 import { Grid } from '@astryxdesign/core/Grid';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -25,8 +22,6 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { InputGroup } from '@astryxdesign/core/InputGroup';
-import { StackItem } from '@astryxdesign/core/Stack';
-import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
@@ -51,59 +46,32 @@ type SelectableRole = 'Admin' | 'Moderator' | 'Technical Support';
 interface RoleConfig {
   id: SelectableRole;
   label: string;
-  roleSubtitle: string;
   icon: typeof Crown;
-  badgeText: string;
-  landingPath: string;
   defaultUsername: string;
   defaultPasswordHint: string;
-  badgeVariant: BadgeVariant;
-  cardVariant: CardVariant;
-  scopeSummary: string;
 }
 
 const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
   Admin: {
     id: 'Admin',
-    label: 'High Counsel Admin',
-    roleSubtitle: 'Accounts & Treasury Command',
+    label: 'Admin',
     icon: Crown,
-    badgeText: 'ACCOUNTS & TREASURY',
-    landingPath: 'Admin Dashboard (/)',
     defaultUsername: 'admin',
     defaultPasswordHint: 'admin123',
-    badgeVariant: 'yellow',
-    cardVariant: 'yellow',
-    scopeSummary:
-      'Authoritative responsibility for Manage User Accounts (Profiles, Bans, Balances) and View Realm Treasury.',
   },
   Moderator: {
     id: 'Moderator',
-    label: 'Realm Moderator',
-    roleSubtitle: 'Player Directory, Standing & Moderation',
+    label: 'Moderator',
     icon: ScrollText,
-    badgeText: 'PLAYER MODERATION',
-    landingPath: 'Player Management (/players)',
     defaultUsername: 'moderator',
     defaultPasswordHint: 'mod123',
-    badgeVariant: 'cyan',
-    cardVariant: 'cyan',
-    scopeSummary:
-      'Direct responsibility for Player Directory, Profile Inspection, Ban/Unban Sanctions, and Match Behavior Review (no server/content config).',
   },
   'Technical Support': {
     id: 'Technical Support',
-    label: 'Technical Support',
-    roleSubtitle: 'System Status, Match Logs & Live Chat',
+    label: 'Tech Support',
     icon: Activity,
-    badgeText: 'STATUS, LOGS & CHAT',
-    landingPath: 'System Monitor & Status (/)',
     defaultUsername: 'techsupport',
     defaultPasswordHint: 'tech123',
-    badgeVariant: 'green',
-    cardVariant: 'green',
-    scopeSummary:
-      'Direct responsibility for Monitor System/Server Status, Configure System Overrides, Match Log Diagnostics, and Player Live Chat Desk.',
   },
 };
 
@@ -119,7 +87,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const { mode, toggleMode } = useThemeMode();
   const [selectedRole, setSelectedRole] = useState<SelectableRole>('Admin');
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
-  const [username, setUsername] = useState(isDevMode ? 'admin' : '');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,11 +104,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const handleSelectRole = (role: SelectableRole) => {
     setSelectedRole(role);
-    const config = ROLE_CONFIGS[role];
-    if (isDevMode) {
-      setUsername(config.defaultUsername);
-      setPassword('');
-    }
     setError(null);
     setUsernameError(null);
     setPasswordError(null);
@@ -164,12 +127,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     if (!username.trim()) {
-      setUsernameError('Counsel Username is required.');
+      setUsernameError('Username is required.');
       isValid = false;
     }
 
     if (!password) {
-      setPasswordError('Secret Passcode is required.');
+      setPasswordError('Password is required.');
       isValid = false;
     }
 
@@ -326,8 +289,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const activeConfig = ROLE_CONFIGS[selectedRole];
-
   return (
     <div className="pk-login-stage min-h-dvh text-[var(--color-text-primary)] flex flex-col items-center justify-center p-4 sm:p-6">
       {/* Unity_Pactkeeper Ken Burns Key-Art Backdrop */}
@@ -348,155 +309,80 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="pk-login-scrim" aria-hidden="true" />
       <EmberAtmosphere />
 
-      <div className="relative z-10 w-full max-w-2xl pk-page-enter flex flex-col gap-3">
-        <Card elevation="high" padding={6} className="pk-login-card pk-spotlight">
-          <VStack gap={5}>
-            {/* Top Bar + Brand Crest */}
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="center">
-                <Badge label="HIGH COUNSEL GATEWAY" variant="yellow" icon={<Icon icon={Crown} />} />
+      <div className="relative z-10 w-full max-w-lg pk-page-enter flex flex-col gap-3">
+        <Card elevation="high" padding={5} className="pk-login-card pk-spotlight">
+          <VStack gap={4}>
+            {/* Brand Header + Theme Toggle */}
+            <div className="relative">
+              <div className="absolute right-0 top-0">
                 <IconButton
                   label={mode === 'light' ? 'Switch to Dark mode' : 'Switch to Light mode'}
-                  tooltip={mode === 'light' ? 'Dark Mode (Obsidian Gold)' : 'Light Mode (Parchment)'}
+                  tooltip={mode === 'light' ? 'Dark Mode' : 'Light Mode'}
                   variant="secondary"
                   size="sm"
                   icon={<Icon icon={mode === 'light' ? Moon : Sun} />}
                   onClick={toggleMode}
                 />
-              </HStack>
+              </div>
 
-              <VStack gap={2} hAlign="center">
+              <VStack gap={1.5} hAlign="center">
                 <img
                   src="/logo.png"
                   alt="PactKeeper Emblem"
                   className="pk-brand-logo-login"
                 />
                 <Heading level={1} type="display-2" className="font-cinzel pk-gold-text text-center">
-                  PACTKEEPER HIGH COUNSEL
+                  Pactkeeper Game Management
                 </Heading>
-                <HStack gap={2} vAlign="center" hAlign="center" wrap="wrap">
-                  <Badge label="v2.4.0" variant="neutral" />
-                  <Text type="supporting" size="sm" weight="medium" color="secondary">
-                    REALM GOVERNANCE &amp; OPERATIONS PORTAL
-                  </Text>
-                </HStack>
               </VStack>
-            </VStack>
+            </div>
 
             <Divider />
 
-            {/* Authority Tier Selector */}
-            <VStack gap={3}>
-              <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                <Text type="label" size="sm">
-                  Select Target Counsel Authority
-                </Text>
-                <HStack gap={1.5} vAlign="center">
-                  <Text type="supporting" size="sm" color="secondary">
-                    Active Authority:
-                  </Text>
-                  <Badge label={selectedRole} variant={activeConfig.badgeVariant} />
-                </HStack>
-              </HStack>
+            {/* Role Selector */}
+            <VStack gap={2}>
+              <Text type="label" size="sm">
+                Select Role
+              </Text>
 
-              <Grid columns={{ minWidth: 165, max: 3 }} gap={3}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {(Object.keys(ROLE_CONFIGS) as SelectableRole[]).map((roleKey) => {
                   const cfg = ROLE_CONFIGS[roleKey];
                   const isSelected = selectedRole === roleKey;
+                  const RoleIcon = cfg.icon;
 
                   return (
                     <button
                       key={roleKey}
                       type="button"
+                      aria-pressed={isSelected}
                       onClick={() => handleSelectRole(roleKey)}
-                      className="text-left rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] cursor-pointer"
+                      className={`flex items-center justify-center gap-1.5 h-10 px-3 rounded-lg border text-sm font-semibold whitespace-nowrap cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] ${
+                        isSelected
+                          ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] border-[var(--color-accent)] shadow-sm'
+                          : 'bg-[var(--color-background-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]'
+                      }`}
                     >
-                      <Card
-                        variant={isSelected ? cfg.cardVariant : 'default'}
-                        elevation={isSelected ? 'med' : 'none'}
-                        padding={3}
-                        className={isSelected ? 'pk-gold-frame' : 'pk-interactive-card'}
-                      >
-                        <VStack gap={2}>
-                          <HStack justify="between" vAlign="center">
-                            <Icon icon={cfg.icon} size="sm" />
-                            {isSelected ? (
-                              <StatusDot variant="accent" isPulsing label="Active" />
-                            ) : (
-                              <Text type="supporting" size="sm" color="secondary">
-                                Select
-                              </Text>
-                            )}
-                          </HStack>
-                          <VStack gap={0.5}>
-                            <Text weight="semibold" size="sm" className="font-cinzel">
-                              {cfg.label}
-                            </Text>
-                            <Text type="supporting" size="sm" color="secondary" maxLines={2}>
-                              {cfg.roleSubtitle}
-                            </Text>
-                          </VStack>
-                        </VStack>
-                      </Card>
+                      <RoleIcon className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{cfg.label}</span>
                     </button>
                   );
                 })}
-              </Grid>
+              </div>
             </VStack>
 
-            {/* Selected Role Scope Card */}
-            <Card variant="muted" padding={4}>
-              <VStack gap={2}>
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <HStack gap={1.5} vAlign="center">
-                    <Icon icon={ScrollText} size="sm" color="accent" />
-                    <Text type="label" size="sm" className="font-cinzel">
-                      AUTHORITY SCOPE
-                    </Text>
-                  </HStack>
-                  <Badge label={activeConfig.badgeText} variant={activeConfig.badgeVariant} />
-                </HStack>
-                <Text type="supporting" size="sm">
-                  {activeConfig.scopeSummary}
-                </Text>
-                <Divider />
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <Text type="supporting" size="sm" color="secondary">
-                    Primary Destination
-                  </Text>
-                  <Text type="code" size="sm" weight="semibold" color="accent">
-                    {activeConfig.landingPath}
-                  </Text>
-                </HStack>
-              </VStack>
-            </Card>
-
             {/* Error Alert */}
-            {error && <Banner status="error" title="Authentication Failure" description={error} />}
+            {error && <Banner status="error" title="Login Failed" description={error} />}
 
             {/* Login Credentials Form */}
             <form onSubmit={handleSubmit}>
-              <VStack gap={4}>
+              <VStack gap={3}>
                 <VStack gap={1}>
-                  <HStack justify="between" vAlign="center">
-                    <Text type="label" size="sm">
-                      Counsel Username ({activeConfig.id})
-                    </Text>
-                    {isDevMode && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        label={`Reset: ${activeConfig.defaultUsername}`}
-                        onClick={() => {
-                          setUsername(activeConfig.defaultUsername);
-                          setPassword('');
-                        }}
-                      />
-                    )}
-                  </HStack>
+                  <Text type="label" size="sm">
+                    Username
+                  </Text>
                   <TextInput
-                    label={`Counsel Username (${activeConfig.id})`}
+                    label="Username"
                     isLabelHidden
                     value={username}
                     onChange={(val) => {
@@ -505,7 +391,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       if (error) setError(null);
                     }}
                     startIcon={User}
-                    placeholder={`Enter username (${activeConfig.defaultUsername})`}
+                    placeholder="Enter username"
                     autoComplete="username"
                     width="100%"
                     status={
@@ -515,13 +401,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                           ? { type: 'error' }
                           : undefined
                     }
-                    isRequired
                   />
                 </VStack>
 
                 <InputGroup
-                  label={`Secret Passcode (${activeConfig.id})`}
-                  isRequired
+                  label="Password"
                   status={
                     passwordError
                       ? { type: 'error', message: passwordError }
@@ -531,7 +415,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   }
                 >
                   <TextInput
-                    label={`Secret Passcode (${activeConfig.id})`}
+                    label="Password"
                     isLabelHidden
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -541,7 +425,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       if (error) setError(null);
                     }}
                     startIcon={Lock}
-                    placeholder="Enter secret passcode..."
+                    placeholder="Enter password"
                     autoComplete="current-password"
                     width="100%"
                   />
@@ -549,8 +433,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     type="button"
                     variant="secondary"
                     isIconOnly
-                    label={showPassword ? 'Hide passcode' : 'Show passcode'}
-                    tooltip={showPassword ? 'Hide passcode' : 'Show passcode'}
+                    label={showPassword ? 'Hide password' : 'Show password'}
+                    tooltip={showPassword ? 'Hide password' : 'Show password'}
                     icon={<Icon icon={showPassword ? EyeOff : Eye} />}
                     onClick={() => setShowPassword((prev) => !prev)}
                   />
@@ -562,34 +446,24 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   size="lg"
                   width="100%"
                   isLoading={loading}
-                  icon={<Icon icon={ShieldCheck} />}
                   endContent={<Icon icon={ArrowRight} />}
-                  label={
-                    loading
-                      ? 'Authenticating Credentials...'
-                      : `Enter High Counsel as ${selectedRole}`
-                  }
+                  label={loading ? 'Logging in...' : 'Login'}
                 />
               </VStack>
             </form>
 
             {/* Dev Fast-Fill Credentials */}
             {isDevMode && (
-              <Card variant="muted" padding={4}>
-                <VStack gap={3}>
-                  <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                    <HStack gap={1.5} vAlign="center">
-                      <Icon icon={KeyRound} size="sm" color="accent" />
-                      <Text type="label" size="sm">
-                        1-Click Fast Fill Test Accounts (Dev)
-                      </Text>
-                    </HStack>
-                    <Text type="code" size="sm" color="secondary">
-                      Pre-populates Passcode
+              <Card variant="muted" padding={3}>
+                <VStack gap={2}>
+                  <HStack gap={1.5} vAlign="center">
+                    <Icon icon={KeyRound} size="sm" color="accent" />
+                    <Text type="label" size="xsm" color="secondary">
+                      Quick Fill (Dev)
                     </Text>
                   </HStack>
 
-                  <Grid columns={{ minWidth: 140, max: 3 }} gap={2}>
+                  <Grid columns={{ minWidth: 110, max: 3 }} gap={2}>
                     {(Object.keys(ROLE_CONFIGS) as SelectableRole[]).map((roleKey) => {
                       const cfg = ROLE_CONFIGS[roleKey];
                       const active = selectedRole === roleKey;
@@ -601,7 +475,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                           size="sm"
                           width="100%"
                           icon={<Icon icon={cfg.icon} />}
-                          label={`${roleKey === 'Technical Support' ? 'Support' : roleKey} (${cfg.defaultPasswordHint})`}
+                          label={cfg.label}
                           onClick={() => handleQuickFill(roleKey)}
                         />
                       );
@@ -610,52 +484,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </VStack>
               </Card>
             )}
-
-            <Divider />
-
-            {/* Verification Footer */}
-            <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-              <HStack gap={1.5} vAlign="center">
-                <Icon icon={Sparkles} size="sm" color="accent" />
-                <Text type="code" size="sm" color="secondary">
-                  .NET 9 + SignalR Hubs
-                </Text>
-              </HStack>
-              <StackItem>
-                <Text type="code" size="sm" color="secondary">
-                  Security Protocol v2.4
-                </Text>
-              </StackItem>
-            </HStack>
           </VStack>
         </Card>
-
-        {/* Key-Art Scene Switcher Pills (SDK_Pactkeeper Parity) */}
-        <HStack justify="center" vAlign="center" gap={2} wrap="wrap">
-          {LOGIN_SCENES.map((scene, idx) => {
-            const isActive = idx === activeSceneIndex;
-            return (
-              <button
-                key={scene.id}
-                type="button"
-                onClick={() => setActiveSceneIndex(idx)}
-                className="pk-scene-pill rounded-full px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] cursor-pointer flex items-center gap-1.5"
-              >
-                <span className="font-mono text-[var(--color-text-accent)] font-semibold">
-                  {scene.num}
-                </span>
-                <span>{scene.label}</span>
-                {isActive && (
-                  <span
-                    key={`scene-progress-${activeSceneIndex}`}
-                    className="pk-scene-pill-bar"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            );
-          })}
-        </HStack>
       </div>
     </div>
   );

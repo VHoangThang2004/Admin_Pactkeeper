@@ -1333,7 +1333,7 @@ export const ContentManagement: React.FC = () => {
       {
         key: 'classIds',
         header: 'Class Designation',
-        width: proportional(1.4, { minWidth: 150 }),
+        width: proportional(1.4, { minWidth: 185 }),
         renderCell: (u) => {
           const ids = u.classIds && u.classIds.length > 0 ? u.classIds : [];
           if (ids.length === 0) {
@@ -1557,7 +1557,7 @@ export const ContentManagement: React.FC = () => {
       {
         key: 'classId',
         header: 'Class Requirement (BR-04)',
-        width: pixel(175),
+        width: pixel(230),
         renderCell: (w) => (
           <Badge
             variant="cyan"
@@ -2067,14 +2067,16 @@ export const ContentManagement: React.FC = () => {
                 }
               />
             ) : (
-              <Table
-                columns={unitColumns}
-                data={filteredUnitRows}
-                idKey="id"
-                density="balanced"
-                hasHover
-                aria-label="SRPG Hero Definitions"
-              />
+              <div className="pk-table-scroll rounded-lg border border-[var(--color-border-subtle)]">
+                <Table
+                  columns={unitColumns}
+                  data={filteredUnitRows}
+                  idKey="id"
+                  density="balanced"
+                  hasHover
+                  aria-label="SRPG Hero Definitions"
+                />
+              </div>
             )}
           </div>
         )}
@@ -2107,14 +2109,16 @@ export const ContentManagement: React.FC = () => {
                 }
               />
             ) : (
-              <Table
-                columns={chapterColumns}
-                data={filteredChapterRows}
-                idKey="id"
-                density="balanced"
-                hasHover
-                aria-label="Story Chapters"
-              />
+              <div className="pk-table-scroll rounded-lg border border-[var(--color-border-subtle)]">
+                <Table
+                  columns={chapterColumns}
+                  data={filteredChapterRows}
+                  idKey="id"
+                  density="balanced"
+                  hasHover
+                  aria-label="Story Chapters"
+                />
+              </div>
             )}
           </div>
         )}
@@ -2147,14 +2151,16 @@ export const ContentManagement: React.FC = () => {
                 }
               />
             ) : (
-              <Table
-                columns={weaponColumns}
-                data={filteredWeaponRows}
-                idKey="id"
-                density="balanced"
-                hasHover
-                aria-label="Weapon Definitions"
-              />
+              <div className="pk-table-scroll rounded-lg border border-[var(--color-border-subtle)]">
+                <Table
+                  columns={weaponColumns}
+                  data={filteredWeaponRows}
+                  idKey="id"
+                  density="balanced"
+                  hasHover
+                  aria-label="Weapon Definitions"
+                />
+              </div>
             )}
           </div>
         )}
@@ -2187,14 +2193,16 @@ export const ContentManagement: React.FC = () => {
                 }
               />
             ) : (
-              <Table
-                columns={trinketColumns}
-                data={filteredTrinketRows}
-                idKey="id"
-                density="balanced"
-                hasHover
-                aria-label="Trinket Definitions"
-              />
+              <div className="pk-table-scroll rounded-lg border border-[var(--color-border-subtle)]">
+                <Table
+                  columns={trinketColumns}
+                  data={filteredTrinketRows}
+                  idKey="id"
+                  density="balanced"
+                  hasHover
+                  aria-label="Trinket Definitions"
+                />
+              </div>
             )}
           </div>
         )}
@@ -2404,80 +2412,79 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={620}
+        maxHeight="90dvh"
       >
         {editingUnit && (
-          <VStack gap={4}>
-            <DialogHeader
-              title={`Edit Hero • UID #${editingUnit.uId}`}
-              startContent={<Shield className="w-5 h-5 text-amber-500" />}
-              onOpenChange={(open) => {
-                if (!open) setEditingUnit(null);
-              }}
-            />
+          <form onSubmit={handleUpdateUnit} className="flex flex-col flex-1 min-h-0 gap-3">
+            <div className="shrink-0">
+              <DialogHeader
+                title={`Edit Hero • UID #${editingUnit.uId}`}
+                startContent={<Shield className="w-5 h-5 text-amber-500" />}
+                onOpenChange={(open) => {
+                  if (!open) setEditingUnit(null);
+                }}
+              />
+            </div>
 
-            {modalError && (
-              <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
-            )}
-
-            <form onSubmit={handleUpdateUnit}>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <VStack gap={3}>
-                <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                  <VStack gap={3}>
-                    <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
-                      <TextInput
-                        label="Hero Unit Name"
-                        value={editingUnit.unitName || ''}
-                        onChange={(val) => setEditingUnit({ ...editingUnit, unitName: val })}
-                        isRequired
-                      />
-                      <Selector
-                        label="Passive Skill (5xxx)"
-                        options={passiveSkillOptions}
-                        value={String(editingUnit.passiveSkillId ?? -1)}
-                        onChange={(val) =>
-                          setEditingUnit({ ...editingUnit, passiveSkillId: Number(val) })
-                        }
-                      />
-                    </Grid>
+                {modalError && (
+                  <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
+                )}
 
-                    <ClassMultiSelector
-                      classes={classes}
-                      selectedIds={editingUnit.classIds || []}
-                      onChange={(nextIds) => setEditingUnit({ ...editingUnit, classIds: nextIds })}
-                    />
-
-                    <UnitGradesEditor
-                      grades={editingUnit.statsByGrade || []}
-                      onChange={(nextGrades) =>
-                        setEditingUnit({ ...editingUnit, statsByGrade: nextGrades })
-                      }
-                    />
-
-                    <CheckboxInput
-                      label="Initial Starter Hero"
-                      description="Grant this hero automatically to newly registered accounts without gacha summoning."
-                      value={editingUnit.givenAtRegister ?? false}
-                      onChange={(checked) =>
-                        setEditingUnit({ ...editingUnit, givenAtRegister: checked })
-                      }
-                    />
-                  </VStack>
-                </div>
-
-                <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                  <HStack justify="end" gap={2}>
-                  <Button variant="secondary" label="Cancel" onClick={() => setEditingUnit(null)} />
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    label="Save Changes"
-                    isLoading={saving}
+                <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
+                  <TextInput
+                    label="Hero Unit Name"
+                    value={editingUnit.unitName || ''}
+                    onChange={(val) => setEditingUnit({ ...editingUnit, unitName: val })}
+                    isRequired
                   />
-                  </HStack>
-                </div>
+                  <Selector
+                    label="Passive Skill (5xxx)"
+                    options={passiveSkillOptions}
+                    value={String(editingUnit.passiveSkillId ?? -1)}
+                    onChange={(val) =>
+                      setEditingUnit({ ...editingUnit, passiveSkillId: Number(val) })
+                    }
+                  />
+                </Grid>
+
+                <ClassMultiSelector
+                  classes={classes}
+                  selectedIds={editingUnit.classIds || []}
+                  onChange={(nextIds) => setEditingUnit({ ...editingUnit, classIds: nextIds })}
+                />
+
+                <UnitGradesEditor
+                  grades={editingUnit.statsByGrade || []}
+                  onChange={(nextGrades) =>
+                    setEditingUnit({ ...editingUnit, statsByGrade: nextGrades })
+                  }
+                />
+
+                <CheckboxInput
+                  label="Initial Starter Hero"
+                  description="Grant this hero automatically to newly registered accounts without gacha summoning."
+                  value={editingUnit.givenAtRegister ?? false}
+                  onChange={(checked) =>
+                    setEditingUnit({ ...editingUnit, givenAtRegister: checked })
+                  }
+                />
               </VStack>
-            </form>
-          </VStack>
+            </div>
+
+            <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="end" gap={2} wrap="wrap">
+                <Button variant="secondary" label="Cancel" onClick={() => setEditingUnit(null)} />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  label="Save Changes"
+                  isLoading={saving}
+                />
+              </HStack>
+            </div>
+          </form>
         )}
       </Dialog>
 
@@ -2489,81 +2496,80 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={560}
+        maxHeight="90dvh"
       >
         {editingWeapon && (
-          <VStack gap={4}>
-            <DialogHeader
-              title={`Edit Weapon • #${editingWeapon.weaponId}`}
-              startContent={<Sword className="w-5 h-5 text-amber-500" />}
-              onOpenChange={(open) => {
-                if (!open) setEditingWeapon(null);
-              }}
-            />
+          <form onSubmit={handleUpdateWeapon} className="flex flex-col flex-1 min-h-0 gap-3">
+            <div className="shrink-0">
+              <DialogHeader
+                title={`Edit Weapon • #${editingWeapon.weaponId}`}
+                startContent={<Sword className="w-5 h-5 text-amber-500" />}
+                onOpenChange={(open) => {
+                  if (!open) setEditingWeapon(null);
+                }}
+              />
+            </div>
 
-            {modalError && (
-              <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
-            )}
-
-            <form onSubmit={handleUpdateWeapon}>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <VStack gap={3}>
-                <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                  <VStack gap={3}>
-                    <TextInput
-                      label="Weapon Name"
-                      value={editingWeapon.name || ''}
-                      onChange={(val) => setEditingWeapon({ ...editingWeapon, name: val })}
-                      isRequired
-                    />
-                    <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
-                      <Selector
-                        label="Class Requirement (BR-04)"
-                        options={classSelectorOptions}
-                        value={String(editingWeapon.classId ?? 1)}
-                        onChange={(val) =>
-                          setEditingWeapon({ ...editingWeapon, classId: Number(val) })
-                        }
-                      />
-                      <Selector
-                        label="Weapon Skill (2xxx)"
-                        options={weaponSkillOptions}
-                        value={String(editingWeapon.skillId ?? 2001)}
-                        onChange={(val) =>
-                          setEditingWeapon({ ...editingWeapon, skillId: Number(val) })
-                        }
-                      />
-                    </Grid>
+                {modalError && (
+                  <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
+                )}
 
-                    <StatModifiersFields
-                      value={normalizeStatModifiers(editingWeapon.statModifiers)}
-                      onChange={(nextMods) =>
-                        setEditingWeapon({ ...editingWeapon, statModifiers: nextMods })
-                      }
-                    />
-
-                    <CheckboxInput
-                      label="Starter Weapon"
-                      description="Grant this weapon to newly created player inventories."
-                      value={editingWeapon.givenAtRegister ?? false}
-                      onChange={(checked) =>
-                        setEditingWeapon({ ...editingWeapon, givenAtRegister: checked })
-                      }
-                    />
-                  </VStack>
-                </div>
-
-                <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                  <HStack justify="end" gap={2}>
-                  <Button
-                    variant="secondary"
-                    label="Cancel"
-                    onClick={() => setEditingWeapon(null)}
+                <TextInput
+                  label="Weapon Name"
+                  value={editingWeapon.name || ''}
+                  onChange={(val) => setEditingWeapon({ ...editingWeapon, name: val })}
+                  isRequired
+                />
+                <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
+                  <Selector
+                    label="Class Requirement (BR-04)"
+                    options={classSelectorOptions}
+                    value={String(editingWeapon.classId ?? 1)}
+                    onChange={(val) =>
+                      setEditingWeapon({ ...editingWeapon, classId: Number(val) })
+                    }
                   />
-                  <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
-                  </HStack>
-                </div>
+                  <Selector
+                    label="Weapon Skill (2xxx)"
+                    options={weaponSkillOptions}
+                    value={String(editingWeapon.skillId ?? 2001)}
+                    onChange={(val) =>
+                      setEditingWeapon({ ...editingWeapon, skillId: Number(val) })
+                    }
+                  />
+                </Grid>
+
+                <StatModifiersFields
+                  value={normalizeStatModifiers(editingWeapon.statModifiers)}
+                  onChange={(nextMods) =>
+                    setEditingWeapon({ ...editingWeapon, statModifiers: nextMods })
+                  }
+                />
+
+                <CheckboxInput
+                  label="Starter Weapon"
+                  description="Grant this weapon to newly created player inventories."
+                  value={editingWeapon.givenAtRegister ?? false}
+                  onChange={(checked) =>
+                    setEditingWeapon({ ...editingWeapon, givenAtRegister: checked })
+                  }
+                />
               </VStack>
-            </form>
-          </VStack>
+            </div>
+
+            <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="end" gap={2} wrap="wrap">
+                <Button
+                  variant="secondary"
+                  label="Cancel"
+                  onClick={() => setEditingWeapon(null)}
+                />
+                <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
+              </HStack>
+            </div>
+          </form>
         )}
       </Dialog>
 
@@ -2575,71 +2581,70 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={560}
+        maxHeight="90dvh"
       >
         {editingTrinket && (
-          <VStack gap={4}>
-            <DialogHeader
-              title={`Edit Trinket • #${editingTrinket.trinketId}`}
-              startContent={<Gem className="w-5 h-5 text-amber-500" />}
-              onOpenChange={(open) => {
-                if (!open) setEditingTrinket(null);
-              }}
-            />
+          <form onSubmit={handleUpdateTrinket} className="flex flex-col flex-1 min-h-0 gap-3">
+            <div className="shrink-0">
+              <DialogHeader
+                title={`Edit Trinket • #${editingTrinket.trinketId}`}
+                startContent={<Gem className="w-5 h-5 text-amber-500" />}
+                onOpenChange={(open) => {
+                  if (!open) setEditingTrinket(null);
+                }}
+              />
+            </div>
 
-            {modalError && (
-              <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
-            )}
-
-            <form onSubmit={handleUpdateTrinket}>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <VStack gap={3}>
-                <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                  <VStack gap={3}>
-                    <TextInput
-                      label="Trinket Name"
-                      value={editingTrinket.name || ''}
-                      onChange={(val) => setEditingTrinket({ ...editingTrinket, name: val })}
-                      isRequired
-                    />
-                    <Selector
-                      label="Trinket Skill (4xxx)"
-                      options={trinketSkillOptions}
-                      value={String(editingTrinket.skillId ?? 4001)}
-                      onChange={(val) =>
-                        setEditingTrinket({ ...editingTrinket, skillId: Number(val) })
-                      }
-                    />
+                {modalError && (
+                  <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
+                )}
 
-                    <StatModifiersFields
-                      value={normalizeStatModifiers(editingTrinket.statModifiers)}
-                      onChange={(nextMods) =>
-                        setEditingTrinket({ ...editingTrinket, statModifiers: nextMods })
-                      }
-                    />
+                <TextInput
+                  label="Trinket Name"
+                  value={editingTrinket.name || ''}
+                  onChange={(val) => setEditingTrinket({ ...editingTrinket, name: val })}
+                  isRequired
+                />
+                <Selector
+                  label="Trinket Skill (4xxx)"
+                  options={trinketSkillOptions}
+                  value={String(editingTrinket.skillId ?? 4001)}
+                  onChange={(val) =>
+                    setEditingTrinket({ ...editingTrinket, skillId: Number(val) })
+                  }
+                />
 
-                    <CheckboxInput
-                      label="Starter Trinket"
-                      description="Grant this trinket immediately upon registration."
-                      value={editingTrinket.givenAtRegister ?? false}
-                      onChange={(checked) =>
-                        setEditingTrinket({ ...editingTrinket, givenAtRegister: checked })
-                      }
-                    />
-                  </VStack>
-                </div>
+                <StatModifiersFields
+                  value={normalizeStatModifiers(editingTrinket.statModifiers)}
+                  onChange={(nextMods) =>
+                    setEditingTrinket({ ...editingTrinket, statModifiers: nextMods })
+                  }
+                />
 
-                <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                  <HStack justify="end" gap={2}>
-                  <Button
-                    variant="secondary"
-                    label="Cancel"
-                    onClick={() => setEditingTrinket(null)}
-                  />
-                  <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
-                  </HStack>
-                </div>
+                <CheckboxInput
+                  label="Starter Trinket"
+                  description="Grant this trinket immediately upon registration."
+                  value={editingTrinket.givenAtRegister ?? false}
+                  onChange={(checked) =>
+                    setEditingTrinket({ ...editingTrinket, givenAtRegister: checked })
+                  }
+                />
               </VStack>
-            </form>
-          </VStack>
+            </div>
+
+            <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="end" gap={2} wrap="wrap">
+                <Button
+                  variant="secondary"
+                  label="Cancel"
+                  onClick={() => setEditingTrinket(null)}
+                />
+                <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
+              </HStack>
+            </div>
+          </form>
         )}
       </Dialog>
 
@@ -2654,29 +2659,30 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={640}
+        maxHeight="90dvh"
       >
         {editingChapter && (
-          <VStack gap={4}>
-            <DialogHeader
-              title={`Edit Chapter • CH #${editingChapter.chapterId}`}
-              startContent={<BookOpen className="w-5 h-5 text-emerald-500" />}
-              onOpenChange={(open) => {
-                if (!open) {
-                  setEditingChapter(null);
-                  setEditingSceneIndex(null);
-                }
-              }}
-            />
+          <form onSubmit={handleUpdateChapter} className="flex flex-col flex-1 min-h-0 gap-3">
+            <div className="shrink-0">
+              <DialogHeader
+                title={`Edit Chapter • CH #${editingChapter.chapterId}`}
+                startContent={<BookOpen className="w-5 h-5 text-emerald-500" />}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setEditingChapter(null);
+                    setEditingSceneIndex(null);
+                  }
+                }}
+              />
+            </div>
 
-            {modalError && (
-              <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
-            )}
-
-            <form onSubmit={handleUpdateChapter}>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <VStack gap={3}>
-                <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                  <VStack gap={3}>
-                    <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
+                {modalError && (
+                  <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
+                )}
+
+                <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
                       <TextInput
                         label="Chapter Title"
                         value={editingChapter.title || ''}
@@ -2894,25 +2900,23 @@ export const ContentManagement: React.FC = () => {
                     </Card>
                   </VStack>
                 </Card>
-                  </VStack>
-                </div>
-
-                <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                  <HStack justify="end" gap={2}>
-                  <Button
-                    variant="secondary"
-                    label="Cancel"
-                    onClick={() => {
-                      setEditingChapter(null);
-                      setEditingSceneIndex(null);
-                    }}
-                  />
-                  <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
-                  </HStack>
-                </div>
               </VStack>
-            </form>
-          </VStack>
+            </div>
+
+            <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="end" gap={2} wrap="wrap">
+                <Button
+                  variant="secondary"
+                  label="Cancel"
+                  onClick={() => {
+                    setEditingChapter(null);
+                    setEditingSceneIndex(null);
+                  }}
+                />
+                <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
+              </HStack>
+            </div>
+          </form>
         )}
       </Dialog>
 
@@ -2924,23 +2928,26 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={480}
+        maxHeight="90dvh"
       >
         {editingClass && (
-          <VStack gap={4}>
-            <DialogHeader
-              title={`Edit Class • ID #${editingClass.classId}`}
-              startContent={<Layers className="w-5 h-5 text-indigo-500" />}
-              onOpenChange={(open) => {
-                if (!open) setEditingClass(null);
-              }}
-            />
+          <form onSubmit={handleUpdateClass} className="flex flex-col flex-1 min-h-0 gap-3">
+            <div className="shrink-0">
+              <DialogHeader
+                title={`Edit Class • ID #${editingClass.classId}`}
+                startContent={<Layers className="w-5 h-5 text-indigo-500" />}
+                onOpenChange={(open) => {
+                  if (!open) setEditingClass(null);
+                }}
+              />
+            </div>
 
-            {modalError && (
-              <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
-            )}
-
-            <form onSubmit={handleUpdateClass}>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <VStack gap={3}>
+                {modalError && (
+                  <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
+                )}
+
                 <TextInput
                   label="Class Archetype Name"
                   value={editingClass.name || editingClass.className || ''}
@@ -2963,19 +2970,20 @@ export const ContentManagement: React.FC = () => {
                     setEditingClass({ ...editingClass, classSkillId: Number(val) })
                   }
                 />
-                <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                  <HStack justify="end" gap={2}>
-                  <Button
-                    variant="secondary"
-                    label="Cancel"
-                    onClick={() => setEditingClass(null)}
-                  />
-                  <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
-                  </HStack>
-                </div>
               </VStack>
-            </form>
-          </VStack>
+            </div>
+
+            <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="end" gap={2} wrap="wrap">
+                <Button
+                  variant="secondary"
+                  label="Cancel"
+                  onClick={() => setEditingClass(null)}
+                />
+                <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
+              </HStack>
+            </div>
+          </form>
         )}
       </Dialog>
 
@@ -2987,24 +2995,27 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={420}
+        maxHeight="90dvh"
       >
         {editingSkill && (
-          <VStack gap={4}>
-            <DialogHeader
-              title="Edit Skill ID"
-              subtitle="Skill ID ranges: 1xxx Move, 2xxx Weapon, 3xxx Class, 4xxx Trinket, 5xxx Passive."
-              startContent={<Zap className="w-5 h-5 text-amber-500" />}
-              onOpenChange={(open) => {
-                if (!open) setEditingSkill(null);
-              }}
-            />
+          <form onSubmit={handleUpdateSkill} className="flex flex-col flex-1 min-h-0 gap-3">
+            <div className="shrink-0">
+              <DialogHeader
+                title="Edit Skill ID"
+                subtitle="Skill ID ranges: 1xxx Move, 2xxx Weapon, 3xxx Class, 4xxx Trinket, 5xxx Passive."
+                startContent={<Zap className="w-5 h-5 text-amber-500" />}
+                onOpenChange={(open) => {
+                  if (!open) setEditingSkill(null);
+                }}
+              />
+            </div>
 
-            {modalError && (
-              <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
-            )}
-
-            <form onSubmit={handleUpdateSkill}>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <VStack gap={3}>
+                {modalError && (
+                  <Banner status="error" title="Update Failed" description={modalError} collapsible={false} />
+                )}
+
                 <NumberInput
                   label="Combat Skill ID"
                   value={Number(editingSkill.skillId ?? 1001)}
@@ -3012,19 +3023,20 @@ export const ContentManagement: React.FC = () => {
                   onChange={(val) => setEditingSkill({ ...editingSkill, skillId: val })}
                   isIntegerOnly
                 />
-                <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                  <HStack justify="end" gap={2}>
-                  <Button
-                    variant="secondary"
-                    label="Cancel"
-                    onClick={() => setEditingSkill(null)}
-                  />
-                  <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
-                  </HStack>
-                </div>
               </VStack>
-            </form>
-          </VStack>
+            </div>
+
+            <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="end" gap={2} wrap="wrap">
+                <Button
+                  variant="secondary"
+                  label="Cancel"
+                  onClick={() => setEditingSkill(null)}
+                />
+                <Button type="submit" variant="primary" label="Save Changes" isLoading={saving} />
+              </HStack>
+            </div>
+          </form>
         )}
       </Dialog>
 
@@ -3040,67 +3052,66 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={620}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Add Hero Definition"
-            subtitle="Registers a new playable Hero unit in MongoDB."
-            startContent={<Shield className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsAddingUnit(false);
-            }}
-          />
+        <form onSubmit={handleAddUnit} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Add Hero Definition"
+              subtitle="Registers a new playable Hero unit in MongoDB."
+              startContent={<Shield className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsAddingUnit(false);
+              }}
+            />
+          </div>
 
-          {modalError && (
-            <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
-          )}
-
-          <form onSubmit={handleAddUnit}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
-              <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                <VStack gap={3}>
-                  <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
-                    <TextInput
-                      label="Hero Unit Name"
-                      value={newUnitName}
-                      onChange={setNewUnitName}
-                      placeholder="e.g. Paladin, Shadow Assassin"
-                      isRequired
-                    />
-                    <Selector
-                      label="Passive Skill (5xxx)"
-                      options={passiveSkillOptions}
-                      value={String(newUnitPassiveSkillId)}
-                      onChange={(val) => setNewUnitPassiveSkillId(Number(val))}
-                    />
-                  </Grid>
+              {modalError && (
+                <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
+              )}
 
-                  <ClassMultiSelector
-                    classes={classes}
-                    selectedIds={newUnitClassIds}
-                    onChange={setNewUnitClassIds}
-                  />
+              <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
+                <TextInput
+                  label="Hero Unit Name"
+                  value={newUnitName}
+                  onChange={setNewUnitName}
+                  placeholder="e.g. Paladin, Shadow Assassin"
+                  isRequired
+                />
+                <Selector
+                  label="Passive Skill (5xxx)"
+                  options={passiveSkillOptions}
+                  value={String(newUnitPassiveSkillId)}
+                  onChange={(val) => setNewUnitPassiveSkillId(Number(val))}
+                />
+              </Grid>
 
-                  <UnitGradesEditor grades={newUnitGrades} onChange={setNewUnitGrades} />
+              <ClassMultiSelector
+                classes={classes}
+                selectedIds={newUnitClassIds}
+                onChange={setNewUnitClassIds}
+              />
 
-                  <CheckboxInput
-                    label="Initial Starter Hero"
-                    description="Grant this hero automatically to newly registered accounts without gacha summoning."
-                    value={newUnitGivenAtRegister}
-                    onChange={setNewUnitGivenAtRegister}
-                  />
-                </VStack>
-              </div>
+              <UnitGradesEditor grades={newUnitGrades} onChange={setNewUnitGrades} />
 
-              <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                <HStack justify="end" gap={2}>
-                <Button variant="secondary" label="Cancel" onClick={() => setIsAddingUnit(false)} />
-                <Button type="submit" variant="primary" label="Save Hero" isLoading={saving} />
-                </HStack>
-              </div>
+              <CheckboxInput
+                label="Initial Starter Hero"
+                description="Grant this hero automatically to newly registered accounts without gacha summoning."
+                value={newUnitGivenAtRegister}
+                onChange={setNewUnitGivenAtRegister}
+              />
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button variant="secondary" label="Cancel" onClick={() => setIsAddingUnit(false)} />
+              <Button type="submit" variant="primary" label="Save Hero" isLoading={saving} />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Add Weapon (BR-04) */}
@@ -3111,74 +3122,73 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={560}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Add Weapon Definition (BR-04)"
-            subtitle="Configure weapon attributes and strict Class compatibility per BR-04."
-            startContent={<Sword className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsAddingWeapon(false);
-            }}
-          />
+        <form onSubmit={handleAddWeapon} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Add Weapon Definition (BR-04)"
+              subtitle="Configure weapon attributes and strict Class compatibility per BR-04."
+              startContent={<Sword className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsAddingWeapon(false);
+              }}
+            />
+          </div>
 
-          {modalError && (
-            <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
-          )}
-
-          <form onSubmit={handleAddWeapon}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
-              <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                <VStack gap={3}>
-                  <TextInput
-                    label="Weapon Name"
-                    value={newWeaponName}
-                    onChange={setNewWeaponName}
-                    placeholder="e.g. Claymore of Judgment"
-                    isRequired
-                  />
-                  <Grid columns={{ minWidth: 170, max: 2, repeat: 'fit' }} gap={3}>
-                    <Selector
-                      label="Target Class (BR-04)"
-                      options={classSelectorOptions}
-                      value={String(newWeaponClassId)}
-                      onChange={(val) => setNewWeaponClassId(Number(val))}
-                    />
-                    <Selector
-                      label="Weapon Skill (2xxx)"
-                      options={weaponSkillOptions}
-                      value={String(newWeaponSkillId)}
-                      onChange={(val) => setNewWeaponSkillId(Number(val))}
-                    />
-                  </Grid>
+              {modalError && (
+                <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
+              )}
 
-                  <StatModifiersFields
-                    value={newWeaponModifiers}
-                    onChange={setNewWeaponModifiers}
-                  />
-
-                  <CheckboxInput
-                    label="Starter Weapon"
-                    description="Grant this weapon to newly created player inventories."
-                    value={newWeaponGivenAtRegister}
-                    onChange={setNewWeaponGivenAtRegister}
-                  />
-                </VStack>
-              </div>
-
-              <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                <HStack justify="end" gap={2}>
-                <Button
-                  variant="secondary"
-                  label="Cancel"
-                  onClick={() => setIsAddingWeapon(false)}
+              <TextInput
+                label="Weapon Name"
+                value={newWeaponName}
+                onChange={setNewWeaponName}
+                placeholder="e.g. Claymore of Judgment"
+                isRequired
+              />
+              <Grid columns={{ minWidth: 170, max: 2, repeat: 'fit' }} gap={3}>
+                <Selector
+                  label="Target Class (BR-04)"
+                  options={classSelectorOptions}
+                  value={String(newWeaponClassId)}
+                  onChange={(val) => setNewWeaponClassId(Number(val))}
                 />
-                <Button type="submit" variant="primary" label="Save Weapon" isLoading={saving} />
-                </HStack>
-              </div>
+                <Selector
+                  label="Weapon Skill (2xxx)"
+                  options={weaponSkillOptions}
+                  value={String(newWeaponSkillId)}
+                  onChange={(val) => setNewWeaponSkillId(Number(val))}
+                />
+              </Grid>
+
+              <StatModifiersFields
+                value={newWeaponModifiers}
+                onChange={setNewWeaponModifiers}
+              />
+
+              <CheckboxInput
+                label="Starter Weapon"
+                description="Grant this weapon to newly created player inventories."
+                value={newWeaponGivenAtRegister}
+                onChange={setNewWeaponGivenAtRegister}
+              />
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => setIsAddingWeapon(false)}
+              />
+              <Button type="submit" variant="primary" label="Save Weapon" isLoading={saving} />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Add Trinket */}
@@ -3189,66 +3199,65 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={560}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Add Trinket Definition"
-            subtitle="Configure accessory artifacts with passive skill triggers and stat boosts."
-            startContent={<Gem className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsAddingTrinket(false);
-            }}
-          />
+        <form onSubmit={handleAddTrinket} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Add Trinket Definition"
+              subtitle="Configure accessory artifacts with passive skill triggers and stat boosts."
+              startContent={<Gem className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsAddingTrinket(false);
+              }}
+            />
+          </div>
 
-          {modalError && (
-            <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
-          )}
-
-          <form onSubmit={handleAddTrinket}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
-              <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                <VStack gap={3}>
-                  <TextInput
-                    label="Trinket Name"
-                    value={newTrinketName}
-                    onChange={setNewTrinketName}
-                    placeholder="e.g. Amulet of the Sun"
-                    isRequired
-                  />
-                  <Selector
-                    label="Trinket Skill (4xxx)"
-                    options={trinketSkillOptions}
-                    value={String(newTrinketSkillId)}
-                    onChange={(val) => setNewTrinketSkillId(Number(val))}
-                  />
+              {modalError && (
+                <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
+              )}
 
-                  <StatModifiersFields
-                    value={newTrinketModifiers}
-                    onChange={setNewTrinketModifiers}
-                  />
+              <TextInput
+                label="Trinket Name"
+                value={newTrinketName}
+                onChange={setNewTrinketName}
+                placeholder="e.g. Amulet of the Sun"
+                isRequired
+              />
+              <Selector
+                label="Trinket Skill (4xxx)"
+                options={trinketSkillOptions}
+                value={String(newTrinketSkillId)}
+                onChange={(val) => setNewTrinketSkillId(Number(val))}
+              />
 
-                  <CheckboxInput
-                    label="Starter Trinket"
-                    description="Grant this trinket immediately upon registration."
-                    value={newTrinketGivenAtRegister}
-                    onChange={setNewTrinketGivenAtRegister}
-                  />
-                </VStack>
-              </div>
+              <StatModifiersFields
+                value={newTrinketModifiers}
+                onChange={setNewTrinketModifiers}
+              />
 
-              <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                <HStack justify="end" gap={2}>
-                <Button
-                  variant="secondary"
-                  label="Cancel"
-                  onClick={() => setIsAddingTrinket(false)}
-                />
-                <Button type="submit" variant="primary" label="Save Trinket" isLoading={saving} />
-                </HStack>
-              </div>
+              <CheckboxInput
+                label="Starter Trinket"
+                description="Grant this trinket immediately upon registration."
+                value={newTrinketGivenAtRegister}
+                onChange={setNewTrinketGivenAtRegister}
+              />
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => setIsAddingTrinket(false)}
+              />
+              <Button type="submit" variant="primary" label="Save Trinket" isLoading={saving} />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Add Story Chapter */}
@@ -3259,122 +3268,121 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={540}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Add Story Chapter Config"
-            startContent={<BookOpen className="w-5 h-5 text-emerald-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsAddingChapter(false);
-            }}
-          />
+        <form onSubmit={handleAddChapter} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Add Story Chapter Config"
+              startContent={<BookOpen className="w-5 h-5 text-emerald-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsAddingChapter(false);
+              }}
+            />
+          </div>
 
-          {modalError && (
-            <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
-          )}
-
-          <form onSubmit={handleAddChapter}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
-              <div className="flex-initial min-h-0 overflow-y-auto max-h-[50dvh] pr-1">
-                <VStack gap={3}>
-                  <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
-                    <TextInput
-                      label="Chapter Title"
-                      value={newChapterTitle}
-                      onChange={setNewChapterTitle}
-                      placeholder="e.g. Chapter 4 - Trial of Ashes"
-                      isRequired
+              {modalError && (
+                <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
+              )}
+
+              <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
+                <TextInput
+                  label="Chapter Title"
+                  value={newChapterTitle}
+                  onChange={setNewChapterTitle}
+                  placeholder="e.g. Chapter 4 - Trial of Ashes"
+                  isRequired
+                />
+                <TextInput
+                  label="Default Map Reference ID"
+                  value={newChapterMapId}
+                  onChange={setNewChapterMapId}
+                  placeholder="e.g. MD_PVE_C4S1"
+                />
+              </Grid>
+
+              <Card variant="muted" padding={3}>
+                <VStack gap={2}>
+                  <Text size="sm" weight="bold" color="primary">
+                    Initial Scene Config
+                  </Text>
+                  <Grid columns={{ minWidth: 140, max: 3, repeat: 'fit' }} gap={2}>
+                    <NumberInput
+                      label="Scene ID"
+                      value={newChapterInitialScene.sceneId}
+                      min={0}
+                      onChange={(val) =>
+                        setNewChapterInitialScene({ ...newChapterInitialScene, sceneId: val })
+                      }
+                      isIntegerOnly
+                    />
+                    <Selector
+                      label="Scene Type"
+                      options={SCENE_TYPE_OPTIONS}
+                      value={newChapterInitialScene.type}
+                      onChange={(val) => {
+                        const nextType = String(val);
+                        setNewChapterInitialScene({
+                          ...newChapterInitialScene,
+                          type: nextType,
+                          mapId:
+                            nextType === 'Battle'
+                              ? newChapterInitialScene.mapId || newChapterMapId
+                              : '',
+                        });
+                      }}
                     />
                     <TextInput
-                      label="Default Map Reference ID"
-                      value={newChapterMapId}
-                      onChange={setNewChapterMapId}
-                      placeholder="e.g. MD_PVE_C4S1"
+                      label="Scene Map ID"
+                      value={newChapterInitialScene.mapId}
+                      onChange={(val) =>
+                        setNewChapterInitialScene({ ...newChapterInitialScene, mapId: val })
+                      }
+                      placeholder={newChapterInitialScene.type === 'Battle' ? 'MD_PVE_C4S1' : ''}
                     />
                   </Grid>
-
-                  <Card variant="muted" padding={3}>
-                    <VStack gap={2}>
-                      <Text size="sm" weight="bold" color="primary">
-                        Initial Scene Config
-                      </Text>
-                      <Grid columns={{ minWidth: 140, max: 3, repeat: 'fit' }} gap={2}>
-                        <NumberInput
-                          label="Scene ID"
-                          value={newChapterInitialScene.sceneId}
-                          min={0}
-                          onChange={(val) =>
-                            setNewChapterInitialScene({ ...newChapterInitialScene, sceneId: val })
-                          }
-                          isIntegerOnly
-                        />
-                        <Selector
-                          label="Scene Type"
-                          options={SCENE_TYPE_OPTIONS}
-                          value={newChapterInitialScene.type}
-                          onChange={(val) => {
-                            const nextType = String(val);
-                            setNewChapterInitialScene({
-                              ...newChapterInitialScene,
-                              type: nextType,
-                              mapId:
-                                nextType === 'Battle'
-                                  ? newChapterInitialScene.mapId || newChapterMapId
-                                  : '',
-                            });
-                          }}
-                        />
-                        <TextInput
-                          label="Scene Map ID"
-                          value={newChapterInitialScene.mapId}
-                          onChange={(val) =>
-                            setNewChapterInitialScene({ ...newChapterInitialScene, mapId: val })
-                          }
-                          placeholder={newChapterInitialScene.type === 'Battle' ? 'MD_PVE_C4S1' : ''}
-                        />
-                      </Grid>
-                      <TextInput
-                        label="Scene Description"
-                        value={newChapterInitialScene.description}
-                        onChange={(val) =>
-                          setNewChapterInitialScene({ ...newChapterInitialScene, description: val })
-                        }
-                        placeholder="e.g. 4.1 - Opening Battle"
-                      />
-                      <HStack gap={4} wrap="wrap">
-                        <CheckboxInput
-                          label="AutoResume"
-                          value={newChapterInitialScene.autoResume}
-                          onChange={(checked) =>
-                            setNewChapterInitialScene({ ...newChapterInitialScene, autoResume: checked })
-                          }
-                        />
-                        <CheckboxInput
-                          label="AutoAdvance"
-                          value={newChapterInitialScene.autoAdvance}
-                          onChange={(checked) =>
-                            setNewChapterInitialScene({ ...newChapterInitialScene, autoAdvance: checked })
-                          }
-                        />
-                      </HStack>
-                    </VStack>
-                  </Card>
+                  <TextInput
+                    label="Scene Description"
+                    value={newChapterInitialScene.description}
+                    onChange={(val) =>
+                      setNewChapterInitialScene({ ...newChapterInitialScene, description: val })
+                    }
+                    placeholder="e.g. 4.1 - Opening Battle"
+                  />
+                  <HStack gap={4} wrap="wrap">
+                    <CheckboxInput
+                      label="AutoResume"
+                      value={newChapterInitialScene.autoResume}
+                      onChange={(checked) =>
+                        setNewChapterInitialScene({ ...newChapterInitialScene, autoResume: checked })
+                      }
+                    />
+                    <CheckboxInput
+                      label="AutoAdvance"
+                      value={newChapterInitialScene.autoAdvance}
+                      onChange={(checked) =>
+                        setNewChapterInitialScene({ ...newChapterInitialScene, autoAdvance: checked })
+                      }
+                    />
+                  </HStack>
                 </VStack>
-              </div>
-
-              <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                <HStack justify="end" gap={2}>
-                <Button
-                  variant="secondary"
-                  label="Cancel"
-                  onClick={() => setIsAddingChapter(false)}
-                />
-                <Button type="submit" variant="primary" label="Save Chapter" isLoading={saving} />
-                </HStack>
-              </div>
+              </Card>
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => setIsAddingChapter(false)}
+              />
+              <Button type="submit" variant="primary" label="Save Chapter" isLoading={saving} />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Add Class */}
@@ -3385,22 +3393,25 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={480}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Add Class Definition"
-            startContent={<Layers className="w-5 h-5 text-indigo-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsAddingClass(false);
-            }}
-          />
+        <form onSubmit={handleAddClass} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Add Class Definition"
+              startContent={<Layers className="w-5 h-5 text-indigo-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsAddingClass(false);
+              }}
+            />
+          </div>
 
-          {modalError && (
-            <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
-          )}
-
-          <form onSubmit={handleAddClass}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
+              {modalError && (
+                <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
+              )}
+
               <TextInput
                 label="Class Archetype Name"
                 value={newClassName}
@@ -3420,15 +3431,16 @@ export const ContentManagement: React.FC = () => {
                 value={String(newClassSkillId)}
                 onChange={(val) => setNewClassSkillId(Number(val))}
               />
-              <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                <HStack justify="end" gap={2}>
-                <Button variant="secondary" label="Cancel" onClick={() => setIsAddingClass(false)} />
-                <Button type="submit" variant="primary" label="Save Class" isLoading={saving} />
-                </HStack>
-              </div>
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button variant="secondary" label="Cancel" onClick={() => setIsAddingClass(false)} />
+              <Button type="submit" variant="primary" label="Save Class" isLoading={saving} />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Add Skill */}
@@ -3439,23 +3451,26 @@ export const ContentManagement: React.FC = () => {
         }}
         purpose="form"
         width={420}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Add Skill Definition"
-            subtitle="Skill ID ranges: 1xxx Move, 2xxx Weapon, 3xxx Class, 4xxx Trinket, 5xxx Passive."
-            startContent={<Zap className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsAddingSkill(false);
-            }}
-          />
+        <form onSubmit={handleAddSkill} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Add Skill Definition"
+              subtitle="Skill ID ranges: 1xxx Move, 2xxx Weapon, 3xxx Class, 4xxx Trinket, 5xxx Passive."
+              startContent={<Zap className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsAddingSkill(false);
+              }}
+            />
+          </div>
 
-          {modalError && (
-            <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
-          )}
-
-          <form onSubmit={handleAddSkill}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
+              {modalError && (
+                <Banner status="error" title="Save Failed" description={modalError} collapsible={false} />
+              )}
+
               <NumberInput
                 label="Combat Skill ID"
                 value={newSkillId}
@@ -3463,15 +3478,16 @@ export const ContentManagement: React.FC = () => {
                 onChange={setNewSkillId}
                 isIntegerOnly
               />
-              <div className="pt-3 pb-1 border-t border-black/10 dark:border-white/10">
-                <HStack justify="end" gap={2}>
-                <Button variant="secondary" label="Cancel" onClick={() => setIsAddingSkill(false)} />
-                <Button type="submit" variant="primary" label="Save Skill" isLoading={saving} />
-                </HStack>
-              </div>
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 pb-1 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button variant="secondary" label="Cancel" onClick={() => setIsAddingSkill(false)} />
+              <Button type="submit" variant="primary" label="Save Skill" isLoading={saving} />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* Sensitive Action Delete Guard */}

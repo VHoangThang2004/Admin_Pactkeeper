@@ -60,6 +60,7 @@ import {
   getPresenceStatusDotVariant,
 } from '../utils/presenceAstryx';
 import {
+  formatTelemetryTimestamp,
   isAiOrVirtualPlayerId,
   isAiOrVirtualUsername,
 } from '../utils/presence';
@@ -389,52 +390,45 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     {
       key: 'hero',
       header: 'Hero & Account',
-      width: proportional(2),
+      width: proportional(2, { minWidth: 230 }),
       renderCell: (player) => (
-        <HStack gap={3} vAlign="center">
-          <div className="w-9 h-9 rounded-lg bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
-            <Text weight="bold" size="xsm" color="accent" className="font-cinzel">
-              {player.username.slice(0, 2).toUpperCase()}
+        <VStack gap={0.5}>
+          <HStack gap={2} vAlign="center">
+            <Text weight="semibold" size="sm">
+              {player.username}
             </Text>
-          </div>
-          <VStack gap={0.5}>
-            <HStack gap={2} vAlign="center">
-              <Text weight="semibold" size="sm">
-                {player.username}
-              </Text>
-              <StatusDot
-                variant={getPresenceStatusDotVariant(player.presence.state)}
-                isPulsing={player.presence.state !== 'Offline'}
-                label={player.presence.label}
-              />
-            </HStack>
-            <HStack gap={1} vAlign="center">
-              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                Ref: #{player.playerId.slice(-6).toUpperCase()}
-              </Text>
-              <IconButton
-                label={`Copy full Player ID for ${player.username}`}
-                tooltip={`Copy ID: ${player.playerId}`}
-                variant="ghost"
-                size="sm"
-                icon={<Icon icon={Copy} />}
-                onClick={() => {
-                  navigator.clipboard.writeText(player.playerId);
-                  setMessage({
-                    text: `Copied Player ID for ${player.username} to clipboard.`,
-                    type: 'success',
-                  });
-                }}
-              />
-            </HStack>
-          </VStack>
-        </HStack>
+            <StatusDot
+              variant={getPresenceStatusDotVariant(player.presence.state)}
+              isPulsing={player.presence.state !== 'Offline'}
+              label={player.presence.label}
+            />
+          </HStack>
+          <HStack gap={1} vAlign="center">
+            <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+              Ref: #{player.playerId.slice(-6).toUpperCase()}
+            </Text>
+            <IconButton
+              label={`Copy full Player ID for ${player.username}`}
+              tooltip={`Copy ID: ${player.playerId}`}
+              variant="ghost"
+              size="sm"
+              icon={<Icon icon={Copy} />}
+              onClick={() => {
+                navigator.clipboard.writeText(player.playerId);
+                setMessage({
+                  text: `Copied Player ID for ${player.username} to clipboard.`,
+                  type: 'success',
+                });
+              }}
+            />
+          </HStack>
+        </VStack>
       ),
     },
     {
       key: 'status',
       header: 'Presence Status',
-      width: proportional(1.5),
+      width: pixel(175),
       renderCell: (player) => (
         <HStack gap={2} vAlign="center" wrap="wrap">
           <Badge
@@ -460,7 +454,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     {
       key: 'location',
       header: 'Active Realm Location',
-      width: proportional(2),
+      width: proportional(2, { minWidth: 220 }),
       renderCell: (player) => (
         <Text type="code" size="xsm" color="secondary">
           {player.presence.activityDescription}
@@ -470,13 +464,24 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     {
       key: 'telemetry',
       header: 'Last Telemetry',
-      width: pixel(140),
+      width: pixel(155),
       align: 'end',
-      renderCell: (player) => (
-        <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-          {player.presence.relativeTime}
-        </Text>
-      ),
+      renderCell: (player) => {
+        const formatted = formatTelemetryTimestamp(player.lastSeen);
+        return (
+          <div
+            className="inline-flex flex-col items-center gap-0.5 whitespace-nowrap"
+            title={player.presence.relativeTime || player.lastSeen || undefined}
+          >
+            <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
+              {formatted.isValid ? formatted.time : player.presence.relativeTime || '—'}
+            </Text>
+            <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+              {formatted.isValid ? formatted.date : '—'}
+            </Text>
+          </div>
+        );
+      },
     },
   ];
 
@@ -568,8 +573,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
             ) : (
               <div
-                className={`rounded-lg border border-[var(--color-border)] overflow-hidden ${
-                  activeView === 'roster' ? '' : 'max-h-[440px] overflow-y-auto pk-sticky-table'
+                className={`rounded-lg border border-[var(--color-border)] ${
+                  activeView === 'roster'
+                    ? 'pk-table-scroll'
+                    : 'pk-scrollable-panel pk-sticky-table max-h-[440px]'
                 }`}
               >
                 <Table

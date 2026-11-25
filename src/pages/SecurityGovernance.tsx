@@ -768,7 +768,7 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
       {
         key: 'lastLoginAt',
         header: 'Last Auth Telemetry',
-        width: proportional(1.5, { minWidth: 170 }),
+        width: proportional(1.5, { minWidth: 200 }),
         renderCell: (row) => (
           <VStack gap={0.5}>
             <Text size="sm" color="primary">
@@ -984,7 +984,7 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
       {
         key: 'reason',
         header: 'Details / Telemetry Source',
-        width: proportional(1.4, { minWidth: 170 }),
+        width: proportional(1.4, { minWidth: 230 }),
         renderCell: (row) => (
           <VStack gap={1}>
             <Text size="sm" color="primary">
@@ -1220,14 +1220,16 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                     }
                   />
                 ) : (
-                  <Table
-                    columns={accountColumns}
-                    data={filteredAccounts}
-                    idKey="id"
-                    density="balanced"
-                    hasHover
-                    aria-label="Counsel Admin Accounts"
-                  />
+                  <div className="pk-table-scroll rounded-lg border border-[var(--color-border-subtle)]">
+                    <Table
+                      columns={accountColumns}
+                      data={filteredAccounts}
+                      idKey="id"
+                      density="balanced"
+                      hasHover
+                      aria-label="Counsel Admin Accounts"
+                    />
+                  </div>
                 )}
               </VStack>
             </div>
@@ -1596,14 +1598,16 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                     icon={<KeyRound className="w-8 h-8" />}
                   />
                 ) : (
-                  <Table
-                    columns={loginColumns}
-                    data={filteredLogins}
-                    idKey="id"
-                    density="compact"
-                    hasHover
-                    aria-label="Authentication Telemetry"
-                  />
+                  <div className="pk-table-scroll rounded-lg border border-[var(--color-border-subtle)]">
+                    <Table
+                      columns={loginColumns}
+                      data={filteredLogins}
+                      idKey="id"
+                      density="compact"
+                      hasHover
+                      aria-label="Authentication Telemetry"
+                    />
+                  </div>
                 )}
               </VStack>
             </div>
@@ -1622,28 +1626,31 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
         }}
         purpose="form"
         width={480}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Create Counsel Staff Account"
-            subtitle="Provision a new backend administrator, moderator, or support operator."
-            startContent={<UserPlus className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsCreateAccountOpen(false);
-            }}
-          />
-
-          {createFormError && (
-            <Banner
-              status="error"
-              title="Validation Error"
-              description={createFormError}
-              collapsible={false}
+        <form onSubmit={handleCreateAccountSubmit} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Create Counsel Staff Account"
+              subtitle="Provision a new backend administrator, moderator, or support operator."
+              startContent={<UserPlus className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsCreateAccountOpen(false);
+              }}
             />
-          )}
+          </div>
 
-          <form onSubmit={handleCreateAccountSubmit}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
+              {createFormError && (
+                <Banner
+                  status="error"
+                  title="Validation Error"
+                  description={createFormError}
+                  collapsible={false}
+                />
+              )}
+
               <TextInput
                 label="Operator Username"
                 value={createUsername}
@@ -1672,21 +1679,24 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                 value={createRole}
                 onChange={(val) => setCreateRole(String(val))}
               />
-              <HStack justify="end" gap={2} paddingBlockStart={2}>
-                <Button
-                  variant="secondary"
-                  label="Cancel"
-                  onClick={() => setIsCreateAccountOpen(false)}
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  label="Continue to Authorization"
-                />
-              </HStack>
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => setIsCreateAccountOpen(false)}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                label="Continue to Authorization"
+              />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Change Account Role */}
@@ -1697,18 +1707,21 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
         }}
         purpose="form"
         width={440}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Reassign Operator Role"
-            subtitle={roleEditAccount ? `Account: ${roleEditAccount.username}` : undefined}
-            startContent={<Shield className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setRoleEditAccount(null);
-            }}
-          />
+        <form onSubmit={handleAssignRoleSubmit} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Reassign Operator Role"
+              subtitle={roleEditAccount ? `Account: ${roleEditAccount.username}` : undefined}
+              startContent={<Shield className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setRoleEditAccount(null);
+              }}
+            />
+          </div>
 
-          <form onSubmit={handleAssignRoleSubmit}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
               <Selector
                 label="Target RBAC Role"
@@ -1716,21 +1729,24 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                 value={roleEditNextRole}
                 onChange={(val) => setRoleEditNextRole(String(val))}
               />
-              <HStack justify="end" gap={2} paddingBlockStart={2}>
-                <Button
-                  variant="secondary"
-                  label="Cancel"
-                  onClick={() => setRoleEditAccount(null)}
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  label="Continue to Authorization"
-                />
-              </HStack>
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => setRoleEditAccount(null)}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                label="Continue to Authorization"
+              />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Reset Account Password */}
@@ -1744,28 +1760,31 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
         }}
         purpose="form"
         width={460}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Reset Staff Password"
-            subtitle={resetPwdAccount ? `Operator: ${resetPwdAccount.username}` : undefined}
-            startContent={<Key className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setResetPwdAccount(null);
-            }}
-          />
-
-          {resetPwdError && (
-            <Banner
-              status="error"
-              title="Invalid Password"
-              description={resetPwdError}
-              collapsible={false}
+        <form onSubmit={handleResetPasswordSubmit} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Reset Staff Password"
+              subtitle={resetPwdAccount ? `Operator: ${resetPwdAccount.username}` : undefined}
+              startContent={<Key className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setResetPwdAccount(null);
+              }}
             />
-          )}
+          </div>
 
-          <form onSubmit={handleResetPasswordSubmit}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
+              {resetPwdError && (
+                <Banner
+                  status="error"
+                  title="Invalid Password"
+                  description={resetPwdError}
+                  collapsible={false}
+                />
+              )}
+
               <TextInput
                 label="New Temporary Password"
                 type="password"
@@ -1782,21 +1801,24 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                 placeholder="Repeat temporary password"
                 isRequired
               />
-              <HStack justify="end" gap={2} paddingBlockStart={2}>
-                <Button
-                  variant="secondary"
-                  label="Cancel"
-                  onClick={() => setResetPwdAccount(null)}
-                />
-                <Button
-                  type="submit"
-                  variant="destructive"
-                  label="Continue to Reset"
-                />
-              </HStack>
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => setResetPwdAccount(null)}
+              />
+              <Button
+                type="submit"
+                variant="destructive"
+                label="Continue to Reset"
+              />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Create Custom Role */}
@@ -1810,28 +1832,31 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
         }}
         purpose="form"
         width={620}
+        maxHeight="90dvh"
       >
-        <VStack gap={4}>
-          <DialogHeader
-            title="Create Custom RBAC Role"
-            subtitle="Define a named security role and initial permission capabilities."
-            startContent={<ShieldAlert className="w-5 h-5 text-amber-500" />}
-            onOpenChange={(open) => {
-              if (!open) setIsCreateRoleOpen(false);
-            }}
-          />
-
-          {newRoleError && (
-            <Banner
-              status="error"
-              title="Role Definition Incomplete"
-              description={newRoleError}
-              collapsible={false}
+        <form onSubmit={handleCreateRoleSubmit} className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title="Create Custom RBAC Role"
+              subtitle="Define a named security role and initial permission capabilities."
+              startContent={<ShieldAlert className="w-5 h-5 text-amber-500" />}
+              onOpenChange={(open) => {
+                if (!open) setIsCreateRoleOpen(false);
+              }}
             />
-          )}
+          </div>
 
-          <form onSubmit={handleCreateRoleSubmit}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <VStack gap={3}>
+              {newRoleError && (
+                <Banner
+                  status="error"
+                  title="Role Definition Incomplete"
+                  description={newRoleError}
+                  collapsible={false}
+                />
+              )}
+
               <TextInput
                 label="Role Name"
                 value={newRoleName}
@@ -1851,7 +1876,7 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                 <Text size="sm" weight="semibold" color="primary">
                   Select Initial Capabilities ({newRolePermissions.length} selected)
                 </Text>
-                <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
+                <div className="space-y-2">
                   {PERMISSION_CATALOG.map((perm) => (
                     <Card key={perm.key} variant="muted" padding={2}>
                       <HStack justify="between" vAlign="center" gap={2}>
@@ -1875,22 +1900,24 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
                   ))}
                 </div>
               </VStack>
-
-              <HStack justify="end" gap={2} paddingBlockStart={2}>
-                <Button
-                  variant="secondary"
-                  label="Cancel"
-                  onClick={() => setIsCreateRoleOpen(false)}
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  label="Continue to Authorization"
-                />
-              </HStack>
             </VStack>
-          </form>
-        </VStack>
+          </div>
+
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack justify="end" gap={2} wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => setIsCreateRoleOpen(false)}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                label="Continue to Authorization"
+              />
+            </HStack>
+          </div>
+        </form>
       </Dialog>
 
       {/* DIALOG: Forensic Audit Event Inspector */}
@@ -1901,114 +1928,123 @@ export const SecurityGovernance: React.FC<SecurityGovernanceProps> = ({
         }}
         purpose="info"
         width={620}
+        maxHeight="90dvh"
       >
         {inspectingAudit && (
-          <VStack gap={4}>
-            <DialogHeader
-              title={inspectingAudit.action}
-              subtitle={`Audit Record ${inspectingAudit.id} • ${formatDateTime(inspectingAudit.timestamp)}`}
-              startContent={<FileClock className="w-5 h-5 text-amber-500" />}
-              onOpenChange={(open) => {
-                if (!open) setInspectingAudit(null);
-              }}
-            />
-
-            <HStack gap={2} wrap="wrap">
-              <Badge
-                variant={SEVERITY_BADGE_MAP[inspectingAudit.severity]}
-                label={inspectingAudit.severity}
+          <div className="flex flex-col flex-1 min-h-0 gap-3">
+            <div className="shrink-0">
+              <DialogHeader
+                title={inspectingAudit.action}
+                subtitle={`Audit Record ${inspectingAudit.id} • ${formatDateTime(inspectingAudit.timestamp)}`}
+                startContent={<FileClock className="w-5 h-5 text-amber-500" />}
+                onOpenChange={(open) => {
+                  if (!open) setInspectingAudit(null);
+                }}
               />
-              <Badge variant="neutral" label={inspectingAudit.category} />
-              <Badge
-                variant={inspectingAudit.status === 'FAILED' ? 'error' : 'success'}
-                label={inspectingAudit.status}
-              />
-              <Badge
-                variant={inspectingAudit.source === 'BACKEND_API' ? 'info' : 'yellow'}
-                label={inspectingAudit.source}
-              />
-            </HStack>
+            </div>
 
-            <Grid columns={{ minWidth: 220, max: 2, repeat: 'fit' }} gap={3}>
-              <Card variant="muted" padding={3}>
-                <VStack gap={0.5}>
-                  <Text type="supporting" size="xsm" color="secondary">
-                    Actor
-                  </Text>
-                  <Text size="sm" weight="semibold" color="primary">
-                    {inspectingAudit.actorUsername} ({inspectingAudit.actorRole})
-                  </Text>
-                </VStack>
-              </Card>
-              <Card variant="muted" padding={3}>
-                <VStack gap={0.5}>
-                  <Text type="supporting" size="xsm" color="secondary">
-                    Target
-                  </Text>
-                  <Text size="sm" weight="semibold" color="primary">
-                    {[inspectingAudit.targetType, inspectingAudit.targetLabel, inspectingAudit.targetId]
-                      .filter(Boolean)
-                      .join(' / ') || '—'}
-                  </Text>
-                </VStack>
-              </Card>
-            </Grid>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <VStack gap={4}>
+                <HStack gap={2} wrap="wrap">
+                  <Badge
+                    variant={SEVERITY_BADGE_MAP[inspectingAudit.severity]}
+                    label={inspectingAudit.severity}
+                  />
+                  <Badge variant="neutral" label={inspectingAudit.category} />
+                  <Badge
+                    variant={inspectingAudit.status === 'FAILED' ? 'error' : 'success'}
+                    label={inspectingAudit.status}
+                  />
+                  <Badge
+                    variant={inspectingAudit.source === 'BACKEND_API' ? 'info' : 'yellow'}
+                    label={inspectingAudit.source}
+                  />
+                </HStack>
 
-            {inspectingAudit.rationale && (
-              <Card variant="muted" padding={3}>
-                <VStack gap={1}>
-                  <Text type="supporting" size="xsm" color="secondary">
-                    Operator Rationale
-                  </Text>
-                  <Text size="sm" color="primary">
-                    {inspectingAudit.rationale}
-                  </Text>
-                </VStack>
-              </Card>
-            )}
+                <Grid columns={{ minWidth: 220, max: 2, repeat: 'fit' }} gap={3}>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={0.5}>
+                      <Text type="supporting" size="xsm" color="secondary">
+                        Actor
+                      </Text>
+                      <Text size="sm" weight="semibold" color="primary">
+                        {inspectingAudit.actorUsername} ({inspectingAudit.actorRole})
+                      </Text>
+                    </VStack>
+                  </Card>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={0.5}>
+                      <Text type="supporting" size="xsm" color="secondary">
+                        Target
+                      </Text>
+                      <Text size="sm" weight="semibold" color="primary">
+                        {[inspectingAudit.targetType, inspectingAudit.targetLabel, inspectingAudit.targetId]
+                          .filter(Boolean)
+                          .join(' / ') || '—'}
+                      </Text>
+                    </VStack>
+                  </Card>
+                </Grid>
 
-            {inspectingAudit.errorMessage && (
-              <Banner
-                status="error"
-                title="Failure Diagnostic"
-                description={inspectingAudit.errorMessage}
-                collapsible={false}
-              />
-            )}
-
-            {(inspectingAudit.beforeState || inspectingAudit.afterState) && (
-              <Grid columns={{ minWidth: 240, max: 2, repeat: 'fit' }} gap={3}>
-                {inspectingAudit.beforeState && (
+                {inspectingAudit.rationale && (
                   <Card variant="muted" padding={3}>
                     <VStack gap={1}>
                       <Text type="supporting" size="xsm" color="secondary">
-                        Before State
+                        Operator Rationale
                       </Text>
-                      <pre className="text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all">
-                        {JSON.stringify(inspectingAudit.beforeState, null, 2)}
-                      </pre>
+                      <Text size="sm" color="primary">
+                        {inspectingAudit.rationale}
+                      </Text>
                     </VStack>
                   </Card>
                 )}
-                {inspectingAudit.afterState && (
-                  <Card variant="muted" padding={3}>
-                    <VStack gap={1}>
-                      <Text type="supporting" size="xsm" color="secondary">
-                        After State
-                      </Text>
-                      <pre className="text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all">
-                        {JSON.stringify(inspectingAudit.afterState, null, 2)}
-                      </pre>
-                    </VStack>
-                  </Card>
-                )}
-              </Grid>
-            )}
 
-            <HStack justify="end">
-              <Button variant="primary" label="Close" onClick={() => setInspectingAudit(null)} />
-            </HStack>
-          </VStack>
+                {inspectingAudit.errorMessage && (
+                  <Banner
+                    status="error"
+                    title="Failure Diagnostic"
+                    description={inspectingAudit.errorMessage}
+                    collapsible={false}
+                  />
+                )}
+
+                {(inspectingAudit.beforeState || inspectingAudit.afterState) && (
+                  <Grid columns={{ minWidth: 240, max: 2, repeat: 'fit' }} gap={3}>
+                    {inspectingAudit.beforeState && (
+                      <Card variant="muted" padding={3}>
+                        <VStack gap={1}>
+                          <Text type="supporting" size="xsm" color="secondary">
+                            Before State
+                          </Text>
+                          <pre className="text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all">
+                            {JSON.stringify(inspectingAudit.beforeState, null, 2)}
+                          </pre>
+                        </VStack>
+                      </Card>
+                    )}
+                    {inspectingAudit.afterState && (
+                      <Card variant="muted" padding={3}>
+                        <VStack gap={1}>
+                          <Text type="supporting" size="xsm" color="secondary">
+                            After State
+                          </Text>
+                          <pre className="text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all">
+                            {JSON.stringify(inspectingAudit.afterState, null, 2)}
+                          </pre>
+                        </VStack>
+                      </Card>
+                    )}
+                  </Grid>
+                )}
+              </VStack>
+            </div>
+
+            <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+              <HStack justify="end" wrap="wrap">
+                <Button variant="primary" label="Close" onClick={() => setInspectingAudit(null)} />
+              </HStack>
+            </div>
+          </div>
         )}
       </Dialog>
 

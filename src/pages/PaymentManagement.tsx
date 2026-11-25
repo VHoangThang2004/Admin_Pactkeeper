@@ -905,7 +905,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     {
       key: 'orderCode',
       header: 'Order Code',
-      width: proportional(1.4),
+      width: proportional(1.4, { minWidth: 165 }),
       renderCell: (row) => {
         const order = row as unknown as PurchaseOrder;
         const orderCodeStr = String(order.orderCode);
@@ -934,7 +934,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     {
       key: 'player',
       header: 'Player',
-      width: proportional(1.5),
+      width: proportional(1.5, { minWidth: 190 }),
       renderCell: (row) => {
         const order = row as unknown as PurchaseOrder;
         const username = playerNames[order.playerId];
@@ -963,7 +963,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     {
       key: 'pack',
       header: 'Pack',
-      width: proportional(1.3),
+      width: proportional(1.3, { minWidth: 170 }),
       renderCell: (row) => {
         const order = row as unknown as PurchaseOrder;
         const pack = resolvePack(order.packId);
@@ -984,7 +984,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     {
       key: 'amount',
       header: 'Amount (VND)',
-      width: pixel(135),
+      width: pixel(155),
       align: 'end',
       renderCell: (row) => {
         const order = row as unknown as PurchaseOrder;
@@ -1008,7 +1008,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     {
       key: 'timestamp',
       header: 'Timestamp',
-      width: pixel(150),
+      width: pixel(175),
       renderCell: (row) => {
         const order = row as unknown as PurchaseOrder;
         return (
@@ -1021,7 +1021,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     {
       key: 'actions',
       header: 'Receipt',
-      width: pixel(110),
+      width: pixel(135),
       align: 'end',
       renderCell: (row) => {
         const order = row as unknown as PurchaseOrder;
@@ -1498,20 +1498,22 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                 />
               </HStack>
 
-              <Table
-                columns={orderColumns}
-                data={loading ? [] : (recentOrdersPreview as OrderTableRow[])}
-                idKey="id"
-                density="compact"
-                emptyState={
-                  <EmptyState
-                    isCompact
-                    icon={<Receipt size={24} />}
-                    title={loading ? 'Synchronizing PayOS...' : 'No Recent PayOS Orders'}
-                    description="No transactions matched the active timeframe."
-                  />
-                }
-              />
+              <div className="pk-table-scroll rounded-lg border border-[var(--color-border-subtle)]">
+                <Table
+                  columns={orderColumns}
+                  data={loading ? [] : (recentOrdersPreview as OrderTableRow[])}
+                  idKey="id"
+                  density="compact"
+                  emptyState={
+                    <EmptyState
+                      isCompact
+                      icon={<Receipt size={24} />}
+                      title={loading ? 'Synchronizing PayOS...' : 'No Recent PayOS Orders'}
+                      description="No transactions matched the active timeframe."
+                    />
+                  }
+                />
+              </div>
             </VStack>
           </Card>
         </VStack>

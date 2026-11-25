@@ -483,7 +483,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       {
         key: 'name',
         header: 'Entity',
-        width: proportional(1.8),
+        width: proportional(1.8, { minWidth: 190 }),
         renderCell: (row) => (
           <VStack gap={0.5}>
             <Text size="sm" weight="semibold">
@@ -498,7 +498,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       {
         key: 'winRate',
         header: 'Winrate',
-        width: proportional(1.4),
+        width: proportional(1.4, { minWidth: 165 }),
         renderCell: (row) => {
           const badge = getWinrateBadge(row);
           const highlighted = isOutOfBalance(row);
@@ -535,7 +535,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       {
         key: 'pickRate',
         header: 'Pickrate / Picks',
-        width: proportional(1.2),
+        width: proportional(1.2, { minWidth: 165 }),
         renderCell: (row) => (
           <VStack gap={0.5}>
             <Text size="sm" weight="medium" hasTabularNumbers>
@@ -550,7 +550,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       {
         key: 'avgDamage',
         header: 'Avg Damage',
-        width: proportional(1.1),
+        width: proportional(1.1, { minWidth: 150 }),
         renderCell: (row) => (
           <VStack gap={0.5}>
             <Text size="sm" weight="medium" hasTabularNumbers>
@@ -567,7 +567,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       {
         key: 'impact',
         header: 'Survival / Kills',
-        width: proportional(1.1),
+        width: proportional(1.1, { minWidth: 165 }),
         renderCell: (row) => (
           <VStack gap={0.5}>
             <Text size="sm" color="secondary" hasTabularNumbers>

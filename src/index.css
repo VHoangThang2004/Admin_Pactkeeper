@@ -43,8 +43,8 @@
   }
 
   *::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   *::-webkit-scrollbar-track {
@@ -263,6 +263,25 @@
 
   button:not(:disabled):active {
     transform: translateY(0) scale(0.98);
+  }
+
+  /* Crisp, consistent borders on filled Astryx buttons so they never blend into tinted cards */
+  .astryx-button[data-variant='destructive'],
+  .astryx-icon-button[data-variant='destructive'] {
+    border: 1px solid color-mix(in srgb, currentColor 45%, transparent) !important;
+    box-shadow: 0 1px 2px color-mix(in srgb, currentColor 14%, transparent);
+  }
+
+  .astryx-button[data-variant='secondary'],
+  .astryx-icon-button[data-variant='secondary'] {
+    border: 1px solid var(--color-border-emphasized) !important;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  }
+
+  .astryx-button[data-variant='primary'],
+  .astryx-icon-button[data-variant='primary'] {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 75%, var(--color-text-primary)) !important;
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--color-accent) 26%, transparent);
   }
 
   /* Primary / Submit CTA Shimmer Sweep */
@@ -592,8 +611,134 @@
   .pk-scrollable-panel {
     max-height: min(60dvh, 38rem);
     overflow-y: auto;
+    overflow-x: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
+    /* Neutralize inherited Astryx Card padding so Table containerBleed never clips columns */
+    --container-padding-inline-start: 0px;
+    --container-padding-inline-end: 0px;
+    --container-padding-block-start: 0px;
+    --container-padding-block-end: 0px;
+  }
+
+  .pk-table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    --container-padding-inline-start: 0px;
+    --container-padding-inline-end: 0px;
+    --container-padding-block-start: 0px;
+    --container-padding-block-end: 0px;
+  }
+
+  /* Remove inner Astryx scrollport (overflow-x/y) so .pk-scrollable-panel owns BOTH
+     vertical and horizontal scroll — keeping sticky thead pinned AND horizontal scrollbar
+     always visible at the bottom of the viewport without scrolling to the last row. */
+  .pk-scrollable-panel .astryx-table-scroll-wrapper,
+  .pk-table-scroll .astryx-table-scroll-wrapper {
+    overflow: visible !important;
+  }
+
+  .pk-scrollable-panel .astryx-table-scroll-wrapper > div,
+  .pk-table-scroll .astryx-table-scroll-wrapper > div {
+    overflow: visible !important;
+  }
+
+  .pk-scrollable-panel::-webkit-scrollbar,
+  .pk-table-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .pk-scrollable-panel::-webkit-scrollbar-track,
+  .pk-table-scroll::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--color-background-muted) 65%, transparent);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .pk-scrollable-panel::-webkit-scrollbar-thumb,
+  .pk-table-scroll::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border-emphasized));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .pk-scrollable-panel::-webkit-scrollbar-thumb:hover,
+  .pk-table-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-accent);
+  }
+
+  .pk-scrollable-panel table,
+  .pk-table-scroll table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  /* Spreadsheet / Google Sheets grid styling across all data tables */
+  .pk-scrollable-panel thead th,
+  .pk-table-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background-color: color-mix(in srgb, var(--color-background-muted) 72%, var(--color-background-card));
+    border-right: 1px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
+    text-align: center !important;
+    vertical-align: middle !important;
+    font-weight: 600;
+    padding: 0.65rem 0.85rem !important;
+  }
+
+  .pk-scrollable-panel thead th:last-child,
+  .pk-table-scroll thead th:last-child {
+    border-right: none;
+  }
+
+  .pk-scrollable-panel thead th > *,
+  .pk-table-scroll thead th > * {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .pk-scrollable-panel tbody td,
+  .pk-table-scroll tbody td {
+    border-right: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid var(--color-border-subtle);
+    vertical-align: middle !important;
+    padding: 0.6rem 0.85rem !important;
+  }
+
+  .pk-scrollable-panel tbody td:last-child,
+  .pk-table-scroll tbody td:last-child {
+    border-right: none;
+  }
+
+  .pk-scrollable-panel tbody tr:last-child td,
+  .pk-table-scroll tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .pk-scrollable-panel tbody td:not(:first-child),
+  .pk-table-scroll tbody td:not(:first-child) {
+    text-align: center !important;
+  }
+
+  .pk-scrollable-panel tbody td:not(:first-child) > *,
+  .pk-table-scroll tbody td:not(:first-child) > * {
+    margin-inline: auto;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center;
+  }
+
+  .pk-scrollable-panel tbody tr:nth-child(even),
+  .pk-table-scroll tbody tr:nth-child(even) {
+    background-color: color-mix(in srgb, var(--color-background-muted) 28%, transparent);
+  }
+
+  .pk-scrollable-panel tbody tr:hover,
+  .pk-table-scroll tbody tr:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 9%, var(--color-background-card));
   }
 
   .pk-sticky-table thead {
