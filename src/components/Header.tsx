@@ -16,6 +16,7 @@ import {
   KeyRound,
   LogOut,
   Moon,
+  Search,
   ShieldAlert,
   Sun,
   UserCheck,
@@ -25,6 +26,7 @@ import { useThemeMode } from '../hooks/useThemeMode';
 import type { AdminPermissionKey } from '../types';
 import { hasPermission } from '../utils/permissions';
 import ChangePasswordModal from './ChangePasswordModal';
+import { CommandPalette } from './ui/CommandPalette';
 
 interface HeaderProps {
   role: string;
@@ -112,6 +114,18 @@ export const Header: React.FC<HeaderProps> = ({
     return exp ? formatRemainingDuration(exp - Date.now()) : 'Active';
   });
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
+
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -191,6 +205,14 @@ export const Header: React.FC<HeaderProps> = ({
               icon={<Clock className="w-3 h-3" />}
               label={<span className="pk-tabular">{serverTime} UTC+7</span>}
             />
+            <Button
+              variant="secondary"
+              size="sm"
+              label="Quick Jump"
+              icon={<Icon icon={Search} size="sm" />}
+              endContent={<Badge label="Ctrl+K" variant="neutral" />}
+              onClick={() => setIsCommandOpen(true)}
+            />
           </div>
         }
         endContent={
@@ -248,6 +270,14 @@ export const Header: React.FC<HeaderProps> = ({
         onClose={() => setIsPasswordModalOpen(false)}
         username={adminName || 'Admin'}
         role={role}
+      />
+
+      <CommandPalette
+        isOpen={isCommandOpen}
+        onClose={() => setIsCommandOpen(false)}
+        role={role}
+        permissions={permissions}
+        onOpenChangePassword={() => setIsPasswordModalOpen(true)}
       />
     </>
   );

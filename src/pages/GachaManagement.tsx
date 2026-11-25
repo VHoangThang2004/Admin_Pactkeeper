@@ -1409,8 +1409,8 @@ export const GachaManagement: React.FC = () => {
               <Card
                 key={banner.id}
                 padding={0}
-                className={`overflow-hidden flex flex-col pk-interactive-card ${
-                  schedule.status === 'LIVE' ? 'pk-gold-frame' : ''
+                className={`overflow-hidden flex flex-col pk-interactive-card pk-zoom-card pk-spotlight ${
+                  schedule.status === 'LIVE' ? 'pk-gold-frame pk-corner-frame' : ''
                 }`}
               >
                 {/* Compact Banner Artwork Scrim Area */}
@@ -1422,18 +1422,12 @@ export const GachaManagement: React.FC = () => {
                       onError={() =>
                         setFailedImages((prev) => ({ ...prev, [banner.id]: true }))
                       }
-                      className="w-full h-full object-cover opacity-85 transition-transform duration-500"
+                      className="pk-zoom-img w-full h-full object-cover opacity-85"
                     />
                   ) : (
-                    <img
-                      src={
-                        banner.isPermanent
-                          ? '/game-assets/banner-standard.png'
-                          : '/game-assets/banner-basic.png'
-                      }
-                      alt={banner.title}
-                      className="w-full h-full object-cover opacity-75 transition-transform duration-500"
-                    />
+                    <div className="w-full h-full flex items-center justify-end pr-6 bg-gradient-to-br from-slate-950 via-[#0c1222] to-indigo-950 text-amber-400/25">
+                      <Star className="w-12 h-12" />
+                    </div>
                   )}
                   <div
                     className="absolute inset-0 bg-gradient-to-t from-[#070a14]/95 via-[#070a14]/45 to-transparent"

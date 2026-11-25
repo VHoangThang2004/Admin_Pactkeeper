@@ -43,6 +43,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { adminClient } from '../api/adminClient';
 import { ConsolePage } from '../components/ConsolePage';
+import { ScrollReveal } from '../components/ui/ScrollReveal';
 import { SensitiveActionModal } from '../components/SensitiveActionModal';
 import { recordAuditEvent } from '../services/adminSecurityService';
 import {
@@ -71,6 +72,15 @@ interface DashboardOverviewProps {
 type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE';
 
 type PresenceTableRow = TrackedPlayerPresence & Record<string, unknown>;
+
+const HERO_SCENES = [
+  { id: 'briefing', num: '01', src: '/game-assets/hero-briefing.png', label: 'War Counsel' },
+  { id: 'awaken', num: '02', src: '/game-assets/hero-awaken.png', label: 'The Awakening' },
+  { id: 'eye', num: '03', src: '/game-assets/hero-eye.png', label: 'Heavenly Eye' },
+  { id: 'ambush', num: '04', src: '/game-assets/hero-ambush.png', label: 'Frontier Watch' },
+] as const;
+
+const DASHBOARD_TAB_ORDER = ['overview', 'roster', 'controls'] as const;
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   role = 'Admin',
@@ -130,6 +140,23 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const [chaptersCount, setChaptersCount] = useState<number>(0);
   const [gatewayLive, setGatewayLive] = useState<boolean>(true);
   const [activeView, setActiveView] = useState<'overview' | 'roster' | 'controls'>('overview');
+  const [tabDirection, setTabDirection] = useState<'right' | 'left'>('right');
+  const [heroSceneIndex, setHeroSceneIndex] = useState<number>(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHeroSceneIndex((prev) => (prev + 1) % HERO_SCENES.length);
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const handleTabChange = (nextVal: string) => {
+    const next = nextVal as 'overview' | 'roster' | 'controls';
+    const prevIdx = DASHBOARD_TAB_ORDER.indexOf(activeView);
+    const nextIdx = DASHBOARD_TAB_ORDER.indexOf(next);
+    setTabDirection(nextIdx >= prevIdx ? 'right' : 'left');
+    setActiveView(next);
+  };
 
   const loadTelemetrySnapshot = useCallback(async () => {
     const [uRes, bRes, pRes, hRes, cRes, stateRes, unifiedData] = await Promise.allSettled([
@@ -856,7 +883,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       toolbar={
         <TabList
           value={activeView}
-          onChange={(val) => setActiveView(val as 'overview' | 'roster' | 'controls')}
+          onChange={handleTabChange}
           role="tablist"
         >
           <Tab value="overview" label="Command Overview" icon={<Icon icon={Activity} />} />
@@ -892,76 +919,129 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     >
       <VStack gap={4}>
         {activeView === 'overview' && (
-          <div key="dash-tab-overview" className="pk-tab-panel flex flex-col gap-4">
-            {/* Executive Key-Art Command Hero Stage */}
-            <div className="pk-hero-stage pk-spotlight p-4 sm:p-5">
+          <div
+            key="dash-tab-overview"
+            className={`${tabDirection === 'right' ? 'pk-tab-slide-right' : 'pk-tab-slide-left'} flex flex-col gap-4`}
+          >
+            {/* 4-Scene Interactive Key-Art Command Hero Stage */}
+            <div className="pk-hero-stage pk-spotlight pk-corner-frame p-4 sm:p-5">
               <div className="pk-hero-bg-layer" aria-hidden="true">
-                <img
-                  src="/game-assets/hero-briefing.png"
-                  alt=""
-                  className="pk-hero-bg-img"
-                />
+                {HERO_SCENES.map((scene, idx) => (
+                  <img
+                    key={scene.id}
+                    src={scene.src}
+                    alt=""
+                    className={
+                      idx === heroSceneIndex
+                        ? 'pk-login-bg-img pk-login-bg-img-active'
+                        : 'pk-login-bg-img'
+                    }
+                  />
+                ))}
               </div>
               <div className="pk-hero-scrim" aria-hidden="true" />
-              <div className="relative z-10 pk-hero-copy p-4 sm:p-5">
-                {canViewPayments ? (
-                  <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-                    <VStack gap={1}>
-                      <Text type="label" size="sm" className="font-cinzel" color="accent">
-                        REALM TREASURY REVENUE (PAYOS LEDGER)
-                      </Text>
-                      <HStack gap={2} vAlign="center" wrap="wrap">
-                        <Icon icon={Coins} size="lg" color="accent" />
-                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                          {totalRevenue.toLocaleString()} VND
+              <div className="relative z-10 flex flex-col gap-3">
+                <div className="pk-hero-copy p-4 sm:p-5">
+                  {canViewPayments ? (
+                    <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+                      <VStack gap={1}>
+                        <Text type="label" size="sm" className="font-cinzel" color="accent">
+                          REALM TREASURY REVENUE (PAYOS LEDGER)
                         </Text>
-                        <Badge
-                          label={`${settlementConversionPct}% Settled`}
-                          variant="success"
+                        <HStack gap={2} vAlign="center" wrap="wrap">
+                          <Icon icon={Coins} size="lg" color="accent" />
+                          <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                            {totalRevenue.toLocaleString()} VND
+                          </Text>
+                          <Badge
+                            label={`${settlementConversionPct}% Settled`}
+                            variant="success"
+                          />
+                        </HStack>
+                      </VStack>
+                      <HStack gap={3} vAlign="center" wrap="wrap">
+                        <VStack gap={0.5} hAlign="end">
+                          <Text type="code" size="sm" weight="semibold" color="accent" hasTabularNumbers>
+                            {paidOrdersCount} / {totalOrdersCount} Completed Receipts
+                          </Text>
+                          <Text type="supporting" size="sm" color="secondary">
+                            {packsCount} Store Packs • payOS Gateway Live
+                          </Text>
+                        </VStack>
+                        <Button
+                          href="/payments"
+                          variant="primary"
+                          size="sm"
+                          icon={<Icon icon={TrendingUp} />}
+                          label="Open Treasury"
                         />
                       </HStack>
-                    </VStack>
-                    <HStack gap={3} vAlign="center" wrap="wrap">
+                    </HStack>
+                  ) : (
+                    <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+                      <VStack gap={1}>
+                        <Text type="label" size="sm" className="font-cinzel" color="accent">
+                          DEDICATED SERVER CLUSTER &amp; NODES
+                        </Text>
+                        <HStack gap={2} vAlign="center">
+                          <Icon icon={Server} size="lg" color="accent" />
+                          <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                            {activeMatchesCount} HEADLESS NODES ACTIVE
+                          </Text>
+                        </HStack>
+                      </VStack>
                       <VStack gap={0.5} hAlign="end">
-                        <Text type="code" size="sm" weight="semibold" color="accent" hasTabularNumbers>
-                          {paidOrdersCount} / {totalOrdersCount} Completed Receipts
+                        <Text type="code" size="sm" weight="semibold">
+                          UDP Port Pool: 7777–7800 • Ubuntu 22.04 LTS
                         </Text>
                         <Text type="supporting" size="sm" color="secondary">
-                          {packsCount} Store Packs • payOS Gateway Live
+                          Unity Netcode for GameObjects (NGO) • {totalMatchesCount} Matches Recorded
                         </Text>
                       </VStack>
-                      <Button
-                        href="/payments"
-                        variant="primary"
-                        size="sm"
-                        icon={<Icon icon={TrendingUp} />}
-                        label="Open Treasury"
-                      />
                     </HStack>
+                  )}
+                </div>
+
+                {/* Scene Switcher Pills + Quick Command Launchpad */}
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                  <HStack gap={1.5} vAlign="center" wrap="wrap">
+                    {HERO_SCENES.map((scene, idx) => {
+                      const isActive = idx === heroSceneIndex;
+                      return (
+                        <button
+                          key={scene.id}
+                          type="button"
+                          onClick={() => setHeroSceneIndex(idx)}
+                          className="pk-scene-pill rounded-full px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)] flex items-center gap-1.5"
+                        >
+                          <span className="font-mono text-[var(--color-text-accent)] font-semibold">
+                            {scene.num}
+                          </span>
+                          <span>{scene.label}</span>
+                          {isActive && (
+                            <span
+                              key={`dash-scene-${heroSceneIndex}`}
+                              className="pk-scene-pill-bar"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
                   </HStack>
-                ) : (
-                  <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-                    <VStack gap={1}>
-                      <Text type="label" size="sm" className="font-cinzel" color="accent">
-                        DEDICATED SERVER CLUSTER &amp; NODES
-                      </Text>
-                      <HStack gap={2} vAlign="center">
-                        <Icon icon={Server} size="lg" color="accent" />
-                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                          {activeMatchesCount} HEADLESS NODES ACTIVE
-                        </Text>
-                      </HStack>
-                    </VStack>
-                    <VStack gap={0.5} hAlign="end">
-                      <Text type="code" size="sm" weight="semibold">
-                        UDP Port Pool: 7777–7800 • Ubuntu 22.04 LTS
-                      </Text>
-                      <Text type="supporting" size="sm" color="secondary">
-                        Unity Netcode for GameObjects (NGO) • {totalMatchesCount} Matches Recorded
-                      </Text>
-                    </VStack>
+
+                  <HStack gap={1.5} vAlign="center" wrap="wrap">
+                    {canViewPlayers && (
+                      <Button href="/players" variant="secondary" size="sm" icon={<Icon icon={Users} size="sm" />} label="Players" />
+                    )}
+                    {canViewSupport && (
+                      <Button href="/support" variant="secondary" size="sm" icon={<Icon icon={Radio} size="sm" />} label="Live Support" />
+                    )}
+                    {canManageContent && (
+                      <Button href="/content" variant="secondary" size="sm" icon={<Icon icon={BookOpen} size="sm" />} label="Codex" />
+                    )}
                   </HStack>
-                )}
+                </HStack>
               </div>
             </div>
 
@@ -1109,24 +1189,32 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             </Grid>
 
             {/* Operational 2-Column Cockpit: Live Roster + Side Control Stack */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-              <div className="xl:col-span-8">{heroRosterCard}</div>
-              <div className="xl:col-span-4 flex flex-col gap-4">
-                {emergencyOverridesPanel}
-                {archivesSummaryPanel}
+            <ScrollReveal delayMs={60}>
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+                <div className="xl:col-span-8">{heroRosterCard}</div>
+                <div className="xl:col-span-4 flex flex-col gap-4">
+                  {emergencyOverridesPanel}
+                  {archivesSummaryPanel}
+                </div>
               </div>
-            </div>
+            </ScrollReveal>
           </div>
         )}
 
         {activeView === 'roster' && (
-          <div key="dash-tab-roster" className="pk-tab-panel">
+          <div
+            key="dash-tab-roster"
+            className={tabDirection === 'right' ? 'pk-tab-slide-right' : 'pk-tab-slide-left'}
+          >
             {heroRosterCard}
           </div>
         )}
 
         {activeView === 'controls' && (
-          <div key="dash-tab-controls" className="pk-tab-panel grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div
+            key="dash-tab-controls"
+            className={`${tabDirection === 'right' ? 'pk-tab-slide-right' : 'pk-tab-slide-left'} grid grid-cols-1 lg:grid-cols-2 gap-4 items-start`}
+          >
             {emergencyOverridesPanel}
             {archivesSummaryPanel}
           </div>

@@ -1591,17 +1591,17 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                       variant={pack.isAvailable ? 'default' : 'muted'}
                       className={
                         pack.isAvailable
-                          ? 'pk-interactive-card pk-gold-frame'
-                          : 'pk-interactive-card'
+                          ? 'pk-interactive-card pk-gold-frame pk-spotlight pk-corner-frame'
+                          : 'pk-interactive-card pk-spotlight'
                       }
                     >
-                    <VStack gap={3}>
-                      <HStack justify="between" vAlign="start" gap={3}>
-                        <HStack gap={3} vAlign="center" className="min-w-0">
-                          <div className="w-14 h-14 rounded-[var(--radius-md,10px)] bg-slate-950/90 border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
-                            <GemArt gemsAmount={pack.gemsAmount} size={44} />
-                          </div>
-                          <VStack gap={0.5} className="min-w-0">
+                      <VStack gap={3}>
+                        <HStack justify="between" vAlign="start" gap={3}>
+                          <HStack gap={3} vAlign="center" className="min-w-0">
+                            <div className="pk-cashier-stage w-16 h-16 rounded-xl flex items-center justify-center shrink-0">
+                              <GemArt gemsAmount={pack.gemsAmount} size={46} />
+                            </div>
+                            <VStack gap={0.5} className="min-w-0">
                             <Text weight="bold" size="sm" maxLines={1}>
                               {pack.name}
                             </Text>
