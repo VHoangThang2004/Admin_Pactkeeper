@@ -150,49 +150,52 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
       }}
       purpose="form"
       width={520}
+      maxHeight="90dvh"
     >
-      <VStack gap={4}>
-        <DialogHeader
-          title={title}
-          subtitle={isCritical ? 'CRITICAL GOVERNANCE ACTION' : 'HIGH SENSITIVITY ACTION'}
-          startContent={
-            isCritical ? (
-              <ShieldAlert className="w-5 h-5 text-[var(--color-icon-error)]" />
-            ) : (
-              <AlertTriangle className="w-5 h-5 text-[var(--color-icon-warning)]" />
-            )
-          }
-          onOpenChange={(open) => {
-            if (!open) closeHandler();
-          }}
-        />
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 gap-3">
+        <div className="shrink-0">
+          <DialogHeader
+            title={title}
+            subtitle={isCritical ? 'CRITICAL GOVERNANCE ACTION' : 'HIGH SENSITIVITY ACTION'}
+            startContent={
+              isCritical ? (
+                <ShieldAlert className="w-5 h-5 text-[var(--color-icon-error)]" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 text-[var(--color-icon-warning)]" />
+              )
+            }
+            onOpenChange={(open) => {
+              if (!open) closeHandler();
+            }}
+          />
+        </div>
 
-        <Banner
-          status={isCritical ? 'error' : 'warning'}
-          title={isCritical ? 'Irreversible / Realm-Wide Impact' : 'Audit Logged Operation'}
-          description={description}
-          collapsible={false}
-        />
-
-        {displayTarget && (
-          <Card variant="muted" padding={3}>
-            <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
-              <Text type="supporting" size="sm" color="secondary">
-                {targetLabel}
-              </Text>
-              <Text type="code" size="sm" weight="bold" color="primary">
-                {displayTarget}
-              </Text>
-            </HStack>
-          </Card>
-        )}
-
-        {activeError && (
-          <Banner status="error" title="Authorization Blocked" description={activeError} collapsible={false} />
-        )}
-
-        <form onSubmit={handleSubmit}>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
           <VStack gap={3}>
+            <Banner
+              status={isCritical ? 'error' : 'warning'}
+              title={isCritical ? 'Irreversible / Realm-Wide Impact' : 'Audit Logged Operation'}
+              description={description}
+              collapsible={false}
+            />
+
+            {displayTarget && (
+              <Card variant="muted" padding={3}>
+                <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
+                  <Text type="supporting" size="sm" color="secondary">
+                    {targetLabel}
+                  </Text>
+                  <Text type="code" size="sm" weight="bold" color="primary">
+                    {displayTarget}
+                  </Text>
+                </HStack>
+              </Card>
+            )}
+
+            {activeError && (
+              <Banner status="error" title="Authorization Blocked" description={activeError} collapsible={false} />
+            )}
+
             <Selector
               label="Quick Audit Reason Preset"
               options={AUDIT_REASON_PRESETS}
@@ -228,24 +231,26 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
                 isRequired
               />
             )}
-
-            <HStack gap={2} justify="end" paddingBlockStart={2}>
-              <Button
-                variant="secondary"
-                label="Cancel"
-                onClick={closeHandler}
-                isDisabled={busy}
-              />
-              <Button
-                type="submit"
-                variant={isCritical ? 'destructive' : 'primary'}
-                label={busy ? 'Executing...' : actionLabel}
-                isLoading={busy}
-              />
-            </HStack>
           </VStack>
-        </form>
-      </VStack>
+        </div>
+
+        <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+          <HStack gap={2} justify="end" wrap="wrap">
+            <Button
+              variant="secondary"
+              label="Cancel"
+              onClick={closeHandler}
+              isDisabled={busy}
+            />
+            <Button
+              type="submit"
+              variant={isCritical ? 'destructive' : 'primary'}
+              label={busy ? 'Executing...' : actionLabel}
+              isLoading={busy}
+            />
+          </HStack>
+        </div>
+      </form>
     </Dialog>
   );
 };

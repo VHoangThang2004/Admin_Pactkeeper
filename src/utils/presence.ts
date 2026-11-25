@@ -156,6 +156,27 @@ export function formatRelativeTime(timestamp?: string | Date | null): string {
 }
 
 /**
+ * Formats a timestamp into separate time (HH:mm:ss) and date (dd/MM/yyyy) strings
+ * for clean 2-line spreadsheet display in Last Telemetry columns.
+ */
+export function formatTelemetryTimestamp(
+  timestamp?: string | Date | null
+): { time: string; date: string; isValid: boolean } {
+  if (!timestamp) return { time: '—', date: '—', isValid: false };
+  try {
+    const d = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    if (isNaN(d.getTime())) return { time: '—', date: '—', isValid: false };
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const date = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    return { time, date, isValid: true };
+  } catch {
+    return { time: '—', date: '—', isValid: false };
+  }
+}
+
+/**
  * Checks if a given timestamp occurred within the past N minutes.
  */
 export function isWithinMinutes(timestamp?: string | Date | null, minutes: number = 30): boolean {

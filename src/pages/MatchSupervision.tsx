@@ -326,7 +326,7 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
     {
       key: 'matchId',
       header: 'Match ID / Mode',
-      width: proportional(1.5),
+      width: proportional(1.5, { minWidth: 190 }),
       renderCell: (m) => {
         const mId = m.matchId || m.id || '';
         const dt = formatLogDateTime(m.createdAt);
@@ -361,7 +361,7 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
     {
       key: 'status',
       header: 'Status & Server Host',
-      width: proportional(1.4),
+      width: proportional(1.4, { minWidth: 205 }),
       renderCell: (m) => {
         const isLive =
           String(m.status || '').toLowerCase().includes('progress') ||
@@ -393,7 +393,7 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
     {
       key: 'combatants',
       header: 'Combatants (P1 vs P2)',
-      width: proportional(2),
+      width: proportional(2, { minWidth: 230 }),
       renderCell: (m) => {
         const p1Name = isAiOrVirtualPlayerId(m.player1Id)
           ? 'AI Opponent'
@@ -424,7 +424,7 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
     {
       key: 'diagnostics',
       header: 'Diagnostics Log',
-      width: pixel(150),
+      width: pixel(165),
       renderCell: (m) => {
         const mId = m.matchId || m.id || '';
         const hasLog = logFileSet.has(mId.toLowerCase());
@@ -685,134 +685,143 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
         }}
         purpose="info"
         width={560}
+        maxHeight="90dvh"
         padding={5}
       >
-        <DialogHeader
-          title={`Match #${inspectingMatch?.matchId?.slice(0, 10) ?? ''}`}
-          subtitle="MATCH SESSION RECORD"
-          startContent={<Icon icon={Swords} size="md" color="accent" />}
-          onOpenChange={(open) => {
-            if (!open) setInspectingMatch(null);
-          }}
-        />
-        {inspectingMatch && (
-          <VStack gap={4}>
-            <Card variant="muted" padding={3}>
-              <VStack gap={2}>
-                <HStack justify="between" wrap="wrap" gap={2}>
-                  <Text type="supporting" size="xsm">
-                    Full Match GUID:
-                  </Text>
-                  <Text type="code" size="xsm" weight="bold" color="accent">
-                    {inspectingMatch.matchId}
-                  </Text>
-                </HStack>
-                <HStack justify="between" wrap="wrap" gap={2}>
-                  <Text type="supporting" size="xsm">
-                    Game Mode:
-                  </Text>
-                  <Badge
-                    label={String(inspectingMatch.mode || 'PVP').toUpperCase()}
-                    variant="yellow"
-                  />
-                </HStack>
-                <HStack justify="between" wrap="wrap" gap={2}>
-                  <Text type="supporting" size="xsm">
-                    Server Host:
-                  </Text>
-                  <Text type="code" size="xsm" hasTabularNumbers>
-                    {inspectingMatch.serverIp || 'VPS'}:{inspectingMatch.serverPort || '7777'}
-                  </Text>
-                </HStack>
-                <HStack justify="between" wrap="wrap" gap={2}>
-                  <Text type="supporting" size="xsm">
-                    Recorded Status:
-                  </Text>
-                  <Badge label={String(inspectingMatch.status || 'Finished')} variant="success" />
-                </HStack>
-                <HStack justify="between" wrap="wrap" gap={2}>
-                  <Text type="supporting" size="xsm">
-                    Created At:
-                  </Text>
-                  <Text type="code" size="xsm" hasTabularNumbers>
-                    {formatLogDateTime(inspectingMatch.createdAt).full}
-                  </Text>
-                </HStack>
-              </VStack>
-            </Card>
-
-            <Card variant="default" padding={3}>
-              <VStack gap={2}>
-                <Text type="label" size="xsm" className="font-cinzel">
-                  Combatants
-                </Text>
-                <HStack justify="between" wrap="wrap" gap={2}>
-                  <HStack gap={1.5} vAlign="center">
-                    <Icon icon={User} size="xsm" color="info" />
-                    <Text size="xsm" weight="semibold">
-                      Player 1:
-                    </Text>
-                  </HStack>
-                  <Text type="code" size="xsm">
-                    {playerNamesMap.get(inspectingMatch.player1Id || '') ||
-                      inspectingMatch.player1Id ||
-                      'N/A'}
-                  </Text>
-                </HStack>
-                <Divider />
-                <HStack justify="between" wrap="wrap" gap={2}>
-                  <HStack gap={1.5} vAlign="center">
-                    <Icon icon={User} size="xsm" color="error" />
-                    <Text size="xsm" weight="semibold">
-                      Player 2:
-                    </Text>
-                  </HStack>
-                  <Text type="code" size="xsm">
-                    {isAiOrVirtualPlayerId(inspectingMatch.player2Id)
-                      ? 'AI Opponent (PvE / Story)'
-                      : playerNamesMap.get(inspectingMatch.player2Id || '') ||
-                        inspectingMatch.player2Id ||
-                        'N/A'}
-                  </Text>
-                </HStack>
-              </VStack>
-            </Card>
-
-            <Banner
-              status={
-                logFileSet.has((inspectingMatch.matchId || '').toLowerCase()) ? 'success' : 'info'
-              }
-              title={
-                logFileSet.has((inspectingMatch.matchId || '').toLowerCase())
-                  ? 'VPS Log Ready'
-                  : 'Archived Session'
-              }
-              description={
-                logFileSet.has((inspectingMatch.matchId || '').toLowerCase())
-                  ? 'Physical .log file is present on Dedicated VPS disk ready for diagnostic streaming.'
-                  : 'Log file has been rotated/archived from VPS disk. Older sessions retain database records without raw logs.'
-              }
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
+          <div className="shrink-0">
+            <DialogHeader
+              title={`Match #${inspectingMatch?.matchId?.slice(0, 10) ?? ''}`}
+              subtitle="MATCH SESSION RECORD"
+              startContent={<Icon icon={Swords} size="md" color="accent" />}
+              onOpenChange={(open) => {
+                if (!open) setInspectingMatch(null);
+              }}
             />
+          </div>
+          {inspectingMatch && (
+            <>
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <VStack gap={4}>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={2}>
+                      <HStack justify="between" wrap="wrap" gap={2}>
+                        <Text type="supporting" size="xsm">
+                          Full Match GUID:
+                        </Text>
+                        <Text type="code" size="xsm" weight="bold" color="accent">
+                          {inspectingMatch.matchId}
+                        </Text>
+                      </HStack>
+                      <HStack justify="between" wrap="wrap" gap={2}>
+                        <Text type="supporting" size="xsm">
+                          Game Mode:
+                        </Text>
+                        <Badge
+                          label={String(inspectingMatch.mode || 'PVP').toUpperCase()}
+                          variant="yellow"
+                        />
+                      </HStack>
+                      <HStack justify="between" wrap="wrap" gap={2}>
+                        <Text type="supporting" size="xsm">
+                          Server Host:
+                        </Text>
+                        <Text type="code" size="xsm" hasTabularNumbers>
+                          {inspectingMatch.serverIp || 'VPS'}:{inspectingMatch.serverPort || '7777'}
+                        </Text>
+                      </HStack>
+                      <HStack justify="between" wrap="wrap" gap={2}>
+                        <Text type="supporting" size="xsm">
+                          Recorded Status:
+                        </Text>
+                        <Badge label={String(inspectingMatch.status || 'Finished')} variant="success" />
+                      </HStack>
+                      <HStack justify="between" wrap="wrap" gap={2}>
+                        <Text type="supporting" size="xsm">
+                          Created At:
+                        </Text>
+                        <Text type="code" size="xsm" hasTabularNumbers>
+                          {formatLogDateTime(inspectingMatch.createdAt).full}
+                        </Text>
+                      </HStack>
+                    </VStack>
+                  </Card>
 
-            <Divider />
+                  <Card variant="default" padding={3}>
+                    <VStack gap={2}>
+                      <Text type="label" size="xsm" className="font-cinzel">
+                        Combatants
+                      </Text>
+                      <HStack justify="between" wrap="wrap" gap={2}>
+                        <HStack gap={1.5} vAlign="center">
+                          <Icon icon={User} size="xsm" color="info" />
+                          <Text size="xsm" weight="semibold">
+                            Player 1:
+                          </Text>
+                        </HStack>
+                        <Text type="code" size="xsm">
+                          {playerNamesMap.get(inspectingMatch.player1Id || '') ||
+                            inspectingMatch.player1Id ||
+                            'N/A'}
+                        </Text>
+                      </HStack>
+                      <Divider />
+                      <HStack justify="between" wrap="wrap" gap={2}>
+                        <HStack gap={1.5} vAlign="center">
+                          <Icon icon={User} size="xsm" color="error" />
+                          <Text size="xsm" weight="semibold">
+                            Player 2:
+                          </Text>
+                        </HStack>
+                        <Text type="code" size="xsm">
+                          {isAiOrVirtualPlayerId(inspectingMatch.player2Id)
+                            ? 'AI Opponent (PvE / Story)'
+                            : playerNamesMap.get(inspectingMatch.player2Id || '') ||
+                              inspectingMatch.player2Id ||
+                              'N/A'}
+                        </Text>
+                      </HStack>
+                    </VStack>
+                  </Card>
 
-            <HStack gap={2} hAlign="end">
-              <Button variant="secondary" label="Close" onClick={() => setInspectingMatch(null)} />
-              {canInspectLogs && (
-                <Button
-                  variant="primary"
-                  icon={<Icon icon={Terminal} />}
-                  label="Inspect Logs"
-                  onClick={() => {
-                    const m = inspectingMatch;
-                    setInspectingMatch(null);
-                    void openInspectLogModal(m);
-                  }}
-                />
-              )}
-            </HStack>
-          </VStack>
-        )}
+                  <Banner
+                    status={
+                      logFileSet.has((inspectingMatch.matchId || '').toLowerCase()) ? 'success' : 'info'
+                    }
+                    title={
+                      logFileSet.has((inspectingMatch.matchId || '').toLowerCase())
+                        ? 'VPS Log Ready'
+                        : 'Archived Session'
+                    }
+                    description={
+                      logFileSet.has((inspectingMatch.matchId || '').toLowerCase())
+                        ? 'Physical .log file is present on Dedicated VPS disk ready for diagnostic streaming.'
+                        : 'Log file has been rotated/archived from VPS disk. Older sessions retain database records without raw logs.'
+                    }
+                  />
+                </VStack>
+              </div>
+
+              <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+                <HStack gap={2} hAlign="end" wrap="wrap">
+                  <Button variant="secondary" label="Close" onClick={() => setInspectingMatch(null)} />
+                  {canInspectLogs && (
+                    <Button
+                      variant="primary"
+                      icon={<Icon icon={Terminal} />}
+                      label="Inspect Logs"
+                      onClick={() => {
+                        const m = inspectingMatch;
+                        setInspectingMatch(null);
+                        void openInspectLogModal(m);
+                      }}
+                    />
+                  )}
+                </HStack>
+              </div>
+            </>
+          )}
+        </div>
       </Dialog>
 
       {/* Inspect Log Dialog */}
@@ -823,101 +832,110 @@ export const MatchSupervision: React.FC<MatchSupervisionProps> = ({
         }}
         purpose="info"
         width={900}
+        maxHeight="90dvh"
         padding={5}
       >
-        <DialogHeader
-          title={`Match #${inspectingLogMatch?.matchId ?? ''}`}
-          subtitle={
-            inspectingLogMatch
-              ? `Combatants: ${isAiOrVirtualPlayerId(inspectingLogMatch.player1Id) ? 'AI Opponent' : (playerNamesMap.get(inspectingLogMatch.player1Id || '') || inspectingLogMatch.player1Id || 'P1')} vs ${isAiOrVirtualPlayerId(inspectingLogMatch.player2Id) ? 'AI Opponent' : (playerNamesMap.get(inspectingLogMatch.player2Id || '') || inspectingLogMatch.player2Id || 'P2')} • Server: ${inspectingLogMatch.serverIp || 'VPS'}:${inspectingLogMatch.serverPort || '7777'}`
-              : undefined
-          }
-          startContent={<Icon icon={Terminal} size="md" color="accent" />}
-          endContent={
-            inspectingLogMatch ? (
-              <HStack gap={2} vAlign="center">
-                <Badge
-                  label={String(inspectingLogMatch.mode || 'PVP').toUpperCase()}
-                  variant="yellow"
-                />
-                <IconButton
-                  label="Copy Match GUID"
-                  tooltip="Copy GUID"
-                  variant="secondary"
-                  size="sm"
-                  icon={
-                    <Icon
-                      icon={copiedId === inspectingLogMatch.matchId ? Check : Copy}
+        <div className="flex flex-col flex-1 min-h-0 gap-3">
+          <div className="shrink-0">
+            <DialogHeader
+              title={`Match #${inspectingLogMatch?.matchId ?? ''}`}
+              subtitle={
+                inspectingLogMatch
+                  ? `Combatants: ${isAiOrVirtualPlayerId(inspectingLogMatch.player1Id) ? 'AI Opponent' : (playerNamesMap.get(inspectingLogMatch.player1Id || '') || inspectingLogMatch.player1Id || 'P1')} vs ${isAiOrVirtualPlayerId(inspectingLogMatch.player2Id) ? 'AI Opponent' : (playerNamesMap.get(inspectingLogMatch.player2Id || '') || inspectingLogMatch.player2Id || 'P2')} • Server: ${inspectingLogMatch.serverIp || 'VPS'}:${inspectingLogMatch.serverPort || '7777'}`
+                  : undefined
+              }
+              startContent={<Icon icon={Terminal} size="md" color="accent" />}
+              endContent={
+                inspectingLogMatch ? (
+                  <HStack gap={2} vAlign="center">
+                    <Badge
+                      label={String(inspectingLogMatch.mode || 'PVP').toUpperCase()}
+                      variant="yellow"
                     />
-                  }
-                  onClick={() => handleCopy(inspectingLogMatch.matchId)}
-                />
-              </HStack>
-            ) : undefined
-          }
-          onOpenChange={(open) => {
-            if (!open) closeInspectLogModal();
-          }}
-        />
-
-        {inspectingLogMatch && (
-          <VStack gap={3}>
-            <LogTerminalView
-              logData={modalLogData}
-              loading={modalLoading}
-              errorMessage={modalError}
-              selectedMatchId={inspectingLogMatch.matchId}
-              filterLevel={modalFilterLevel}
-              onFilterLevelChange={setModalFilterLevel}
-              searchQuery={modalSearch}
-              onSearchQueryChange={setModalSearch}
-              maxHeightClass="max-h-[50vh] min-h-[260px]"
-              extraControls={
-                <>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Icon icon={modalCopied ? Check : Copy} />}
-                    label={modalCopied ? 'Copied' : 'Copy'}
-                    onClick={handleCopyModalLogs}
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Icon icon={Download} />}
-                    label="Export"
-                    onClick={handleDownloadModalLog}
-                  />
-                </>
+                    <IconButton
+                      label="Copy Match GUID"
+                      tooltip="Copy GUID"
+                      variant="secondary"
+                      size="sm"
+                      icon={
+                        <Icon
+                          icon={copiedId === inspectingLogMatch.matchId ? Check : Copy}
+                        />
+                      }
+                      onClick={() => handleCopy(inspectingLogMatch.matchId)}
+                    />
+                  </HStack>
+                ) : undefined
               }
-              errorFallbackDetail={
-                <Card variant="muted" padding={3}>
-                  <VStack gap={1}>
-                    <Text type="code" size="xsm">
-                      Match ID: {inspectingLogMatch.matchId}
-                    </Text>
-                    <Text type="code" size="xsm">
-                      Mode: {String(inspectingLogMatch.mode || 'PVP').toUpperCase()}
-                    </Text>
-                    <Text type="code" size="xsm">
-                      Status: {inspectingLogMatch.status || 'Finished'}
-                    </Text>
-                    <Text type="code" size="xsm">
-                      Recorded At: {formatLogDateTime(inspectingLogMatch.createdAt).full}
-                    </Text>
-                    <Text type="code" size="xsm" color="secondary">
-                      Lines Loaded: {filteredModalLines.length}
-                    </Text>
-                  </VStack>
-                </Card>
-              }
+              onOpenChange={(open) => {
+                if (!open) closeInspectLogModal();
+              }}
             />
+          </div>
 
-            <HStack gap={2} hAlign="end">
-              <Button variant="secondary" label="Close" onClick={closeInspectLogModal} />
-            </HStack>
-          </VStack>
-        )}
+          {inspectingLogMatch && (
+            <>
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <LogTerminalView
+                  logData={modalLogData}
+                  loading={modalLoading}
+                  errorMessage={modalError}
+                  selectedMatchId={inspectingLogMatch.matchId}
+                  filterLevel={modalFilterLevel}
+                  onFilterLevelChange={setModalFilterLevel}
+                  searchQuery={modalSearch}
+                  onSearchQueryChange={setModalSearch}
+                  maxHeightClass="max-h-[50dvh] min-h-[220px]"
+                  extraControls={
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={<Icon icon={modalCopied ? Check : Copy} />}
+                        label={modalCopied ? 'Copied' : 'Copy'}
+                        onClick={handleCopyModalLogs}
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={<Icon icon={Download} />}
+                        label="Export"
+                        onClick={handleDownloadModalLog}
+                      />
+                    </>
+                  }
+                  errorFallbackDetail={
+                    <Card variant="muted" padding={3}>
+                      <VStack gap={1}>
+                        <Text type="code" size="xsm">
+                          Match ID: {inspectingLogMatch.matchId}
+                        </Text>
+                        <Text type="code" size="xsm">
+                          Mode: {String(inspectingLogMatch.mode || 'PVP').toUpperCase()}
+                        </Text>
+                        <Text type="code" size="xsm">
+                          Status: {inspectingLogMatch.status || 'Finished'}
+                        </Text>
+                        <Text type="code" size="xsm">
+                          Recorded At: {formatLogDateTime(inspectingLogMatch.createdAt).full}
+                        </Text>
+                        <Text type="code" size="xsm" color="secondary">
+                          Lines Loaded: {filteredModalLines.length}
+                        </Text>
+                      </VStack>
+                    </Card>
+                  }
+                />
+              </div>
+
+              <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+                <HStack gap={2} hAlign="end" wrap="wrap">
+                  <Button variant="secondary" label="Close" onClick={closeInspectLogModal} />
+                </HStack>
+              </div>
+            </>
+          )}
+        </div>
       </Dialog>
     </ConsolePage>
   );

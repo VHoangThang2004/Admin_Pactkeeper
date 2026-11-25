@@ -1608,10 +1608,10 @@ export const GachaManagement: React.FC = () => {
         }}
         purpose="info"
         width={740}
-        maxHeight="90vh"
+        maxHeight="90dvh"
       >
         {inspectingBanner && (
-          <div className="flex flex-col flex-initial min-h-0 overflow-hidden gap-3">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
             <div className="shrink-0">
               <DialogHeader
                 title={inspectingBanner.title}
@@ -1632,7 +1632,7 @@ export const GachaManagement: React.FC = () => {
               />
             </div>
 
-            <div className="flex-initial min-h-0 overflow-y-auto max-h-[calc(90dvh-180px)] pr-1">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <VStack gap={4}>
                 <Grid columns={{ minWidth: 140, max: 4 }} gap={3}>
               <Card padding={3} variant="muted">
@@ -1954,9 +1954,9 @@ export const GachaManagement: React.FC = () => {
         }}
         purpose="form"
         width={1020}
-        maxHeight="92vh"
+        maxHeight="92dvh"
       >
-        <div className="flex flex-col flex-initial min-h-0 overflow-hidden gap-3">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
           <div className="shrink-0 space-y-2.5">
             <DialogHeader
               title={
@@ -2040,7 +2040,7 @@ export const GachaManagement: React.FC = () => {
             {modalError && <Banner status="error" title="Validation Error" description={modalError} />}
           </div>
 
-          <div className="flex-initial min-h-0 overflow-y-auto max-h-[calc(92dvh-265px)] pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             {modalTab === 'general' ? (
               <div id="gacha-panel-general" role="tabpanel" className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

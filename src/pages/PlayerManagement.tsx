@@ -9,7 +9,6 @@ import {
   Coins,
   Copy,
   Download,
-  Edit3,
   Eye,
   Gem,
   Inbox,
@@ -29,7 +28,6 @@ import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
-import { Divider } from '@astryxdesign/core/Divider';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
@@ -57,6 +55,7 @@ import {
 import type { AdminPermissionKey, CounselRole, PlayerProfile } from '../types';
 import { hasPermission } from '../utils/permissions';
 import {
+  formatTelemetryTimestamp,
   getPlayerPresence,
   isAiOrVirtualPlayerId,
   isAiOrVirtualUsername,
@@ -596,43 +595,36 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
     {
       key: 'account',
       header: 'Player Account',
-      width: proportional(2),
+      width: proportional(2, { minWidth: 230 }),
       renderCell: (player) => (
-        <HStack gap={3} vAlign="center">
-          <div className="w-10 h-10 rounded-lg bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
-            <Text weight="bold" size="xsm" color="accent" className="font-cinzel">
-              {player.username.slice(0, 2).toUpperCase()}
+        <VStack gap={0.5}>
+          <HStack gap={2} vAlign="center">
+            <Text weight="semibold" size="sm">
+              {player.username}
             </Text>
-          </div>
-          <VStack gap={0.5}>
-            <HStack gap={2} vAlign="center">
-              <Text weight="semibold" size="sm">
-                {player.username}
-              </Text>
-              <StatusDot
-                variant={getPresenceStatusDotVariant(player.presence || 'Offline', player.isBanned)}
-                isPulsing={player.presence !== 'Offline' && !player.isBanned}
-                label={player.presence || 'Offline'}
-              />
-            </HStack>
-            <HStack gap={1} vAlign="center">
-              <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                Ref: #{player.playerId.slice(-6).toUpperCase()}
-              </Text>
-              <IconButton
-                label={`Copy Player ID for ${player.username}`}
-                tooltip={`Copy: ${player.playerId}`}
-                variant="ghost"
-                size="sm"
-                icon={<Icon icon={Copy} />}
-                onClick={() => {
-                  navigator.clipboard.writeText(player.playerId);
-                  setNotification(`Copied Player ID ${player.playerId} to clipboard.`);
-                }}
-              />
-            </HStack>
-          </VStack>
-        </HStack>
+            <StatusDot
+              variant={getPresenceStatusDotVariant(player.presence || 'Offline', player.isBanned)}
+              isPulsing={player.presence !== 'Offline' && !player.isBanned}
+              label={player.presence || 'Offline'}
+            />
+          </HStack>
+          <HStack gap={1} vAlign="center">
+            <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+              Ref: #{player.playerId.slice(-6).toUpperCase()}
+            </Text>
+            <IconButton
+              label={`Copy Player ID for ${player.username}`}
+              tooltip={`Copy: ${player.playerId}`}
+              variant="ghost"
+              size="sm"
+              icon={<Icon icon={Copy} />}
+              onClick={() => {
+                navigator.clipboard.writeText(player.playerId);
+                setNotification(`Copied Player ID ${player.playerId} to clipboard.`);
+              }}
+            />
+          </HStack>
+        </VStack>
       ),
     },
     {
@@ -651,62 +643,111 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
     {
       key: 'currencies',
       header: 'Currencies',
-      width: proportional(1.4),
+      width: pixel(155),
+      renderCell: (player) => {
+        const goldText = (player.gold ?? 0).toLocaleString();
+        const gemsText = (player.gems ?? 0).toLocaleString();
+        return (
+          <div className="inline-flex flex-col gap-1 w-full max-w-[130px] mx-auto">
+            <div
+              className="flex items-center justify-between gap-2 whitespace-nowrap min-w-0"
+              title={`Gold: ${goldText}`}
+            >
+              <Icon icon={Coins} size="sm" color="accent" className="shrink-0" />
+              <Text
+                type="code"
+                size="sm"
+                weight="semibold"
+                hasTabularNumbers
+                className="truncate whitespace-nowrap text-right"
+              >
+                {goldText}
+              </Text>
+            </div>
+            <div
+              className="flex items-center justify-between gap-2 whitespace-nowrap min-w-0"
+              title={`Gems: ${gemsText}`}
+            >
+              <Icon icon={Gem} size="sm" color="info" className="shrink-0" />
+              <Text
+                type="code"
+                size="sm"
+                weight="semibold"
+                hasTabularNumbers
+                className="truncate whitespace-nowrap text-right"
+              >
+                {gemsText}
+              </Text>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'presence',
+      header: 'Presence Status',
+      width: pixel(165),
       renderCell: (player) => (
-        <HStack gap={3} vAlign="center" wrap="wrap">
-          <HStack gap={1} vAlign="center">
-            <Icon icon={Coins} size="sm" color="accent" />
-            <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
-              {(player.gold ?? 0).toLocaleString()}
-            </Text>
-          </HStack>
-          <HStack gap={1} vAlign="center">
-            <Icon icon={Gem} size="sm" color="info" />
-            <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
-              {(player.gems ?? 0).toLocaleString()}
-            </Text>
-          </HStack>
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <Badge
+            label={getPresenceDisplayLabel(player.presence || 'Offline')}
+            variant={getPresenceBadgeVariant(player.presence || 'Offline')}
+            icon={player.presence === 'InBattle' ? <Icon icon={Swords} /> : undefined}
+          />
+          {player.presence === 'InBattle' && canInspectLogs && (
+            <Button
+              href="/matches"
+              variant="ghost"
+              size="sm"
+              icon={<Icon icon={Terminal} />}
+              label="LOGS"
+              tooltip="Inspect Combat Logs for this Battle"
+            />
+          )}
         </HStack>
       ),
     },
     {
-      key: 'presence',
-      header: 'Live Presence',
-      width: proportional(1.6),
+      key: 'location',
+      header: 'Active Realm Location',
+      width: proportional(1.5, { minWidth: 220 }),
       renderCell: (player) => (
-        <VStack gap={1}>
-          <HStack gap={2} vAlign="center" wrap="wrap">
-            <Badge
-              label={getPresenceDisplayLabel(player.presence || 'Offline')}
-              variant={getPresenceBadgeVariant(player.presence || 'Offline')}
-              icon={player.presence === 'InBattle' ? <Icon icon={Swords} /> : undefined}
-            />
-            {player.presence === 'InBattle' && canInspectLogs && (
-              <Button
-                href="/matches"
-                variant="ghost"
-                size="sm"
-                icon={<Icon icon={Terminal} />}
-                label="LOGS"
-                tooltip="Inspect Combat Logs for this Battle"
-              />
-            )}
-          </HStack>
-          <Text type="code" size="xsm" color="secondary" maxLines={1}>
-            {player.presenceDetails ||
-              (player.presence === 'InBattle'
-                ? 'In Active Match'
-                : player.presence === 'Online'
-                  ? 'Lobby & Realm Sanctuary'
-                  : 'Inactive')}
-          </Text>
-        </VStack>
+        <Text type="code" size="xsm" color="secondary" maxLines={1}>
+          {player.presenceInfo?.activityDescription ||
+            player.presenceDetails ||
+            (player.presence === 'InBattle'
+              ? 'In Active Match'
+              : player.presence === 'Online'
+                ? 'Lobby & Realm Sanctuary'
+                : 'Inactive')}
+        </Text>
       ),
+    },
+    {
+      key: 'telemetry',
+      header: 'Last Telemetry',
+      width: pixel(155),
+      renderCell: (player) => {
+        const formatted = formatTelemetryTimestamp(player.lastLogin);
+        return (
+          <div
+            className="inline-flex flex-col items-center gap-0.5 whitespace-nowrap"
+            title={player.presenceInfo?.relativeTime || player.lastLogin || undefined}
+          >
+            <Text type="code" size="sm" weight="semibold" hasTabularNumbers>
+              {formatted.isValid ? formatted.time : player.presenceInfo?.relativeTime || '—'}
+            </Text>
+            <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+              {formatted.isValid ? formatted.date : '—'}
+            </Text>
+          </div>
+        );
+      },
     },
     {
       key: 'standing',
       header: 'Standing',
-      width: pixel(120),
+      width: pixel(145),
       renderCell: (player) =>
         player.isBanned ? (
           <Badge label="EXILED" variant="error" icon={<Icon icon={UserX} />} />
@@ -717,56 +758,17 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
     {
       key: 'actions',
       header: 'Actions',
-      width: pixel(220),
+      width: pixel(145),
       align: 'end',
       renderCell: (player) => (
         <HStack gap={2} hAlign="end" vAlign="center">
-          <IconButton
-            label={`Inspect profile for ${player.username}`}
-            tooltip="Quick Inspect"
+          <Button
             variant="secondary"
             size="sm"
             icon={<Icon icon={Eye} />}
+            label="Details"
             onClick={() => setInspectPlayer(player)}
           />
-          {canSendNotification && (
-            <IconButton
-              label={`Send warning or notification to ${player.username}`}
-              tooltip="Warn / Notify Player"
-              variant="secondary"
-              size="sm"
-              icon={<Icon icon={Bell} />}
-              onClick={() => openNotifyModal(player)}
-            />
-          )}
-          {canAdjustTreasury && (
-            <IconButton
-              label={`Adjust currencies for ${player.username}`}
-              tooltip="Adjust Currencies"
-              variant="secondary"
-              size="sm"
-              icon={<Icon icon={Edit3} />}
-              onClick={() => {
-                setModalError(null);
-                setSelectedPlayer(player);
-              }}
-            />
-          )}
-          {canBanPlayers && (
-            <Button
-              variant={player.isBanned ? 'secondary' : 'destructive'}
-              size="sm"
-              label={player.isBanned ? 'Unban' : 'Ban'}
-              onClick={() => {
-                setModalError(null);
-                if (player.isBanned) {
-                  setUnbanTargetPlayer(player);
-                } else {
-                  setBanTargetPlayer(player);
-                }
-              }}
-            />
-          )}
         </HStack>
       ),
     },
@@ -1052,76 +1054,82 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
         }}
         purpose="form"
         width={480}
+        maxHeight="90dvh"
         padding={5}
       >
-        <DialogHeader
-          title={`ADJUST TREASURY — ${selectedPlayer?.username ?? ''}`}
-          subtitle={
-            selectedPlayer
-              ? `Ref #${selectedPlayer.playerId.slice(-6).toUpperCase()}`
-              : undefined
-          }
-          startContent={<Icon icon={Shield} size="md" color="accent" />}
-          onOpenChange={(open) => {
-            if (!open && !submitting) {
-              setSelectedPlayer(null);
-              setModalError(null);
-            }
-          }}
-        />
-        <VStack gap={4}>
-          {modalError && <Banner status="error" title="Adjustment Failed" description={modalError} />}
-
-          <NumberInput
-            label="Add / Deduct Gems (+/-)"
-            value={adjustGems}
-            onChange={(val) => setAdjustGems(val)}
-            step={10}
-            isIntegerOnly
-            hasNumberSteppers
-            units="Gems"
-            width="100%"
-          />
-
-          <NumberInput
-            label="Add / Deduct Gold (+/-)"
-            value={adjustGold}
-            onChange={(val) => setAdjustGold(val)}
-            step={100}
-            isIntegerOnly
-            hasNumberSteppers
-            units="Gold"
-            width="100%"
-          />
-
-          <TextInput
-            label="Audit Rationale / Compensation Reason"
-            value={compensationReason}
-            onChange={setCompensationReason}
-            placeholder="e.g. Server rollback compensation, test credit"
-            width="100%"
-          />
-
-          <Divider />
-
-          <HStack gap={2} hAlign="end">
-            <Button
-              variant="secondary"
-              label="Cancel"
-              isDisabled={submitting}
-              onClick={() => {
-                setSelectedPlayer(null);
-                setModalError(null);
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
+          <div className="shrink-0">
+            <DialogHeader
+              title={`ADJUST TREASURY — ${selectedPlayer?.username ?? ''}`}
+              subtitle={
+                selectedPlayer
+                  ? `Ref #${selectedPlayer.playerId.slice(-6).toUpperCase()}`
+                  : undefined
+              }
+              startContent={<Icon icon={Shield} size="md" color="accent" />}
+              onOpenChange={(open) => {
+                if (!open && !submitting) {
+                  setSelectedPlayer(null);
+                  setModalError(null);
+                }
               }}
             />
-            <Button
-              variant="primary"
-              label="Apply Adjustments"
-              isLoading={submitting}
-              onClick={handleSaveAdjustment}
-            />
-          </HStack>
-        </VStack>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <VStack gap={4}>
+              {modalError && <Banner status="error" title="Adjustment Failed" description={modalError} />}
+
+              <NumberInput
+                label="Add / Deduct Gems (+/-)"
+                value={adjustGems}
+                onChange={(val) => setAdjustGems(val)}
+                step={10}
+                isIntegerOnly
+                hasNumberSteppers
+                units="Gems"
+                width="100%"
+              />
+
+              <NumberInput
+                label="Add / Deduct Gold (+/-)"
+                value={adjustGold}
+                onChange={(val) => setAdjustGold(val)}
+                step={100}
+                isIntegerOnly
+                hasNumberSteppers
+                units="Gold"
+                width="100%"
+              />
+
+              <TextInput
+                label="Audit Rationale / Compensation Reason"
+                value={compensationReason}
+                onChange={setCompensationReason}
+                placeholder="e.g. Server rollback compensation, test credit"
+                width="100%"
+              />
+            </VStack>
+          </div>
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack gap={2} hAlign="end" wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                isDisabled={submitting}
+                onClick={() => {
+                  setSelectedPlayer(null);
+                  setModalError(null);
+                }}
+              />
+              <Button
+                variant="primary"
+                label="Apply Adjustments"
+                isLoading={submitting}
+                onClick={handleSaveAdjustment}
+              />
+            </HStack>
+          </div>
+        </div>
       </Dialog>
 
       {/* Disciplinary Ban Sanction Dialog */}
@@ -1136,66 +1144,72 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
         }}
         purpose="form"
         width={480}
+        maxHeight="90dvh"
         padding={5}
       >
-        <DialogHeader
-          title="ENFORCE DISCIPLINARY SANCTION"
-          subtitle={
-            banTargetPlayer
-              ? `Target: ${banTargetPlayer.username} (ID: ${banTargetPlayer.playerId})`
-              : undefined
-          }
-          startContent={<Icon icon={UserX} size="md" color="error" />}
-          onOpenChange={(open) => {
-            if (!open && !submitting) {
-              setBanTargetPlayer(null);
-              setBanReason('');
-              setModalError(null);
-            }
-          }}
-        />
-        <VStack gap={4}>
-          {modalError && <Banner status="error" title="Sanction Error" description={modalError} />}
-
-          <Selector
-            label="Sanction Duration"
-            options={BAN_DURATION_OPTIONS}
-            value={banDuration}
-            onChange={(val) => setBanDuration(val as BanDuration)}
-            width="100%"
-          />
-
-          <TextArea
-            label="Violation Rationale"
-            isRequired
-            rows={3}
-            value={banReason}
-            onChange={setBanReason}
-            placeholder="Specify violation rationale (e.g. Speed hack in combat timeline, malicious desync, harassment)..."
-            width="100%"
-          />
-
-          <Divider />
-
-          <HStack gap={2} hAlign="end">
-            <Button
-              variant="secondary"
-              label="Cancel"
-              isDisabled={submitting}
-              onClick={() => {
-                setBanTargetPlayer(null);
-                setBanReason('');
-                setModalError(null);
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
+          <div className="shrink-0">
+            <DialogHeader
+              title="ENFORCE DISCIPLINARY SANCTION"
+              subtitle={
+                banTargetPlayer
+                  ? `Target: ${banTargetPlayer.username} (ID: ${banTargetPlayer.playerId})`
+                  : undefined
+              }
+              startContent={<Icon icon={UserX} size="md" color="error" />}
+              onOpenChange={(open) => {
+                if (!open && !submitting) {
+                  setBanTargetPlayer(null);
+                  setBanReason('');
+                  setModalError(null);
+                }
               }}
             />
-            <Button
-              variant="destructive"
-              label="Confirm Ban Sanction"
-              isLoading={submitting}
-              onClick={handleConfirmBan}
-            />
-          </HStack>
-        </VStack>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <VStack gap={4}>
+              {modalError && <Banner status="error" title="Sanction Error" description={modalError} />}
+
+              <Selector
+                label="Sanction Duration"
+                options={BAN_DURATION_OPTIONS}
+                value={banDuration}
+                onChange={(val) => setBanDuration(val as BanDuration)}
+                width="100%"
+              />
+
+              <TextArea
+                label="Violation Rationale"
+                isRequired
+                rows={3}
+                value={banReason}
+                onChange={setBanReason}
+                placeholder="Specify violation rationale (e.g. Speed hack in combat timeline, malicious desync, harassment)..."
+                width="100%"
+              />
+            </VStack>
+          </div>
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack gap={2} hAlign="end" wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                isDisabled={submitting}
+                onClick={() => {
+                  setBanTargetPlayer(null);
+                  setBanReason('');
+                  setModalError(null);
+                }}
+              />
+              <Button
+                variant="destructive"
+                label="Confirm Ban Sanction"
+                isLoading={submitting}
+                onClick={handleConfirmBan}
+              />
+            </HStack>
+          </div>
+        </div>
       </Dialog>
 
       {/* Lift Sanction Dialog */}
@@ -1209,49 +1223,55 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
         }}
         purpose="form"
         width={440}
+        maxHeight="90dvh"
         padding={5}
       >
-        <DialogHeader
-          title="LIFT ACCOUNT SANCTION"
-          subtitle="Restore game access and matchmaking eligibility"
-          startContent={<Icon icon={UserCheck} size="md" color="success" />}
-          onOpenChange={(open) => {
-            if (!open && !submitting) {
-              setUnbanTargetPlayer(null);
-              setModalError(null);
-            }
-          }}
-        />
-        <VStack gap={4}>
-          {modalError && <Banner status="error" title="Restore Failed" description={modalError} />}
-
-          <Card variant="muted" padding={3}>
-            <Text size="sm">
-              Restore normal game access and matchmaking eligibility for wanderer{' '}
-              <strong>{unbanTargetPlayer?.username}</strong>?
-            </Text>
-          </Card>
-
-          <Divider />
-
-          <HStack gap={2} hAlign="end">
-            <Button
-              variant="secondary"
-              label="Cancel"
-              isDisabled={submitting}
-              onClick={() => {
-                setUnbanTargetPlayer(null);
-                setModalError(null);
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
+          <div className="shrink-0">
+            <DialogHeader
+              title="LIFT ACCOUNT SANCTION"
+              subtitle="Restore game access and matchmaking eligibility"
+              startContent={<Icon icon={UserCheck} size="md" color="success" />}
+              onOpenChange={(open) => {
+                if (!open && !submitting) {
+                  setUnbanTargetPlayer(null);
+                  setModalError(null);
+                }
               }}
             />
-            <Button
-              variant="primary"
-              label="Restore Account"
-              isLoading={submitting}
-              onClick={handleConfirmUnban}
-            />
-          </HStack>
-        </VStack>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <VStack gap={4}>
+              {modalError && <Banner status="error" title="Restore Failed" description={modalError} />}
+
+              <Card variant="muted" padding={3}>
+                <Text size="sm">
+                  Restore normal game access and matchmaking eligibility for wanderer{' '}
+                  <strong>{unbanTargetPlayer?.username}</strong>?
+                </Text>
+              </Card>
+            </VStack>
+          </div>
+          <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+            <HStack gap={2} hAlign="end" wrap="wrap">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                isDisabled={submitting}
+                onClick={() => {
+                  setUnbanTargetPlayer(null);
+                  setModalError(null);
+                }}
+              />
+              <Button
+                variant="primary"
+                label="Restore Account"
+                isLoading={submitting}
+                onClick={handleConfirmUnban}
+              />
+            </HStack>
+          </div>
+        </div>
       </Dialog>
 
       <PlayerInspectorModal

@@ -107,27 +107,30 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       }}
       purpose="form"
       width={480}
+      maxHeight="90dvh"
     >
-      <VStack gap={4}>
-        <DialogHeader
-          title="Change Own Passcode"
-          subtitle={`${username} (${role})`}
-          startContent={<KeyRound className="w-5 h-5 text-[var(--color-icon-accent)]" />}
-          onOpenChange={(open) => {
-            if (!open) handleClose();
-          }}
-        />
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 gap-3">
+        <div className="shrink-0">
+          <DialogHeader
+            title="Change Own Passcode"
+            subtitle={`${username} (${role})`}
+            startContent={<KeyRound className="w-5 h-5 text-[var(--color-icon-accent)]" />}
+            onOpenChange={(open) => {
+              if (!open) handleClose();
+            }}
+          />
+        </div>
 
-        {error && (
-          <Banner status="error" title="Passcode validation error" description={error} collapsible={false} />
-        )}
-
-        {successMsg && (
-          <Banner status="success" title="Passcode updated" description={successMsg} collapsible={false} />
-        )}
-
-        <form onSubmit={handleSubmit}>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
           <VStack gap={3}>
+            {error && (
+              <Banner status="error" title="Passcode validation error" description={error} collapsible={false} />
+            )}
+
+            {successMsg && (
+              <Banner status="success" title="Passcode updated" description={successMsg} collapsible={false} />
+            )}
+
             <TextInput
               label="Current Passcode"
               type={showPasswords ? 'text' : 'password'}
@@ -192,25 +195,27 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                 ))}
               </VStack>
             </Card>
-
-            <HStack gap={2} justify="end" paddingBlockStart={2}>
-              <Button
-                variant="secondary"
-                label="Close"
-                onClick={handleClose}
-                isDisabled={submitting}
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                label="Update Passcode"
-                icon={<Icon icon={KeyRound} />}
-                isLoading={submitting}
-              />
-            </HStack>
           </VStack>
-        </form>
-      </VStack>
+        </div>
+
+        <div className="shrink-0 pt-3 border-t border-[var(--color-border-subtle)]">
+          <HStack gap={2} justify="end" wrap="wrap">
+            <Button
+              variant="secondary"
+              label="Close"
+              onClick={handleClose}
+              isDisabled={submitting}
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              label="Update Passcode"
+              icon={<Icon icon={KeyRound} />}
+              isLoading={submitting}
+            />
+          </HStack>
+        </div>
+      </form>
     </Dialog>
   );
 };
