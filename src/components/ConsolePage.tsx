@@ -41,12 +41,12 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Pinned Top Command Header */}
-      <header className="shrink-0 z-10 border-b border-[var(--color-border-subtle)] bg-[var(--color-background-surface)] shadow-xs">
+      <header className="shrink-0 z-10 pk-console-header shadow-xs">
         <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 pt-3 pb-2.5">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
             <HStack gap={3} vAlign="center" className="min-w-0 flex-1">
               {icon && (
-                <div className="w-10 h-10 rounded-xl bg-[var(--color-accent-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl pk-icon-emblem flex items-center justify-center shrink-0">
                   {icon}
                 </div>
               )}
@@ -61,7 +61,7 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
                   {title}
                 </Heading>
                 {subtitle && (
-                  <Text type="supporting" size="xsm" maxLines={1}>
+                  <Text type="supporting" size="sm" color="secondary" maxLines={1}>
                     {subtitle}
                   </Text>
                 )}

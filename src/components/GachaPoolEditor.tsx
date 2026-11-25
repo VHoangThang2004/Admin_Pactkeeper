@@ -647,7 +647,7 @@ export const GachaPoolEditor: React.FC<GachaPoolEditorProps> = ({
                   >
                     {display.title}
                   </Text>
-                  <Text type="supporting" size="2xs" maxLines={1}>
+                  <Text type="supporting" size="sm" maxLines={1}>
                     {display.subtitle}
                   </Text>
                 </div>
@@ -1153,18 +1153,18 @@ export const GachaPoolEditor: React.FC<GachaPoolEditorProps> = ({
             <div className="flex items-center justify-between gap-1">
               <HStack gap={1} vAlign="center">
                 <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-                <Text type="label" size="2xs" weight="bold">
+                <Text type="label" size="sm" weight="bold">
                   ★ Rate-Up
                 </Text>
               </HStack>
-              <Text type="code" size="2xs" color="secondary">
+              <Text type="code" size="sm" color="secondary">
                 {poolSummary.featured.count} items
               </Text>
             </div>
             <Text type="code" size="sm" weight="bold" hasTabularNumbers>
               {poolSummary.featured.targetPctLabel}%
             </Text>
-            <Text type="supporting" size="2xs" maxLines={1}>
+            <Text type="supporting" size="sm" maxLines={1}>
               Featured &amp; Hard Pity 50/50
             </Text>
           </button>
@@ -1182,18 +1182,18 @@ export const GachaPoolEditor: React.FC<GachaPoolEditorProps> = ({
             <div className="flex items-center justify-between gap-1">
               <HStack gap={1} vAlign="center">
                 <span className="h-2 w-2 rounded-full bg-violet-500 shrink-0" />
-                <Text type="label" size="2xs" weight="bold">
+                <Text type="label" size="sm" weight="bold">
                   Tier 3 (T3)
                 </Text>
               </HStack>
-              <Text type="code" size="2xs" color="secondary">
+              <Text type="code" size="sm" color="secondary">
                 {poolSummary.tier3All.count} items
               </Text>
             </div>
             <Text type="code" size="sm" weight="bold" hasTabularNumbers>
               {poolSummary.tier3All.targetPctLabel}%
             </Text>
-            <Text type="supporting" size="2xs" maxLines={1}>
+            <Text type="supporting" size="sm" maxLines={1}>
               {poolSummary.tier3All.count !== poolSummary.tier3Standard.count
                 ? `Non-featured: ${poolSummary.tier3Standard.targetPctLabel}%`
                 : 'Rare Heroes / Top tier'}
@@ -1213,18 +1213,18 @@ export const GachaPoolEditor: React.FC<GachaPoolEditorProps> = ({
             <div className="flex items-center justify-between gap-1">
               <HStack gap={1} vAlign="center">
                 <span className="h-2 w-2 rounded-full bg-cyan-500 shrink-0" />
-                <Text type="label" size="2xs" weight="bold">
+                <Text type="label" size="sm" weight="bold">
                   Tier 2 (T2)
                 </Text>
               </HStack>
-              <Text type="code" size="2xs" color="secondary">
+              <Text type="code" size="sm" color="secondary">
                 {poolSummary.tier2All.count} items
               </Text>
             </div>
             <Text type="code" size="sm" weight="bold" hasTabularNumbers>
               {poolSummary.tier2All.targetPctLabel}%
             </Text>
-            <Text type="supporting" size="2xs" maxLines={1}>
+            <Text type="supporting" size="sm" maxLines={1}>
               Stat Weapons &amp; Trinkets
             </Text>
           </button>
@@ -1242,18 +1242,18 @@ export const GachaPoolEditor: React.FC<GachaPoolEditorProps> = ({
             <div className="flex items-center justify-between gap-1">
               <HStack gap={1} vAlign="center">
                 <span className="h-2 w-2 rounded-full bg-slate-500 shrink-0" />
-                <Text type="label" size="2xs" weight="bold">
+                <Text type="label" size="sm" weight="bold">
                   Tier 1 (T1)
                 </Text>
               </HStack>
-              <Text type="code" size="2xs" color="secondary">
+              <Text type="code" size="sm" color="secondary">
                 {poolSummary.tier1All.count} items
               </Text>
             </div>
             <Text type="code" size="sm" weight="bold" hasTabularNumbers>
               {poolSummary.tier1All.targetPctLabel}%
             </Text>
-            <Text type="supporting" size="2xs" maxLines={1}>
+            <Text type="supporting" size="sm" maxLines={1}>
               Base Equipment &amp; Gems
             </Text>
           </button>
@@ -1464,27 +1464,27 @@ export const GachaPoolEditor: React.FC<GachaPoolEditorProps> = ({
           {/* Table Header */}
           <div className="hidden sm:grid sm:grid-cols-12 gap-2 px-3 py-2 bg-[var(--color-surface-subtle)] border-b border-[var(--color-border-subtle)]">
             <div className="sm:col-span-5">
-              <Text type="label" size="2xs" color="secondary">
+              <Text type="label" size="sm" color="secondary">
                 REWARD ITEM (TIER • TYPE • NAME)
               </Text>
             </div>
             <div className="sm:col-span-2">
-              <Text type="label" size="2xs" color="secondary">
+              <Text type="label" size="sm" color="secondary">
                 TIER
               </Text>
             </div>
             <div className="sm:col-span-2">
-              <Text type="label" size="2xs" color="secondary">
+              <Text type="label" size="sm" color="secondary">
                 RATE-UP
               </Text>
             </div>
             <div className="sm:col-span-2">
-              <Text type="label" size="2xs" color="secondary">
+              <Text type="label" size="sm" color="secondary">
                 DROP RATE (%)
               </Text>
             </div>
             <div className="sm:col-span-1 text-right">
-              <Text type="label" size="2xs" color="secondary">
+              <Text type="label" size="sm" color="secondary">
                 ACTIONS
               </Text>
             </div>
@@ -1516,7 +1516,7 @@ export const GachaPoolEditor: React.FC<GachaPoolEditorProps> = ({
                         <Text type="label" size="xsm" weight="bold">
                           {section.meta.title}
                         </Text>
-                        <Text type="supporting" size="2xs">
+                        <Text type="supporting" size="sm">
                           {section.meta.subtitle}
                         </Text>
                       </HStack>

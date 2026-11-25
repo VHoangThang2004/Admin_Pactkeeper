@@ -1406,9 +1406,15 @@ export const GachaManagement: React.FC = () => {
                 : `${banner.costPerPull} Gems`;
 
             return (
-              <Card key={banner.id} padding={0} className="overflow-hidden flex flex-col">
+              <Card
+                key={banner.id}
+                padding={0}
+                className={`overflow-hidden flex flex-col pk-interactive-card ${
+                  schedule.status === 'LIVE' ? 'pk-gold-frame' : ''
+                }`}
+              >
                 {/* Compact Banner Artwork Scrim Area */}
-                <div className="h-28 relative bg-slate-950 overflow-hidden border-b border-[var(--color-border-subtle)]">
+                <div className="h-32 relative bg-slate-950 overflow-hidden border-b border-[var(--color-border-subtle)]">
                   {hasValidImg ? (
                     <img
                       src={banner.bannerImageUrl}
@@ -1416,12 +1422,18 @@ export const GachaManagement: React.FC = () => {
                       onError={() =>
                         setFailedImages((prev) => ({ ...prev, [banner.id]: true }))
                       }
-                      className="w-full h-full object-cover opacity-80 transition-transform duration-500"
+                      className="w-full h-full object-cover opacity-85 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-end pr-6 bg-gradient-to-br from-slate-950 via-[#0c1222] to-indigo-950 text-amber-400/25">
-                      <Star className="w-12 h-12" />
-                    </div>
+                    <img
+                      src={
+                        banner.isPermanent
+                          ? '/game-assets/banner-standard.png'
+                          : '/game-assets/banner-basic.png'
+                      }
+                      alt={banner.title}
+                      className="w-full h-full object-cover opacity-75 transition-transform duration-500"
+                    />
                   )}
                   <div
                     className="absolute inset-0 bg-gradient-to-t from-[#070a14]/95 via-[#070a14]/45 to-transparent"
@@ -1463,7 +1475,7 @@ export const GachaManagement: React.FC = () => {
                       <HStack gap={1.5} vAlign="center">
                         <Icon icon={Gem} size="sm" color="info" />
                         <VStack gap={0}>
-                          <Text type="label" size="2xs" color="secondary">
+                          <Text type="label" size="sm" color="secondary">
                             PULL COST
                           </Text>
                           <Text weight="bold" size="sm" hasTabularNumbers>
@@ -1475,7 +1487,7 @@ export const GachaManagement: React.FC = () => {
                       <HStack gap={1.5} vAlign="center">
                         <Icon icon={Star} size="sm" color="accent" />
                         <VStack gap={0}>
-                          <Text type="label" size="2xs" color="secondary">
+                          <Text type="label" size="sm" color="secondary">
                             FEATURED
                           </Text>
                           <Text weight="bold" size="sm" hasTabularNumbers>
@@ -1487,7 +1499,7 @@ export const GachaManagement: React.FC = () => {
                       <HStack gap={1.5} vAlign="center">
                         <Icon icon={Clock} size="sm" color="secondary" />
                         <VStack gap={0}>
-                          <Text type="label" size="2xs" color="secondary">
+                          <Text type="label" size="sm" color="secondary">
                             HARD PITY
                           </Text>
                           <Text weight="bold" size="sm" hasTabularNumbers>
@@ -1719,7 +1731,7 @@ export const GachaManagement: React.FC = () => {
                   <Grid columns={{ minWidth: 130, max: 4 }} gap={2}>
                     <Card padding={3}>
                       <VStack gap={0}>
-                        <Text type="label" size="2xs" color="secondary">
+                        <Text type="label" size="sm" color="secondary">
                           TOTAL DRAWS
                         </Text>
                         <Text weight="bold" size="lg" type="code" hasTabularNumbers>
@@ -1729,7 +1741,7 @@ export const GachaManagement: React.FC = () => {
                     </Card>
                     <Card padding={3}>
                       <VStack gap={0}>
-                        <Text type="label" size="2xs" color="secondary">
+                        <Text type="label" size="sm" color="secondary">
                           GEMS SPENT
                         </Text>
                         <Text weight="bold" size="lg" type="code" hasTabularNumbers>
@@ -1739,7 +1751,7 @@ export const GachaManagement: React.FC = () => {
                     </Card>
                     <Card padding={3}>
                       <VStack gap={0}>
-                        <Text type="label" size="2xs" color="secondary">
+                        <Text type="label" size="sm" color="secondary">
                           UNIQUE PLAYERS
                         </Text>
                         <Text weight="bold" size="lg" type="code" hasTabularNumbers>
@@ -1749,7 +1761,7 @@ export const GachaManagement: React.FC = () => {
                     </Card>
                     <Card padding={3}>
                       <VStack gap={0}>
-                        <Text type="label" size="2xs" color="secondary">
+                        <Text type="label" size="sm" color="secondary">
                           DUPLICATE COMP
                         </Text>
                         <Text weight="bold" size="lg" type="code" hasTabularNumbers>
@@ -2081,7 +2093,7 @@ export const GachaManagement: React.FC = () => {
                           <Text type="label" size="xsm" weight="semibold">
                             Artwork Preview Loaded
                           </Text>
-                          <Text type="code" size="2xs" color="secondary" maxLines={1}>
+                          <Text type="code" size="sm" color="secondary" maxLines={1}>
                             {formImageUrl.trim()}
                           </Text>
                         </VStack>
@@ -2140,7 +2152,7 @@ export const GachaManagement: React.FC = () => {
                               onChange={(e) => setFormStartDate(e.target.value)}
                               className={DATETIME_INPUT_CLASS}
                             />
-                            <Text type="supporting" size="2xs">
+                            <Text type="supporting" size="sm">
                               Leave blank to start immediately
                             </Text>
                           </div>
@@ -2166,7 +2178,7 @@ export const GachaManagement: React.FC = () => {
                               onChange={(e) => setFormEndDate(e.target.value)}
                               className={DATETIME_INPUT_CLASS}
                             />
-                            <Text type="supporting" size="2xs">
+                            <Text type="supporting" size="sm">
                               Leave blank for no end date
                             </Text>
                           </div>

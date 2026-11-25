@@ -489,7 +489,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
             <Text size="sm" weight="semibold">
               {row.name}
             </Text>
-            <Text type="code" size="2xs" color="secondary">
+            <Text type="code" size="sm" color="secondary">
               ID: {row.entityId}
             </Text>
           </VStack>
@@ -541,7 +541,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
             <Text size="sm" weight="medium" hasTabularNumbers>
               {row.pickRate.toFixed(1)}%
             </Text>
-            <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+            <Text type="code" size="sm" color="secondary" hasTabularNumbers>
               {row.pickCount} picks · {row.winCount}W
             </Text>
           </VStack>
@@ -557,7 +557,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               {row.avgDamage.toLocaleString(undefined, { maximumFractionDigits: 1 })}
             </Text>
             {typeof row.avgHealing === 'number' && row.avgHealing > 0 && (
-              <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+              <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                 Heal: {row.avgHealing.toFixed(1)}
               </Text>
             )}
@@ -576,7 +576,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                 : '—'}
             </Text>
             {typeof row.avgKills === 'number' && (
-              <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+              <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                 {row.avgKills.toFixed(2)} avg kills
               </Text>
             )}
@@ -597,7 +597,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               onClick={() => handleJumpToCms(row.entityType, row.name)}
             />
           ) : (
-            <Text size="2xs" color="secondary">
+            <Text size="sm" color="secondary">
               Read-only
             </Text>
           ),
@@ -616,7 +616,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
             variant={telemetry ? 'success' : 'warning'}
             label={telemetry ? 'Telemetry connected' : 'Awaiting backend telemetry'}
           />
-          <Text type="code" size="2xs" color="secondary">
+          <Text type="code" size="sm" color="secondary">
             {telemetry
               ? `Updated ${formatTimestamp(telemetry.generatedAt)}`
               : 'Endpoints: /analytics/balance · /analytics/ai-suggest · /admin/game-version'}
@@ -704,7 +704,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               <Heading level={3}>
                 {telemetry ? telemetry.totalMatches.toLocaleString() : '—'}
               </Heading>
-              <Text size="2xs" color="secondary">
+              <Text size="sm" color="secondary">
                 Patch: {patchFilter === 'ALL' ? 'All' : patchFilter} · Mode: {modeFilter}
               </Text>
             </VStack>
@@ -726,7 +726,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                   <Badge label="ACTION NEEDED" variant="error" />
                 )}
               </HStack>
-              <Text size="2xs" color="secondary">
+              <Text size="sm" color="secondary">
                 Threshold: Winrate &gt; {WINRATE_HIGH_THRESHOLD}% or &lt; {WINRATE_LOW_THRESHOLD}%
               </Text>
             </VStack>
@@ -743,7 +743,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               <Heading level={3}>
                 {currentVersion?.latestVersion ? `v${currentVersion.latestVersion}` : '—'}
               </Heading>
-              <Text size="2xs" color="secondary" hasTabularNumbers>
+              <Text size="sm" color="secondary" hasTabularNumbers>
                 Min supported:{' '}
                 {currentVersion?.minSupportedVersion
                   ? `v${currentVersion.minSupportedVersion}`
@@ -763,7 +763,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               <Heading level={3}>
                 {aiReport ? `${aiReport.suggestions.length} Tips` : 'Ready'}
               </Heading>
-              <Text size="2xs" color="secondary">
+              <Text size="sm" color="secondary">
                 {aiReport
                   ? `Generated ${formatTimestamp(aiReport.generatedAt)}`
                   : 'Open AI Balance Advisor tab'}
@@ -931,14 +931,16 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                     }
                   />
                 ) : (
-                  <Table
-                    data={filteredMetrics}
-                    columns={telemetryColumns}
-                    idKey="_rowKey"
-                    density="balanced"
-                    dividers="rows"
-                    hasHover
-                  />
+                  <div className="pk-scrollable-panel pk-sticky-table rounded-lg border border-[var(--color-border-subtle)]">
+                    <Table
+                      data={filteredMetrics}
+                      columns={telemetryColumns}
+                      idKey="_rowKey"
+                      density="balanced"
+                      dividers="rows"
+                      hasHover
+                    />
+                  </div>
                 )}
               </VStack>
             </Card>
@@ -947,8 +949,8 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
 
         {/* TAB 2: AI BALANCE ADVISOR */}
         {activeSection === 'ai' && (
-          <div id="balance-section-ai">
-            <Card padding={5}>
+          <div key="balance-section-ai" id="balance-section-ai" className="pk-tab-panel">
+            <Card padding={5} className="pk-gold-frame">
               <VStack gap={4}>
                 <HStack gap={3} vAlign="center" hAlign="between" wrap="wrap">
                   <VStack gap={1}>
@@ -1076,12 +1078,12 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                                   item.currentPickRate !== undefined) && (
                                   <HStack gap={3} vAlign="center">
                                     {item.currentWinRate !== undefined && (
-                                      <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+                                      <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                                         Winrate: {item.currentWinRate.toFixed(1)}%
                                       </Text>
                                     )}
                                     {item.currentPickRate !== undefined && (
-                                      <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+                                      <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                                         Pickrate: {item.currentPickRate.toFixed(1)}%
                                       </Text>
                                     )}
@@ -1100,11 +1102,11 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
 
                                 <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
                                   {isRebuild ? (
-                                    <Text size="2xs" color="secondary">
+                                    <Text size="sm" color="secondary">
                                       Requires Unity client / Headless Server rebuild, then publish a new version in Game Version &amp; Release Panel.
                                     </Text>
                                   ) : (
-                                    <Text size="2xs" color="secondary">
+                                    <Text size="sm" color="secondary">
                                       No client rebuild needed — hotfix directly in Content CMS.
                                     </Text>
                                   )}
@@ -1205,7 +1207,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                             {currentVersion.minSupportedVersion || '—'}
                           </Text>
                         </HStack>
-                        <Text type="code" size="2xs" color="secondary">
+                        <Text type="code" size="sm" color="secondary">
                           Updated: {formatTimestamp(currentVersion.updatedAt)}
                         </Text>
                       </HStack>
@@ -1266,7 +1268,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                   />
 
                   <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
-                    <Text size="2xs" color="secondary">
+                    <Text size="sm" color="secondary">
                       Recorded in Security Audit Log as GAME_VERSION_PUBLISHED (CRITICAL).
                     </Text>
                     <Button

@@ -11,6 +11,7 @@ import {
   Paperclip,
   RefreshCw,
   Search,
+  Send,
   ShieldCheck,
   Swords,
   User,
@@ -20,13 +21,6 @@ import { Badge } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
-import {
-  ChatComposer,
-  ChatLayout,
-  ChatMessage,
-  ChatMessageBubble,
-  ChatMessageList,
-} from '@astryxdesign/core/Chat';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
@@ -37,6 +31,7 @@ import { Heading, Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { adminClient } from '../api/adminClient';
 import { ConsolePage } from '../components/ConsolePage';
+import { ImageLightboxModal } from '../components/ui/ImageLightboxModal';
 import { useRealtimePresence } from '../hooks/useRealtimePresence';
 import type { ActiveChatPlayerDto, SupportMessageDto } from '../types';
 import { getPlayerPresence } from '../utils/presence';
@@ -71,7 +66,10 @@ function getPresenceDotVariant(state: string): 'success' | 'neutral' | 'error' {
   return 'neutral';
 }
 
-const MessageAttachment: React.FC<{ url: string }> = ({ url }) => {
+const MessageAttachment: React.FC<{ url: string; onZoom?: (url: string) => void }> = ({
+  url,
+  onZoom,
+}) => {
   const [imgFailed, setImgFailed] = useState(false);
 
   if (imgFailed) {
@@ -90,20 +88,19 @@ const MessageAttachment: React.FC<{ url: string }> = ({ url }) => {
   }
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-1.5 block overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)]"
-      title="Open attachment in new tab"
+    <button
+      type="button"
+      onClick={() => onZoom?.(url)}
+      className="pk-attachment-btn mt-1.5 block overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-black/20 cursor-zoom-in"
+      title="Click to inspect attachment"
     >
       <img
         src={url}
         alt="Support message attachment"
         onError={() => setImgFailed(true)}
-        className="max-h-48 w-auto max-w-full object-contain"
+        className="pk-attachment-thumb max-h-48 w-auto max-w-full object-contain"
       />
-    </a>
+    </button>
   );
 };
 
@@ -142,9 +139,15 @@ export const LiveSupport: React.FC = () => {
   const [sendError, setSendError] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [activeMatchesMap, setActiveMatchesMap] = useState<Map<string, ActiveMatchSummary>>(
     () => new Map(),
   );
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length, selectedPlayerId]);
   const { trackedPlayers } = useRealtimePresence();
   const trackedPresenceMap = useMemo(
     () => new Map(trackedPlayers.map((tp) => [tp.playerId, tp.presence])),
@@ -708,118 +711,150 @@ export const LiveSupport: React.FC = () => {
                 </div>
               </div>
 
-              {/* Chat Transcript & Frosted Dock Composer */}
-              <div className="flex-1 min-h-0 flex flex-col">
-                <ChatLayout
-                  density="balanced"
-                  className="h-full"
-                  emptyState={
-                    <EmptyState
-                      icon={<MessageSquare size={26} />}
-                      title="No Previous Messages Exchanged"
-                      description={`Send a dispatch below to start assisting ${activePlayerRealName}.`}
-                    />
-                  }
-                  composer={
-                    <ChatComposer
-                      density="balanced"
-                      value={replyText}
-                      onChange={(val) => {
-                        setReplyText(val);
-                        if (sendError) setSendError(null);
-                      }}
-                      onSubmit={(val) => void handleSendMessage(val)}
-                      placeholder={`Compose support dispatch to ${activePlayerRealName}...`}
-                      status={
-                        sendError
-                          ? { type: 'error', message: sendError }
-                          : undefined
-                      }
-                    />
-                  }
-                >
-                  {messages.length > 0 ? (
-                    <ChatMessageList density="balanced" align="bottom">
-                      {messages.map((m, index) => {
-                        const isAdmin =
-                          m.sender === 'admin' ||
-                          m.sender === 'Admin' ||
-                          m.senderName === 'System Admin' ||
-                          m.senderName === 'Support';
-                        const stableKey =
-                          m.id || `${m.sender}-${m.createdAt || ''}-${index}`;
-                        const senderLabel = isAdmin
-                          ? 'High Counsel Support'
-                          : m.senderName || activePlayerRealName;
-                        const timestampLabel = m.createdAt
-                          ? new Date(m.createdAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '';
-                        const hasText = Boolean(m.text && m.text.trim());
-                        const hasAttachment = Boolean(m.attachmentUrl);
+              {/* Chat Transcript & Pinned Non-Clipped Composer (SDK_Pactkeeper Parity) */}
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="pk-chat-messages">
+                  {messages.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <EmptyState
+                        icon={<MessageSquare size={26} />}
+                        title="No Previous Messages Exchanged"
+                        description={`Send a dispatch below to start assisting ${activePlayerRealName}.`}
+                      />
+                    </div>
+                  ) : (
+                    messages.map((m, index) => {
+                      const isAdmin =
+                        m.sender === 'admin' ||
+                        m.sender === 'Admin' ||
+                        m.senderName === 'System Admin' ||
+                        m.senderName === 'Support';
+                      const stableKey =
+                        m.id || `${m.sender}-${m.createdAt || ''}-${index}`;
+                      const senderLabel = isAdmin
+                        ? 'High Counsel Support'
+                        : m.senderName || activePlayerRealName;
+                      const timestampLabel = m.createdAt
+                        ? new Date(m.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '';
+                      const hasText = Boolean(m.text && m.text.trim());
+                      const hasAttachment = Boolean(m.attachmentUrl);
 
-                        return (
-                          <ChatMessage
-                            key={stableKey}
-                            sender={isAdmin ? 'user' : 'assistant'}
-                            avatar={
-                              <Avatar
-                                name={senderLabel}
-                                size="sm"
-                                shape="circle"
-                                tooltip={false}
-                              />
+                      return (
+                        <div
+                          key={stableKey}
+                          className={`flex items-end gap-2.5 ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {!isAdmin && (
+                            <Avatar
+                              name={senderLabel}
+                              size="sm"
+                              shape="circle"
+                              tooltip={false}
+                            />
+                          )}
+
+                          <div
+                            className={
+                              isAdmin ? 'pk-chat-bubble-admin' : 'pk-chat-bubble-player'
                             }
                           >
-                            <ChatMessageBubble
-                              variant="filled"
-                              name={
-                                <HStack gap={1.5} vAlign="center">
-                                  <Icon
-                                    icon={isAdmin ? ShieldCheck : User}
-                                    size="xsm"
-                                    color={isAdmin ? 'accent' : 'secondary'}
-                                  />
-                                  <Text type="label" size="xsm" weight="semibold">
-                                    {senderLabel}
-                                  </Text>
-                                </HStack>
-                              }
-                              metadata={
-                                timestampLabel ? (
-                                  <Text type="code" size="xsm" color="secondary">
-                                    {timestampLabel}
-                                  </Text>
-                                ) : undefined
-                              }
-                            >
-                              {hasText && (
-                                <Text
-                                  type="body"
-                                  size="sm"
-                                  display="block"
-                                  className="whitespace-pre-wrap"
-                                >
-                                  {m.text}
-                                </Text>
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold opacity-90">
+                                {isAdmin ? (
+                                  <ShieldCheck size={13} />
+                                ) : (
+                                  <User size={13} />
+                                )}
+                                {senderLabel}
+                              </span>
+                              {timestampLabel && (
+                                <span className="font-mono text-[11px] opacity-75">
+                                  {timestampLabel}
+                                </span>
                               )}
-                              {hasAttachment && m.attachmentUrl && (
-                                <MessageAttachment url={m.attachmentUrl} />
-                              )}
-                              {!hasText && !hasAttachment && (
-                                <Text type="supporting" size="sm" className="italic">
-                                  (Empty missive)
-                                </Text>
-                              )}
-                            </ChatMessageBubble>
-                          </ChatMessage>
-                        );
-                      })}
-                    </ChatMessageList>
-                  ) : null}
-                </ChatLayout>
+                            </div>
+
+                            {hasText && (
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap m-0">
+                                {m.text}
+                              </p>
+                            )}
+                            {hasAttachment && m.attachmentUrl && (
+                              <MessageAttachment
+                                url={m.attachmentUrl}
+                                onZoom={(url) => setZoomImageUrl(url)}
+                              />
+                            )}
+                            {!hasText && !hasAttachment && (
+                              <p className="text-sm italic opacity-75 m-0">
+                                (Empty missive)
+                              </p>
+                            )}
+                          </div>
+
+                          {isAdmin && (
+                            <Avatar
+                              name={senderLabel}
+                              size="sm"
+                              shape="circle"
+                              tooltip={false}
+                            />
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Pinned Composer */}
+                <form
+                  className="pk-chat-composer"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (replyText.trim()) {
+                      void handleSendMessage(replyText);
+                    }
+                  }}
+                >
+                  {sendError && (
+                    <div className="mb-2">
+                      <Banner status="error" title="Dispatch Failed" description={sendError} />
+                    </div>
+                  )}
+                  <div className="flex items-end gap-2.5">
+                    <textarea
+                      className="pk-chat-textarea flex-1"
+                      rows={2}
+                      value={replyText}
+                      onChange={(e) => {
+                        setReplyText(e.target.value);
+                        if (sendError) setSendError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (replyText.trim()) {
+                            void handleSendMessage(replyText);
+                          }
+                        }
+                      }}
+                      placeholder={`Compose support dispatch to ${activePlayerRealName}... (Enter to send, Shift+Enter for newline)`}
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="md"
+                      label="Send"
+                      icon={<Icon icon={Send} size="sm" />}
+                      isDisabled={!replyText.trim()}
+                    />
+                  </div>
+                </form>
               </div>
             </>
           ) : (
@@ -833,6 +868,12 @@ export const LiveSupport: React.FC = () => {
           )}
         </Card>
       </div>
+
+      <ImageLightboxModal
+        src={zoomImageUrl}
+        title={`Attachment — ${activePlayerRealName}`}
+        onClose={() => setZoomImageUrl(null)}
+      />
     </ConsolePage>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Activity,
   ArrowRight,
@@ -106,10 +106,18 @@ const ROLE_CONFIGS: Record<SelectableRole, RoleConfig> = {
   },
 };
 
+const LOGIN_SCENES = [
+  { id: 'awaken', num: '01', src: '/game-assets/hero-awaken.png', label: 'The Awakening' },
+  { id: 'briefing', num: '02', src: '/game-assets/hero-briefing.png', label: 'War Counsel' },
+  { id: 'eye', num: '03', src: '/game-assets/hero-eye.png', label: 'Heavenly Eye' },
+  { id: 'ambush', num: '04', src: '/game-assets/hero-ambush.png', label: 'Frontier Ambush' },
+] as const;
+
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const isDevMode = import.meta.env.DEV;
   const { mode, toggleMode } = useThemeMode();
   const [selectedRole, setSelectedRole] = useState<SelectableRole>('Admin');
+  const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [username, setUsername] = useState(isDevMode ? 'admin' : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -117,6 +125,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveSceneIndex((prev) => (prev + 1) % LOGIN_SCENES.length);
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handleSelectRole = (role: SelectableRole) => {
     setSelectedRole(role);
@@ -313,9 +328,26 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const activeConfig = ROLE_CONFIGS[selectedRole];
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)] flex items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-2xl">
-        <Card elevation="high" padding={6}>
+    <div className="pk-login-stage min-h-dvh text-[var(--color-text-primary)] flex flex-col items-center justify-center p-4 sm:p-6">
+      {/* Unity_Pactkeeper Ken Burns Key-Art Backdrop */}
+      <div className="pk-login-bg-layer" aria-hidden="true">
+        {LOGIN_SCENES.map((scene, idx) => (
+          <img
+            key={scene.id}
+            src={scene.src}
+            alt=""
+            className={
+              idx === activeSceneIndex
+                ? 'pk-login-bg-img pk-login-bg-img-active'
+                : 'pk-login-bg-img'
+            }
+          />
+        ))}
+      </div>
+      <div className="pk-login-scrim" aria-hidden="true" />
+
+      <div className="relative z-10 w-full max-w-2xl pk-page-enter flex flex-col gap-3">
+        <Card elevation="high" padding={6} className="pk-login-card">
           <VStack gap={5}>
             {/* Top Bar + Brand Crest */}
             <VStack gap={3}>
@@ -323,7 +355,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <Badge label="HIGH COUNSEL GATEWAY" variant="yellow" icon={<Icon icon={Crown} />} />
                 <IconButton
                   label={mode === 'light' ? 'Switch to Dark mode' : 'Switch to Light mode'}
-                  tooltip={mode === 'light' ? 'Dark Mode' : 'Light Mode'}
+                  tooltip={mode === 'light' ? 'Dark Mode (Obsidian Gold)' : 'Light Mode (Parchment)'}
                   variant="secondary"
                   size="sm"
                   icon={<Icon icon={mode === 'light' ? Moon : Sun} />}
@@ -331,13 +363,18 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 />
               </HStack>
 
-              <VStack gap={1.5} hAlign="center">
+              <VStack gap={2} hAlign="center">
+                <img
+                  src="/logo.png"
+                  alt="PactKeeper Emblem"
+                  className="pk-brand-logo-login"
+                />
                 <Heading level={1} type="display-2" className="font-cinzel pk-gold-text text-center">
-                  TACTICAL SRPG HIGH COUNSEL
+                  PACTKEEPER HIGH COUNSEL
                 </Heading>
                 <HStack gap={2} vAlign="center" hAlign="center" wrap="wrap">
                   <Badge label="v2.4.0" variant="neutral" />
-                  <Text type="supporting" size="xsm" weight="medium">
+                  <Text type="supporting" size="sm" weight="medium" color="secondary">
                     REALM GOVERNANCE &amp; OPERATIONS PORTAL
                   </Text>
                 </HStack>
@@ -349,11 +386,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Authority Tier Selector */}
             <VStack gap={3}>
               <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                <Text type="label" size="xsm">
+                <Text type="label" size="sm">
                   Select Target Counsel Authority
                 </Text>
                 <HStack gap={1.5} vAlign="center">
-                  <Text type="supporting" size="xsm">
+                  <Text type="supporting" size="sm" color="secondary">
                     Active Authority:
                   </Text>
                   <Badge label={selectedRole} variant={activeConfig.badgeVariant} />
@@ -370,12 +407,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       key={roleKey}
                       type="button"
                       onClick={() => handleSelectRole(roleKey)}
-                      className="text-left rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent-primary)] transition-transform hover:-translate-y-0.5 cursor-pointer"
+                      className="text-left rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] cursor-pointer"
                     >
                       <Card
                         variant={isSelected ? cfg.cardVariant : 'default'}
                         elevation={isSelected ? 'med' : 'none'}
                         padding={3}
+                        className={isSelected ? 'pk-gold-frame' : 'pk-interactive-card'}
                       >
                         <VStack gap={2}>
                           <HStack justify="between" vAlign="center">
@@ -383,7 +421,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                             {isSelected ? (
                               <StatusDot variant="accent" isPulsing label="Active" />
                             ) : (
-                              <Text type="supporting" size="2xs">
+                              <Text type="supporting" size="sm" color="secondary">
                                 Select
                               </Text>
                             )}
@@ -392,7 +430,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                             <Text weight="semibold" size="sm" className="font-cinzel">
                               {cfg.label}
                             </Text>
-                            <Text type="supporting" size="xsm" maxLines={2}>
+                            <Text type="supporting" size="sm" color="secondary" maxLines={2}>
                               {cfg.roleSubtitle}
                             </Text>
                           </VStack>
@@ -410,7 +448,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
                   <HStack gap={1.5} vAlign="center">
                     <Icon icon={ScrollText} size="sm" color="accent" />
-                    <Text type="label" size="xsm" className="font-cinzel">
+                    <Text type="label" size="sm" className="font-cinzel">
                       AUTHORITY SCOPE
                     </Text>
                   </HStack>
@@ -421,10 +459,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </Text>
                 <Divider />
                 <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <Text type="supporting" size="xsm">
+                  <Text type="supporting" size="sm" color="secondary">
                     Primary Destination
                   </Text>
-                  <Text type="code" size="xsm" weight="semibold" color="accent">
+                  <Text type="code" size="sm" weight="semibold" color="accent">
                     {activeConfig.landingPath}
                   </Text>
                 </HStack>
@@ -439,7 +477,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <VStack gap={4}>
                 <VStack gap={1}>
                   <HStack justify="between" vAlign="center">
-                    <Text type="label" size="xsm">
+                    <Text type="label" size="sm">
                       Counsel Username ({activeConfig.id})
                     </Text>
                     {isDevMode && (
@@ -540,11 +578,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
                     <HStack gap={1.5} vAlign="center">
                       <Icon icon={KeyRound} size="sm" color="accent" />
-                      <Text type="label" size="xsm">
+                      <Text type="label" size="sm">
                         1-Click Fast Fill Test Accounts (Dev)
                       </Text>
                     </HStack>
-                    <Text type="code" size="2xs" color="secondary">
+                    <Text type="code" size="sm" color="secondary">
                       Pre-populates Passcode
                     </Text>
                   </HStack>
@@ -576,19 +614,46 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Verification Footer */}
             <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
               <HStack gap={1.5} vAlign="center">
-                <Icon icon={Sparkles} size="xsm" color="accent" />
-                <Text type="code" size="xsm" color="secondary">
+                <Icon icon={Sparkles} size="sm" color="accent" />
+                <Text type="code" size="sm" color="secondary">
                   .NET 9 + SignalR Hubs
                 </Text>
               </HStack>
               <StackItem>
-                <Text type="code" size="xsm" color="secondary">
+                <Text type="code" size="sm" color="secondary">
                   Security Protocol v2.4
                 </Text>
               </StackItem>
             </HStack>
           </VStack>
         </Card>
+
+        {/* Key-Art Scene Switcher Pills (SDK_Pactkeeper Parity) */}
+        <HStack justify="center" vAlign="center" gap={2} wrap="wrap">
+          {LOGIN_SCENES.map((scene, idx) => {
+            const isActive = idx === activeSceneIndex;
+            return (
+              <button
+                key={scene.id}
+                type="button"
+                onClick={() => setActiveSceneIndex(idx)}
+                className="pk-scene-pill rounded-full px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] cursor-pointer flex items-center gap-1.5"
+              >
+                <span className="font-mono text-[var(--color-text-accent)] font-semibold">
+                  {scene.num}
+                </span>
+                <span>{scene.label}</span>
+                {isActive && (
+                  <span
+                    key={`scene-progress-${activeSceneIndex}`}
+                    className="pk-scene-pill-bar"
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </HStack>
       </div>
     </div>
   );

@@ -892,76 +892,86 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     >
       <VStack gap={4}>
         {activeView === 'overview' && (
-          <>
-            {/* Compact Executive Treasury / Cluster Strip */}
-            <Card variant={canViewPayments ? 'yellow' : 'green'} padding={4}>
-              {canViewPayments ? (
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-                  <VStack gap={0.5}>
-                    <Text type="label" size="xsm" className="font-cinzel">
-                      REALM TREASURY REVENUE (PAYOS LEDGER)
-                    </Text>
-                    <HStack gap={2} vAlign="center" wrap="wrap">
-                      <Icon icon={Coins} size="lg" color="accent" />
-                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                        {totalRevenue.toLocaleString()} VND
+          <div key="dash-tab-overview" className="pk-tab-panel flex flex-col gap-4">
+            {/* Executive Key-Art Command Hero Stage */}
+            <div className="pk-hero-stage p-4 sm:p-5">
+              <div className="pk-hero-bg-layer" aria-hidden="true">
+                <img
+                  src="/game-assets/hero-briefing.png"
+                  alt=""
+                  className="pk-hero-bg-img"
+                />
+              </div>
+              <div className="pk-hero-scrim" aria-hidden="true" />
+              <div className="relative z-10 pk-hero-copy p-4 sm:p-5">
+                {canViewPayments ? (
+                  <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+                    <VStack gap={1}>
+                      <Text type="label" size="sm" className="font-cinzel" color="accent">
+                        REALM TREASURY REVENUE (PAYOS LEDGER)
                       </Text>
-                      <Badge
-                        label={`${settlementConversionPct}% Settled`}
-                        variant="success"
+                      <HStack gap={2} vAlign="center" wrap="wrap">
+                        <Icon icon={Coins} size="lg" color="accent" />
+                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                          {totalRevenue.toLocaleString()} VND
+                        </Text>
+                        <Badge
+                          label={`${settlementConversionPct}% Settled`}
+                          variant="success"
+                        />
+                      </HStack>
+                    </VStack>
+                    <HStack gap={3} vAlign="center" wrap="wrap">
+                      <VStack gap={0.5} hAlign="end">
+                        <Text type="code" size="sm" weight="semibold" color="accent" hasTabularNumbers>
+                          {paidOrdersCount} / {totalOrdersCount} Completed Receipts
+                        </Text>
+                        <Text type="supporting" size="sm" color="secondary">
+                          {packsCount} Store Packs • payOS Gateway Live
+                        </Text>
+                      </VStack>
+                      <Button
+                        href="/payments"
+                        variant="primary"
+                        size="sm"
+                        icon={<Icon icon={TrendingUp} />}
+                        label="Open Treasury"
                       />
                     </HStack>
-                  </VStack>
-                  <HStack gap={3} vAlign="center" wrap="wrap">
-                    <VStack gap={0} hAlign="end">
-                      <Text type="code" size="xsm" weight="semibold" color="accent" hasTabularNumbers>
-                        {paidOrdersCount} / {totalOrdersCount} Completed Receipts
+                  </HStack>
+                ) : (
+                  <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+                    <VStack gap={1}>
+                      <Text type="label" size="sm" className="font-cinzel" color="accent">
+                        DEDICATED SERVER CLUSTER &amp; NODES
                       </Text>
-                      <Text type="supporting" size="xsm">
-                        {packsCount} Store Packs • payOS Gateway Live
+                      <HStack gap={2} vAlign="center">
+                        <Icon icon={Server} size="lg" color="accent" />
+                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
+                          {activeMatchesCount} HEADLESS NODES ACTIVE
+                        </Text>
+                      </HStack>
+                    </VStack>
+                    <VStack gap={0.5} hAlign="end">
+                      <Text type="code" size="sm" weight="semibold">
+                        UDP Port Pool: 7777–7800 • Ubuntu 22.04 LTS
+                      </Text>
+                      <Text type="supporting" size="sm" color="secondary">
+                        Unity Netcode for GameObjects (NGO) • {totalMatchesCount} Matches Recorded
                       </Text>
                     </VStack>
-                    <Button
-                      href="/payments"
-                      variant="secondary"
-                      size="sm"
-                      icon={<Icon icon={TrendingUp} />}
-                      label="Open Treasury"
-                    />
                   </HStack>
-                </HStack>
-              ) : (
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={3}>
-                  <VStack gap={0.5}>
-                    <Text type="label" size="xsm" className="font-cinzel">
-                      DEDICATED SERVER CLUSTER &amp; NODES
-                    </Text>
-                    <HStack gap={2} vAlign="center">
-                      <Icon icon={Server} size="lg" color="accent" />
-                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                        {activeMatchesCount} HEADLESS NODES ACTIVE
-                      </Text>
-                    </HStack>
-                  </VStack>
-                  <VStack gap={0} hAlign="end">
-                    <Text type="code" size="xsm" weight="semibold">
-                      UDP Port Pool: 7777–7800 • Ubuntu 22.04 LTS
-                    </Text>
-                    <Text type="supporting" size="xsm">
-                      Unity Netcode for GameObjects (NGO) • {totalMatchesCount} Matches Recorded
-                    </Text>
-                  </VStack>
-                </HStack>
-              )}
-            </Card>
+                )}
+              </div>
+            </div>
 
             {/* Primary Live KPI Grid */}
-            <Grid columns={{ minWidth: 210, max: 4 }} gap={3}>
-              <Card variant="default" padding={4}>
+            <Grid columns={{ minWidth: 210, max: 4 }} gap={3} className="pk-kpi-strip">
+              <Card variant="default" padding={4} className="pk-interactive-card">
                 <VStack gap={2}>
                   <HStack justify="between" vAlign="start">
                     <VStack gap={0.5}>
-                      <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                      <Text type="label" size="sm" color="secondary" className="font-cinzel">
                         ONLINE PLAYERS (CCU)
                       </Text>
                       <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
@@ -971,7 +981,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     <Icon icon={Users} size="lg" color="success" />
                   </HStack>
                   <HStack justify="between" vAlign="center">
-                    <Text type="code" size="xsm" color="secondary">
+                    <Text type="code" size="sm" color="secondary">
                       SignalR LobbyHub
                     </Text>
                     <Badge
@@ -996,11 +1006,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </VStack>
               </Card>
 
-              <Card variant="default" padding={4}>
+              <Card variant="default" padding={4} className="pk-interactive-card">
                 <VStack gap={2}>
                   <HStack justify="between" vAlign="start">
                     <VStack gap={0.5}>
-                      <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                      <Text type="label" size="sm" color="secondary" className="font-cinzel">
                         IN-MATCH PLAYERS
                       </Text>
                       <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
@@ -1011,8 +1021,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   </HStack>
                   <HStack justify="between" vAlign="center">
                     <HStack gap={1} vAlign="center">
-                      <Icon icon={Flame} size="xsm" color="info" />
-                      <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                      <Icon icon={Flame} size="sm" color="info" />
+                      <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                         {activeMatchesCount} Live / {totalMatchesCount} Total
                       </Text>
                     </HStack>
@@ -1028,11 +1038,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </VStack>
               </Card>
 
-              <Card variant="default" padding={4}>
+              <Card variant="default" padding={4} className="pk-interactive-card">
                 <VStack gap={2}>
                   <HStack justify="between" vAlign="start">
                     <VStack gap={0.5}>
-                      <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                      <Text type="label" size="sm" color="secondary" className="font-cinzel">
                         MATCHMAKING QUEUE
                       </Text>
                       <Badge
@@ -1043,7 +1053,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     <Icon icon={Clock} size="lg" color="accent" />
                   </HStack>
                   <HStack justify="between" vAlign="center">
-                    <Text type="code" size="xsm" color="secondary">
+                    <Text type="code" size="sm" color="secondary">
                       {serverState.matchmakingBlocked ? 'Lock Engaged' : 'Turn-Based SRPG'}
                     </Text>
                     <Badge label={serverState.loginBlocked ? 'Login Blocked' : 'Auth Open'} variant={serverState.loginBlocked ? 'error' : 'neutral'} />
@@ -1052,11 +1062,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               </Card>
 
               {canViewPayments ? (
-                <Card variant="default" padding={4}>
+                <Card variant="default" padding={4} className="pk-interactive-card">
                   <VStack gap={2}>
                     <HStack justify="between" vAlign="start">
                       <VStack gap={0.5}>
-                        <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                        <Text type="label" size="sm" color="secondary" className="font-cinzel">
                           TREASURY RECEIPTS
                         </Text>
                         <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
@@ -1066,7 +1076,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       <Icon icon={Coins} size="lg" color="accent" />
                     </HStack>
                     <HStack justify="between" vAlign="center">
-                      <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
+                      <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                         {totalOrdersCount} Orders
                       </Text>
                       <Button href="/payments" variant="ghost" size="sm" label="Ledger" />
@@ -1074,11 +1084,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   </VStack>
                 </Card>
               ) : (
-                <Card variant="default" padding={4}>
+                <Card variant="default" padding={4} className="pk-interactive-card">
                   <VStack gap={2}>
                     <HStack justify="between" vAlign="start">
                       <VStack gap={0.5}>
-                        <Text type="label" size="xsm" color="secondary" className="font-cinzel">
+                        <Text type="label" size="sm" color="secondary" className="font-cinzel">
                           NETCODE INSTANCES
                         </Text>
                         <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
@@ -1088,7 +1098,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       <Icon icon={Server} size="lg" color="info" />
                     </HStack>
                     <HStack justify="between" vAlign="center">
-                      <Text type="code" size="xsm" color="secondary">
+                      <Text type="code" size="sm" color="secondary">
                         7777–7800 RUDP
                       </Text>
                       <Badge label="Dedicated" variant="info" />
@@ -1106,13 +1116,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {archivesSummaryPanel}
               </div>
             </div>
-          </>
+          </div>
         )}
 
-        {activeView === 'roster' && heroRosterCard}
+        {activeView === 'roster' && (
+          <div key="dash-tab-roster" className="pk-tab-panel">
+            {heroRosterCard}
+          </div>
+        )}
 
         {activeView === 'controls' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div key="dash-tab-controls" className="pk-tab-panel grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             {emergencyOverridesPanel}
             {archivesSummaryPanel}
           </div>

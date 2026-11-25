@@ -12,7 +12,6 @@ import { IconButton } from '@astryxdesign/core/IconButton';
 import { Text } from '@astryxdesign/core/Text';
 import {
   Clock,
-  Crown,
   ExternalLink,
   KeyRound,
   LogOut,
@@ -167,15 +166,21 @@ export const Header: React.FC<HeaderProps> = ({
           <HStack gap={2} vAlign="center">
             <MobileNavToggle label="Open navigation menu" />
             <HStack gap={2} vAlign="center">
-              <Crown className="w-5 h-5 shrink-0 text-[var(--color-icon-accent)]" />
-              <Heading level={4} weight="bold" className="font-cinzel pk-gold-text tracking-wider">
-                PACTKEEPER
-              </Heading>
-              <span className="hidden sm:inline">
-                <Text type="supporting" size="xsm" color="secondary">
-                  Command Console
-                </Text>
-              </span>
+              <img
+                src="/logo.png"
+                alt="PactKeeper Logo"
+                className="pk-brand-logo-nav"
+              />
+              <div className="flex flex-col leading-tight">
+                <Heading level={4} weight="bold" className="font-cinzel pk-gold-text tracking-wider">
+                  PACTKEEPER
+                </Heading>
+                <span className="hidden sm:inline">
+                  <Text type="supporting" size="sm" color="secondary">
+                    High Counsel Console
+                  </Text>
+                </span>
+              </div>
             </HStack>
           </HStack>
         }

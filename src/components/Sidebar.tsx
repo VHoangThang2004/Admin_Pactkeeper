@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, permissions, onLogout })
       aria-label="Admin Portal Navigation"
       topContent={
         <HStack vAlign="center" justify="between" gap={2}>
-          <Text type="supporting" size="xsm" weight="semibold" color="secondary">
+          <Text type="supporting" size="sm" weight="semibold" color="secondary">
             COUNCIL TIER
           </Text>
           <Badge variant={getRoleBadgeVariant(role)} label={getRoleDeskLabel(role)} />
@@ -152,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, permissions, onLogout })
       }
       footer={
         <VStack gap={3}>
-          <Card variant="muted" padding={3}>
+          <Card variant="muted" padding={3} className="pk-gold-frame">
             <VStack gap={1.5}>
               <HStack gap={2} vAlign="center" justify="between">
                 <HStack gap={1.5} vAlign="center">
@@ -163,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, permissions, onLogout })
                 </HStack>
                 <Badge variant="green" label="NGO :7777" />
               </HStack>
-              <Text type="supporting" size="xsm" color="secondary">
+              <Text type="supporting" size="sm" color="secondary">
                 Role: {role || 'Admin'}
               </Text>
             </VStack>

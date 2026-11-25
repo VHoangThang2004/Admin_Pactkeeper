@@ -1519,62 +1519,82 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
 
       {/* TAB 2: FULL PAYOS LEDGER */}
       {activeTab === 'ledger' && (
-        <Card padding={3}>
-          <Table
-            columns={orderColumns}
-            data={loading ? [] : (displayedOrders as OrderTableRow[])}
-            idKey="id"
-            density="balanced"
-            aria-label="PayOS Transaction Ledger"
-            emptyState={
-              <EmptyState
-                isCompact
-                icon={<Receipt size={24} />}
-                title={loading ? 'Synchronizing PayOS Transactions...' : 'No PayOS Orders Match Filters'}
-                description={
-                  loading
-                    ? 'Fetching latest settlement receipts and player mappings.'
-                    : 'Try clearing the search query or widening the date range.'
+        <div key="payment-tab-ledger" className="pk-tab-panel">
+          <Card padding={0} className="overflow-hidden">
+            <div className="pk-scrollable-panel pk-sticky-table">
+              <Table
+                columns={orderColumns}
+                data={loading ? [] : (displayedOrders as OrderTableRow[])}
+                idKey="id"
+                density="balanced"
+                aria-label="PayOS Transaction Ledger"
+                emptyState={
+                  <EmptyState
+                    isCompact
+                    icon={<Receipt size={24} />}
+                    title={loading ? 'Synchronizing PayOS Transactions...' : 'No PayOS Orders Match Filters'}
+                    description={
+                      loading
+                        ? 'Fetching latest settlement receipts and player mappings.'
+                        : 'Try clearing the search query or widening the date range.'
+                    }
+                  />
                 }
               />
-            }
-          />
-        </Card>
+            </div>
+            <div className="pk-scroll-footer">
+              <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                <Text type="supporting" size="sm" color="secondary">
+                  Showing {displayedOrders.length} PayOS transaction{displayedOrders.length === 1 ? '' : 's'}
+                </Text>
+                <Text type="code" size="sm" color="secondary">
+                  PayOS Ledger • Live Sync
+                </Text>
+              </HStack>
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* TAB 3: CRYSTAL STOREFRONT CATALOG */}
       {activeTab === 'catalog' && (
-        <Card padding={4}>
-          {loading ? (
-            <EmptyState
-              isCompact
-              icon={<Package size={24} />}
-              title="Synchronizing Storefront Packs..."
-              description="Fetching top-up crystal denominations and bundle manifests."
-            />
-          ) : filteredPacks.length === 0 ? (
-            <EmptyState
-              isCompact
-              icon={<Package size={24} />}
-              title="No Top-Up Packs in Category"
-              description="Switch categories to inspect other storefront denominations."
-            />
-          ) : (
-            <Grid columns={{ minWidth: 270, max: 3 }} gap={4}>
-              {filteredPacks.map((pack) => {
-                const bundleItems = [
-                  ...(pack.unitNames ?? []).map((n) => `Unit: ${n}`),
-                  ...(pack.weaponNames ?? []).map((n) => `Weapon: ${n}`),
-                  ...(pack.trinketNames ?? []).map((n) => `Trinket: ${n}`),
-                ];
-                const isToggling = togglingPackId === pack.id;
+        <div key="payment-tab-catalog" className="pk-tab-panel">
+          <Card padding={4}>
+            {loading ? (
+              <EmptyState
+                isCompact
+                icon={<Package size={24} />}
+                title="Synchronizing Storefront Packs..."
+                description="Fetching top-up crystal denominations and bundle manifests."
+              />
+            ) : filteredPacks.length === 0 ? (
+              <EmptyState
+                isCompact
+                icon={<Package size={24} />}
+                title="No Top-Up Packs in Category"
+                description="Switch categories to inspect other storefront denominations."
+              />
+            ) : (
+              <Grid columns={{ minWidth: 270, max: 3 }} gap={4} className="pk-kpi-strip">
+                {filteredPacks.map((pack) => {
+                  const bundleItems = [
+                    ...(pack.unitNames ?? []).map((n) => `Unit: ${n}`),
+                    ...(pack.weaponNames ?? []).map((n) => `Weapon: ${n}`),
+                    ...(pack.trinketNames ?? []).map((n) => `Trinket: ${n}`),
+                  ];
+                  const isToggling = togglingPackId === pack.id;
 
-                return (
-                  <Card
-                    key={pack.id}
-                    padding={4}
-                    variant={pack.isAvailable ? 'default' : 'muted'}
-                  >
+                  return (
+                    <Card
+                      key={pack.id}
+                      padding={4}
+                      variant={pack.isAvailable ? 'default' : 'muted'}
+                      className={
+                        pack.isAvailable
+                          ? 'pk-interactive-card pk-gold-frame'
+                          : 'pk-interactive-card'
+                      }
+                    >
                     <VStack gap={3}>
                       <HStack justify="between" vAlign="start" gap={3}>
                         <HStack gap={3} vAlign="center" className="min-w-0">
@@ -1666,6 +1686,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
             </Grid>
           )}
         </Card>
+        </div>
       )}
 
       {/* Receipt & Webhook Audit Modal */}

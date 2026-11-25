@@ -1,4 +1,4 @@
-@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities, product;
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
@@ -11,6 +11,7 @@
 @layer base {
   html {
     color-scheme: light dark;
+    scroll-behavior: smooth;
   }
 
   body {
@@ -20,6 +21,24 @@
     font-family: var(--font-family-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-image:
+      radial-gradient(
+        ellipse 72% 42% at 50% -12%,
+        color-mix(in srgb, var(--color-accent) 9%, transparent),
+        transparent 70%
+      ),
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--color-border) 22%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--color-border) 22%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 100% 100%, 48px 48px, 48px 48px;
+    background-attachment: fixed;
   }
 
   * {
@@ -62,10 +81,616 @@
   .pk-terminal-surface {
     background-color: light-dark(#141824, #050811);
     color: #e2e8f0;
-    border: 1px solid light-dark(#31394d, rgba(242, 191, 78, 0.2));
+    border: 1px solid light-dark(#31394d, rgba(242, 191, 78, 0.24));
+    box-shadow: inset 0 0 0 1px rgba(242, 191, 78, 0.08);
   }
 
   .pk-tabular {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer product {
+  /* ==========================================================================
+     1. Keyframes & AAA Motion Choreography (Unified with SDK_Pactkeeper)
+     ========================================================================== */
+  @keyframes pactPageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.996);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes pactRouteBar {
+    0% {
+      transform: scaleX(0);
+      opacity: 1;
+    }
+    70% {
+      transform: scaleX(0.92);
+      opacity: 1;
+    }
+    100% {
+      transform: scaleX(1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pactKenBurns {
+    0% {
+      transform: scale(1.02) translate(0, 0);
+    }
+    100% {
+      transform: scale(1.09) translate(-1.2%, -0.8%);
+    }
+  }
+
+  @keyframes pactSceneProgress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes pactTabPanelEnter {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.996);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes pactCardReveal {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.988);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes pactAmbientFloat {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  @keyframes pactStatusPop {
+    from {
+      opacity: 0;
+      transform: scale(0.86);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes pactShimmerSweep {
+    0% {
+      transform: translateX(-140%) skewX(-20deg);
+    }
+    100% {
+      transform: translateX(240%) skewX(-20deg);
+    }
+  }
+
+  .pk-route-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 95;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-accent),
+      color-mix(in srgb, var(--color-accent) 62%, var(--color-on-accent))
+    );
+    transform-origin: left center;
+    pointer-events: none;
+    animation: pactRouteBar 480ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .pk-page-enter {
+    animation: pactPageEnter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .pk-tab-panel {
+    animation: pactTabPanelEnter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .pk-status-pop {
+    animation: pactStatusPop 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* ==========================================================================
+     2. Global Tactile Micro-Interactions
+     ========================================================================== */
+  button:not(:disabled),
+  a[href] {
+    transition:
+      transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      filter 160ms ease,
+      opacity 160ms ease;
+  }
+
+  button:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+
+  button:not(:disabled):active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Primary / Submit CTA Shimmer Sweep */
+  button[type='submit']:not(:disabled),
+  .pk-primary-cta button:not(:disabled) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  button[type='submit']:not(:disabled)::before,
+  .pk-primary-cta button:not(:disabled)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 44%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-on-accent) 26%, transparent),
+      transparent
+    );
+    transform: translateX(-140%) skewX(-20deg);
+    pointer-events: none;
+  }
+
+  button[type='submit']:not(:disabled):hover::before,
+  .pk-primary-cta button:not(:disabled):hover::before {
+    animation: pactShimmerSweep 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  button[type='submit']:not(:disabled):hover,
+  .pk-primary-cta button:not(:disabled):hover {
+    transform: translateY(-1.5px);
+    filter: brightness(1.05);
+    box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+
+  button[type='submit']:not(:disabled):hover svg:last-child {
+    transform: translateX(3px);
+  }
+
+  button:not(:disabled) svg {
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  [role='tab']:hover {
+    transform: none;
+  }
+
+  tbody tr {
+    transition: background-color 150ms ease;
+  }
+
+  tbody tr:hover {
+    background-color: var(--color-overlay-hover);
+  }
+
+  /* ==========================================================================
+     3. Brand Logo, Sticky Glass Shell & Double-Bevel Gold Framing
+     ========================================================================== */
+  .pk-brand-logo-nav {
+    width: 2.1rem;
+    height: 2.1rem;
+    object-fit: contain;
+    display: block;
+    flex-shrink: 0;
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      filter 220ms ease;
+  }
+
+  .pk-brand-logo-nav:hover {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--color-accent) 48%, transparent));
+  }
+
+  .pk-brand-logo-login {
+    width: 4.25rem;
+    height: 4.25rem;
+    object-fit: contain;
+    display: block;
+    animation: pactAmbientFloat 6s ease-in-out infinite;
+    filter: drop-shadow(0 6px 16px color-mix(in srgb, var(--color-accent) 32%, transparent));
+  }
+
+  .astryx-app-shell-header,
+  .astryx-app-shell > header,
+  header[role='banner'] {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background-color: color-mix(in srgb, var(--color-background-surface) 84%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
+    transition: background-color 200ms ease, border-color 200ms ease;
+  }
+
+  .pk-console-header {
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    background-color: color-mix(in srgb, var(--color-background-surface) 88%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 16%, var(--color-border));
+  }
+
+  .pk-icon-emblem {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-accent) 18%, var(--color-background-card)),
+      color-mix(in srgb, var(--color-accent) 6%, var(--color-background-surface))
+    );
+    border: 1px solid color-mix(in srgb, var(--color-accent) 36%, var(--color-border));
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-background-body) 40%, transparent);
+  }
+
+  /* Unity_Pactkeeper Unified Double-Bevel Medieval Gold Framing */
+  .pk-gold-frame {
+    position: relative;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 44%, var(--color-border));
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--color-background-body) 48%, transparent),
+      inset 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent),
+      0 12px 28px -18px color-mix(in srgb, var(--color-accent) 30%, transparent);
+    transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .pk-gold-frame:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 62%, var(--color-border));
+  }
+
+  .pk-interactive-card {
+    animation: pactCardReveal 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transition:
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 200ms ease,
+      box-shadow 220ms ease;
+  }
+
+  .pk-interactive-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--color-accent) 44%, var(--color-border));
+    box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--color-accent) 24%, transparent);
+  }
+
+  .pk-kpi-strip > :nth-child(2) {
+    animation-delay: 30ms;
+  }
+  .pk-kpi-strip > :nth-child(3) {
+    animation-delay: 60ms;
+  }
+  .pk-kpi-strip > :nth-child(4) {
+    animation-delay: 90ms;
+  }
+  .pk-kpi-strip > :nth-child(n + 5) {
+    animation-delay: 120ms;
+  }
+
+  /* ==========================================================================
+     4. Key-Art Hero & Login Stage (Anti-Glare Light/Dark Scrim)
+     ========================================================================== */
+  .pk-hero-stage {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background-color: var(--color-background-surface);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 46%, var(--color-border));
+    box-shadow:
+      inset 0 0 0 3px color-mix(in srgb, var(--color-background-body) 54%, transparent),
+      inset 0 0 0 4px color-mix(in srgb, var(--color-accent) 28%, transparent),
+      0 18px 36px -20px color-mix(in srgb, var(--color-accent) 32%, transparent);
+  }
+
+  .pk-hero-bg-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-color: var(--color-background-inverted);
+  }
+
+  [data-theme='dark'] .pk-hero-bg-layer {
+    background-color: var(--color-background-body);
+  }
+
+  .pk-hero-bg-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    opacity: 0.56;
+    filter: saturate(1.06) contrast(1.04);
+    animation: pactKenBurns 14s ease-out infinite alternate;
+  }
+
+  [data-theme='light'] .pk-hero-bg-img {
+    opacity: 0.88;
+    filter: brightness(0.86) saturate(1.04) contrast(1.04);
+  }
+
+  .pk-hero-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--color-background-body) 82%, transparent) 0%,
+      color-mix(in srgb, var(--color-background-body) 52%, transparent) 58%,
+      color-mix(in srgb, var(--color-background-body) 72%, transparent) 100%
+    );
+  }
+
+  [data-theme='light'] .pk-hero-scrim {
+    background: linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--color-background-inverted) 36%, transparent) 0%,
+      color-mix(in srgb, var(--color-background-inverted) 18%, transparent) 58%,
+      color-mix(in srgb, var(--color-background-inverted) 32%, transparent) 100%
+    );
+  }
+
+  .pk-hero-copy {
+    background-color: color-mix(in srgb, var(--color-background-card) 86%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+    border-radius: var(--radius-lg);
+  }
+
+  [data-theme='light'] .pk-hero-copy {
+    background-color: color-mix(in srgb, var(--color-background-card) 93%, transparent);
+    border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  }
+
+  /* Login Full-Viewport Stage */
+  .pk-login-stage {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--color-background-body);
+  }
+
+  .pk-login-bg-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-color: var(--color-background-inverted);
+  }
+
+  [data-theme='dark'] .pk-login-bg-layer {
+    background-color: var(--color-background-body);
+  }
+
+  .pk-login-bg-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    opacity: 0;
+    transition: opacity 850ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .pk-login-bg-img-active {
+    opacity: 0.72;
+    filter: saturate(1.08) contrast(1.04);
+    animation: pactKenBurns 7s ease-out forwards;
+  }
+
+  [data-theme='light'] .pk-login-bg-img-active {
+    opacity: 1;
+    filter: brightness(0.88) saturate(1.05) contrast(1.04);
+  }
+
+  .pk-login-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse 74% 70% at 50% 45%,
+      color-mix(in srgb, var(--color-background-body) 44%, transparent),
+      color-mix(in srgb, var(--color-background-body) 82%, transparent)
+    );
+  }
+
+  [data-theme='light'] .pk-login-scrim {
+    background: radial-gradient(
+      ellipse 74% 70% at 50% 45%,
+      color-mix(in srgb, var(--color-background-inverted) 18%, transparent),
+      color-mix(in srgb, var(--color-background-inverted) 42%, transparent)
+    );
+  }
+
+  .pk-login-card {
+    background-color: color-mix(in srgb, var(--color-background-card) 93%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 44%, var(--color-border));
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--color-background-body) 42%, transparent),
+      0 22px 48px -18px color-mix(in srgb, var(--color-background-inverted) 38%, transparent);
+  }
+
+  .pk-scene-pill {
+    position: relative;
+    overflow: hidden;
+    background-color: color-mix(in srgb, var(--color-background-card) 88%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  }
+
+  .pk-scene-pill-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background-color: var(--color-accent);
+    transform-origin: left center;
+    animation: pactSceneProgress 6s linear forwards;
+  }
+
+  /* ==========================================================================
+     5. Contained Scrollable Tables & Live Support Chat (SDK Parity)
+     ========================================================================== */
+  .pk-scrollable-panel {
+    max-height: min(60dvh, 38rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .pk-sticky-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--color-background-card);
+    box-shadow: 0 1px 0 var(--color-border);
+  }
+
+  .pk-scroll-footer {
+    padding: var(--spacing-2) var(--spacing-4);
+    border-top: 1px solid var(--color-border);
+    background-color: color-mix(in srgb, var(--color-background-muted) 45%, transparent);
+  }
+
+  .pk-chat-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1rem 1.25rem;
+    background-color: color-mix(in srgb, var(--color-background-body) 48%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .pk-chat-bubble-admin {
+    max-width: min(78%, 36rem);
+    padding: 0.75rem 1rem;
+    border-radius: 1rem 1rem 0.25rem 1rem;
+    background-color: var(--color-accent);
+    color: var(--color-on-accent);
+    box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--color-accent) 45%, transparent);
+    word-break: break-word;
+  }
+
+  .pk-chat-bubble-player {
+    max-width: min(82%, 38rem);
+    padding: 0.75rem 1rem;
+    border-radius: 1rem 1rem 1rem 0.25rem;
+    background-color: var(--color-background-card);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-emphasized);
+    word-break: break-word;
+  }
+
+  .pk-chat-composer {
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
+    background-color: var(--color-background-surface);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .pk-chat-textarea {
+    width: 100%;
+    min-height: 2.85rem;
+    max-height: 7.5rem;
+    resize: none;
+    box-sizing: border-box;
+    padding: 0.55rem 0.8rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-emphasized);
+    background-color: var(--color-background-card);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: 0.925rem;
+    line-height: 1.5;
+    outline: none;
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+  }
+
+  .pk-chat-textarea::placeholder {
+    color: var(--color-text-secondary);
+    opacity: 0.85;
+  }
+
+  .pk-chat-textarea:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+
+  .pk-queue-row-active {
+    background-color: color-mix(in srgb, var(--color-accent) 11%, transparent);
+    box-shadow: inset 3px 0 0 0 var(--color-accent);
+  }
+
+  .pk-attachment-thumb {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .pk-attachment-btn:hover .pk-attachment-thumb {
+    transform: scale(1.03);
+  }
+
+  /* ==========================================================================
+     6. Accessibility: Respect Reduced Motion
+     ========================================================================== */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    button:not(:disabled):hover,
+    button:not(:disabled):active,
+    .pk-interactive-card:hover {
+      transform: none !important;
+    }
   }
 }

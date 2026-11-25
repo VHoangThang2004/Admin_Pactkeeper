@@ -21,6 +21,7 @@ import {
   Terminal,
   UserCheck,
   UserPlus,
+  Users,
   UserX,
 } from 'lucide-react';
 import { Badge } from '@astryxdesign/core/Badge';
@@ -44,6 +45,8 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { ConsolePage } from '../components/ConsolePage';
+import { KpiSummaryStrip } from '../components/ui/KpiSummaryStrip';
+import { ScrollableDataPanel } from '../components/ui/ScrollableDataPanel';
 import { PlayerInspectorModal } from '../components/PlayerInspectorModal';
 import { adminClient } from '../api/adminClient';
 import { recordAuditEvent } from '../services/adminSecurityService';
@@ -944,16 +947,88 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
         </VStack>
       }
     >
-      {/* Player Table */}
-      <Card padding={3}>
+      {/* Player KPI Summary Strip + Scrollable Directory Table */}
+      <VStack gap={4}>
+        <KpiSummaryStrip
+          items={[
+            {
+              id: 'players-total',
+              label: 'Total Heroes',
+              value: validPlayers.length.toLocaleString(),
+              helper: `${sortedPlayers.length.toLocaleString()} matching filter`,
+              icon: <Icon icon={Users} size="sm" color="accent" />,
+              highlight: true,
+            },
+            {
+              id: 'players-online',
+              label: 'Online Now',
+              value: presenceCounts.online.toLocaleString(),
+              helper: 'Active lobby presence',
+              icon: <Icon icon={UserCheck} size="sm" color="success" />,
+              badge: { label: 'LIVE', variant: 'success' },
+            },
+            {
+              id: 'players-battle',
+              label: 'In Combat',
+              value: presenceCounts.battle.toLocaleString(),
+              helper: 'Active tactical matches',
+              icon: <Icon icon={Shield} size="sm" color="info" />,
+              badge: { label: 'PVP/PVE', variant: 'info' },
+            },
+            {
+              id: 'players-banned',
+              label: 'Sanctioned',
+              value: presenceCounts.banned.toLocaleString(),
+              helper: 'Restricted accounts',
+              icon: <Icon icon={UserX} size="sm" color="error" />,
+              badge: presenceCounts.banned > 0 ? { label: 'REVIEW', variant: 'error' } : undefined,
+            },
+          ]}
+        />
+
         {sortedPlayers.length === 0 ? (
-          <EmptyState
-            icon={<Icon icon={Inbox} size="lg" color="accent" />}
-            title="No player accounts match current search and presence filters"
-            description="Type a Player ID into 'Load ID' above to query details directly, or clear filters."
-          />
+          <Card padding={6}>
+            <EmptyState
+              icon={<Icon icon={Inbox} size="lg" color="accent" />}
+              title="No player accounts match current search and presence filters"
+              description="Type a Player ID into 'Load ID' above to query details directly, or clear filters."
+            />
+          </Card>
         ) : (
-          <VStack gap={3}>
+          <ScrollableDataPanel
+            footerLeft={
+              sortedPlayers.length === 0
+                ? '0 accounts'
+                : `Showing ${pageStart}–${pageEnd} of ${sortedPlayers.length} filtered accounts (${validPlayers.length} total)`
+            }
+            footerRight={
+              totalPages > 1 ? (
+                <HStack gap={2} vAlign="center">
+                  <Text type="code" size="sm" color="secondary" hasTabularNumbers>
+                    Page {safePage} / {totalPages}
+                  </Text>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Icon icon={ChevronLeft} />}
+                    label="Previous"
+                    isDisabled={safePage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    endContent={<Icon icon={ChevronRight} />}
+                    label="Next"
+                    isDisabled={safePage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  />
+                </HStack>
+              ) : (
+                `${sortedPlayers.length} accounts loaded`
+              )
+            }
+          >
             <Table
               data={paginatedPlayers as PlayerTableRow[]}
               columns={columns}
@@ -962,38 +1037,9 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
               dividers="rows"
               hasHover
             />
-
-            {totalPages > 1 && (
-              <>
-                <Divider />
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-                    Page {safePage} of {totalPages} ({sortedPlayers.length} filtered accounts)
-                  </Text>
-                  <HStack gap={2} vAlign="center">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={<Icon icon={ChevronLeft} />}
-                      label="Previous"
-                      isDisabled={safePage <= 1}
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      endContent={<Icon icon={ChevronRight} />}
-                      label="Next"
-                      isDisabled={safePage >= totalPages}
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    />
-                  </HStack>
-                </HStack>
-              </>
-            )}
-          </VStack>
+          </ScrollableDataPanel>
         )}
-      </Card>
+      </VStack>
 
       {/* Adjust Treasury Dialog */}
       <Dialog

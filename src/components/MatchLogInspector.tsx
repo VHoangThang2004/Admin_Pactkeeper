@@ -383,7 +383,7 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
                           <Text type="code" size="xsm" weight="semibold" maxLines={1}>
                             {file.fileName}
                           </Text>
-                          <Text type="code" size="2xs" color="secondary" maxLines={1}>
+                          <Text type="code" size="sm" color="secondary" maxLines={1}>
                             {file.matchId}
                           </Text>
                         </div>
@@ -413,11 +413,11 @@ export const MatchLogInspector: React.FC<MatchLogInspectorProps> = ({
             <HStack gap={1.5} vAlign="center" justify="between">
               <HStack gap={1.5} vAlign="center">
                 <Icon icon={Clock} size="xsm" color="accent" />
-                <Text type="code" size="2xs" color="secondary" hasTabularNumbers>
+                <Text type="code" size="sm" color="secondary" hasTabularNumbers>
                   Showing {filteredDirectoryFiles.length} of {currentTotal} (Newest First)
                 </Text>
               </HStack>
-              <Text type="code" size="2xs" color="accent" weight="bold">
+              <Text type="code" size="sm" color="accent" weight="bold">
                 {selectedMatchId ? `#${selectedMatchId.slice(0, 8)}` : 'None'}
               </Text>
             </HStack>
