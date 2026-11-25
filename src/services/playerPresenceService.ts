@@ -628,9 +628,19 @@ function ensureHubConnection() {
     hubConnectionToken = token;
     setHubState('connecting');
 
+    // Vercel Rewrites do not proxy WebSocket upgrades; use SSE/LongPolling on relative prod URLs
+    const useProxySafeTransports = !import.meta.env.DEV;
+
     const connection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/lobby', {
         accessTokenFactory: () => sessionStorage.getItem('adminToken') || '',
+        ...(useProxySafeTransports
+          ? {
+              transport:
+                signalR.HttpTransportType.ServerSentEvents |
+                signalR.HttpTransportType.LongPolling,
+            }
+          : {}),
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
       .configureLogging(signalR.LogLevel.Warning)

@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Swords,
   User,
+  X,
 } from 'lucide-react';
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { Badge } from '@astryxdesign/core/Badge';
@@ -140,6 +141,11 @@ export const LiveSupport: React.FC = () => {
   const [queueError, setQueueError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [pendingAttachmentUrl, setPendingAttachmentUrl] = useState<string | null>(null);
+  const [pendingAttachmentName, setPendingAttachmentName] = useState<string>('');
+  const [uploadingAttachment, setUploadingAttachment] = useState<boolean>(false);
+  const [sendingMessage, setSendingMessage] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [activeMatchesMap, setActiveMatchesMap] = useState<Map<string, ActiveMatchSummary>>(
     () => new Map(),
@@ -299,11 +305,22 @@ export const LiveSupport: React.FC = () => {
   }, [selectedPlayerId]);
 
   useEffect(() => {
+    // Vercel Rewrites do not proxy WebSocket upgrades; use SSE/LongPolling on relative prod URLs
+    const useProxySafeTransports = !import.meta.env.DEV;
+
     const connection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/support', {
         accessTokenFactory: () => sessionStorage.getItem('adminToken') || '',
+        ...(useProxySafeTransports
+          ? {
+              transport:
+                signalR.HttpTransportType.ServerSentEvents |
+                signalR.HttpTransportType.LongPolling,
+            }
+          : {}),
       })
       .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Warning)
       .build();
 
     connection
@@ -329,19 +346,82 @@ export const LiveSupport: React.FC = () => {
     };
   }, [loadSupportQueueData, applySupportQueue]);
 
+  const uploadAttachmentFile = async (file: File) => {
+    const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setSendError('Attachment exceeds 5 MB limit. Please choose a smaller image.');
+      return;
+    }
+
+    setSendError(null);
+    setUploadingAttachment(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await adminClient.post<{ url: string }>('/support/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data?.url) {
+        setPendingAttachmentUrl(res.data.url);
+        setPendingAttachmentName(file.name || 'screenshot.png');
+      } else {
+        setSendError('Upload succeeded but server returned no attachment URL.');
+      }
+    } catch (err: unknown) {
+      const responseMsg = (
+        err as { response?: { data?: { message?: string } } }
+      )?.response?.data?.message;
+      setSendError(responseMsg || 'Failed to upload attachment.');
+    } finally {
+      setUploadingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      void uploadAttachmentFile(file);
+    }
+  };
+
+  const handleComposerPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void uploadAttachmentFile(file);
+          return;
+        }
+      }
+    }
+  };
+
   const handleSendMessage = async (submittedText: string) => {
     const trimmed = submittedText.trim();
-    if (!trimmed || !selectedPlayerId) return;
+    const attachmentToSend = pendingAttachmentUrl;
+    if ((!trimmed && !attachmentToSend) || !selectedPlayerId || sendingMessage) return;
 
     setSendError(null);
     setReplyText('');
+    setPendingAttachmentUrl(null);
+    setPendingAttachmentName('');
+    setSendingMessage(true);
 
     try {
       const res = await adminClient.post(`/support/admin/chat/${selectedPlayerId}`, {
         text: trimmed,
+        attachmentUrl: attachmentToSend || '',
       });
       if (res.data) {
-        setMessages((prev) => [...prev, res.data]);
+        setMessages((prev) => {
+          if (res.data.id && prev.some((m) => m.id === res.data.id)) return prev;
+          return [...prev, res.data];
+        });
       }
     } catch (err: unknown) {
       const responseMsg = (
@@ -349,6 +429,9 @@ export const LiveSupport: React.FC = () => {
       )?.response?.data?.message;
       setSendError(responseMsg || 'Failed to send reply to player.');
       setReplyText(trimmed);
+      if (attachmentToSend) setPendingAttachmentUrl(attachmentToSend);
+    } finally {
+      setSendingMessage(false);
     }
   };
 
@@ -811,12 +894,12 @@ export const LiveSupport: React.FC = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Pinned Composer */}
+                {/* Pinned Composer with Image Attachment & Paste Support */}
                 <form
                   className="pk-chat-composer"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (replyText.trim()) {
+                    if (replyText.trim() || pendingAttachmentUrl) {
                       void handleSendMessage(replyText);
                     }
                   }}
@@ -826,7 +909,59 @@ export const LiveSupport: React.FC = () => {
                       <Banner status="error" title="Dispatch Failed" description={sendError} />
                     </div>
                   )}
-                  <div className="flex items-end gap-2.5">
+
+                  {pendingAttachmentUrl && (
+                    <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-card)] px-2.5 py-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={pendingAttachmentUrl}
+                          alt="Pending attachment preview"
+                          className="h-10 w-10 rounded object-cover border border-[var(--color-border-subtle)] shrink-0 cursor-zoom-in"
+                          onClick={() => setZoomImageUrl(pendingAttachmentUrl)}
+                        />
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold truncate text-[var(--color-text-primary)]">
+                            {pendingAttachmentName || 'Attached image'}
+                          </div>
+                          <div className="text-[11px] text-[var(--color-text-secondary)]">
+                            Ready to send with reply
+                          </div>
+                        </div>
+                      </div>
+                      <IconButton
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        label="Remove attachment"
+                        tooltip="Remove attachment"
+                        icon={<Icon icon={X} size="sm" />}
+                        onClick={() => {
+                          setPendingAttachmentUrl(null);
+                          setPendingAttachmentName('');
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileInputChange}
+                  />
+
+                  <div className="flex items-end gap-2">
+                    <IconButton
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      label="Attach image"
+                      tooltip={uploadingAttachment ? 'Uploading image...' : 'Attach image (max 5 MB) or Ctrl+V paste'}
+                      isDisabled={uploadingAttachment || sendingMessage}
+                      icon={<Icon icon={Paperclip} size="sm" />}
+                      onClick={() => fileInputRef.current?.click()}
+                    />
                     <textarea
                       className="pk-chat-textarea flex-1"
                       rows={2}
@@ -835,23 +970,29 @@ export const LiveSupport: React.FC = () => {
                         setReplyText(e.target.value);
                         if (sendError) setSendError(null);
                       }}
+                      onPaste={handleComposerPaste}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          if (replyText.trim()) {
+                          if (replyText.trim() || pendingAttachmentUrl) {
                             void handleSendMessage(replyText);
                           }
                         }
                       }}
-                      placeholder={`Compose support dispatch to ${activePlayerRealName}... (Enter to send, Shift+Enter for newline)`}
+                      placeholder={
+                        uploadingAttachment
+                          ? 'Uploading attachment...'
+                          : `Compose support dispatch to ${activePlayerRealName}... (Enter to send, Ctrl+V to paste image)`
+                      }
                     />
                     <Button
                       type="submit"
                       variant="primary"
                       size="md"
                       label="Send"
+                      isLoading={sendingMessage || uploadingAttachment}
                       icon={<Icon icon={Send} size="sm" />}
-                      isDisabled={!replyText.trim()}
+                      isDisabled={(!replyText.trim() && !pendingAttachmentUrl) || uploadingAttachment}
                     />
                   </div>
                 </form>
