@@ -5,11 +5,9 @@ import { MobileNavToggle } from '@astryxdesign/core/MobileNav';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
 import { DropdownMenu, type DropdownMenuOption } from '@astryxdesign/core/DropdownMenu';
-import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
-import { Text } from '@astryxdesign/core/Text';
 import {
   Clock,
   ExternalLink,
@@ -37,41 +35,6 @@ interface HeaderProps {
   adminName: string;
   adminToken?: string;
   onLogout: () => void;
-}
-
-function resolveSessionToken(providedToken?: string): string {
-  if (providedToken) return providedToken;
-  try {
-    return sessionStorage.getItem('adminToken') || '';
-  } catch {
-    return '';
-  }
-}
-
-function getTokenExpiryMs(token: string): number | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-    const decoded = JSON.parse(atob(padded)) as { exp?: number };
-    if (typeof decoded.exp === 'number') {
-      return decoded.exp * 1000;
-    }
-  } catch {
-    // Ignore malformed JWT tokens
-  }
-  return null;
-}
-
-function formatRemainingDuration(remainingMs: number): string {
-  if (remainingMs <= 0) return 'Expired';
-  const totalMinutes = Math.floor(remainingMs / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m`;
-  return '<1m';
 }
 
 function formatServerTimeUtc7(now: Date): string {
@@ -104,29 +67,14 @@ export const Header: React.FC<HeaderProps> = ({
   role,
   permissions,
   adminName,
-  adminToken,
   onLogout,
 }) => {
   const navigate = useNavigate();
   const { mode, toggleMode } = useThemeMode();
   const { density, toggleDensity } = useWorkspacePrefs();
   const isDevEnv = import.meta.env.DEV;
-  const resolvedToken = resolveSessionToken(adminToken);
 
   const [serverTime, setServerTime] = useState<string>(() => formatServerTimeUtc7(new Date()));
-  const [sessionRemainingMs, setSessionRemainingMs] = useState<number | null>(() => {
-    const exp = getTokenExpiryMs(resolvedToken);
-    return exp ? exp - Date.now() : null;
-  });
-  const sessionTtl = sessionRemainingMs !== null ? formatRemainingDuration(sessionRemainingMs) : 'Active';
-  const ttlBadgeVariant =
-    sessionRemainingMs === null
-      ? 'neutral'
-      : sessionRemainingMs <= 5 * 60_000
-        ? 'error'
-        : sessionRemainingMs <= 15 * 60_000
-          ? 'warning'
-          : 'neutral';
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
 
@@ -143,14 +91,10 @@ export const Header: React.FC<HeaderProps> = ({
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      const now = new Date();
-      setServerTime(formatServerTimeUtc7(now));
-      const token = resolveSessionToken(adminToken);
-      const exp = getTokenExpiryMs(token);
-      setSessionRemainingMs(exp ? exp - now.getTime() : null);
+      setServerTime(formatServerTimeUtc7(new Date()));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [adminToken]);
+  }, []);
 
   const roleMeta = getRoleMeta(role);
   const canSecurity =
@@ -179,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
     { type: 'divider' },
     {
       id: 'sign-out',
-      label: 'Exit Counsel (Sign Out)',
+      label: 'Sign Out',
       icon: LogOut,
       variant: 'destructive',
       onClick: onLogout,
@@ -197,36 +141,24 @@ export const Header: React.FC<HeaderProps> = ({
               <img
                 src="/logo.png"
                 alt="PactKeeper Logo"
-                className="pk-brand-logo-nav"
+                className="w-7 h-7 object-contain shrink-0"
               />
-              <div className="flex flex-col leading-tight">
-                <Heading level={4} weight="bold" className="font-cinzel pk-gold-text tracking-wider">
-                  PACTKEEPER
-                </Heading>
-                <span className="hidden sm:inline">
-                  <Text type="supporting" size="sm" color="secondary">
-                    High Counsel Console
-                  </Text>
-                </span>
-              </div>
+              <span className="pk-brand-title pk-gold-text text-base font-bold">
+                PACTKEEPER
+              </span>
+              <Badge
+                variant={isDevEnv ? 'yellow' : 'success'}
+                label={isDevEnv ? 'DEV' : 'LIVE'}
+              />
             </HStack>
           </HStack>
         }
         startContent={
           <div className="hidden md:flex items-center gap-2">
-            <Badge
-              variant={isDevEnv ? 'yellow' : 'success'}
-              label={isDevEnv ? 'DEV' : 'LIVE'}
-            />
-            <Badge
-              variant="neutral"
-              icon={<Clock className="w-3 h-3" />}
-              label={<span className="pk-tabular">{serverTime} UTC+7</span>}
-            />
             <Button
               variant="secondary"
               size="sm"
-              label="Quick Jump"
+              label="Search..."
               icon={<Icon icon={Search} size="sm" />}
               endContent={<Badge label="Ctrl+K" variant="neutral" />}
               onClick={() => setIsCommandOpen(true)}
@@ -235,11 +167,16 @@ export const Header: React.FC<HeaderProps> = ({
         }
         endContent={
           <HStack gap={2} vAlign="center">
+            <div className="hidden xl:flex items-center gap-1.5 text-sm font-mono text-[var(--color-text-secondary)] px-1.5">
+              <Clock className="w-3.5 h-3.5 opacity-75" />
+              <span className="pk-tabular">{serverTime}</span>
+            </div>
+
             <div className="hidden lg:block">
               <Button
                 variant="ghost"
                 size="sm"
-                label="Web Top-Up"
+                label="Top-Up Portal"
                 href={WEB_TOPUP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -248,33 +185,22 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <IconButton
-              variant="secondary"
+              variant="ghost"
               size="sm"
               label={density === 'compact' ? 'Switch to comfortable density' : 'Switch to compact density'}
-              tooltip={density === 'compact' ? 'Density: Compact (Click for Comfortable)' : 'Density: Comfortable (Click for Compact)'}
+              tooltip={density === 'compact' ? 'Density: Compact' : 'Density: Comfortable'}
               icon={<Icon icon={density === 'compact' ? Rows3 : Rows2} />}
               onClick={toggleDensity}
             />
 
             <IconButton
-              variant="secondary"
+              variant="ghost"
               size="sm"
               label={mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-              tooltip={mode === 'light' ? 'Dark Mode (Obsidian Gold)' : 'Light Mode (Parchment)'}
+              tooltip={mode === 'light' ? 'Dark Mode' : 'Light Mode'}
               icon={<Icon icon={mode === 'light' ? Moon : Sun} />}
               onClick={toggleMode}
             />
-
-            <div className="hidden sm:block">
-              <Badge
-                variant={ttlBadgeVariant}
-                label={<span className="pk-tabular">TTL {sessionTtl}</span>}
-              />
-            </div>
-
-            <div className="hidden md:block">
-              <Badge variant={roleMeta.variant} label={roleMeta.label} />
-            </div>
 
             <DropdownMenu
               placement="below"
@@ -283,8 +209,9 @@ export const Header: React.FC<HeaderProps> = ({
               button={{
                 variant: 'secondary',
                 size: 'sm',
-                label: adminName || 'Counselor',
+                label: adminName || 'Admin',
                 icon: <Icon icon={UserCheck} />,
+                endContent: <Badge variant={roleMeta.variant} label={roleMeta.label} />,
               }}
               items={accountMenuItems}
             />

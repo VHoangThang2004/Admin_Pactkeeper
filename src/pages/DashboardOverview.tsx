@@ -73,13 +73,6 @@ type PresenceFilter = 'ALL' | 'ONLINE' | 'BATTLE' | 'OFFLINE';
 
 type PresenceTableRow = TrackedPlayerPresence & Record<string, unknown>;
 
-const HERO_SCENES = [
-  { id: 'briefing', num: '01', src: '/game-assets/hero-briefing.png', label: 'War Counsel' },
-  { id: 'awaken', num: '02', src: '/game-assets/hero-awaken.png', label: 'The Awakening' },
-  { id: 'eye', num: '03', src: '/game-assets/hero-eye.png', label: 'Heavenly Eye' },
-  { id: 'ambush', num: '04', src: '/game-assets/hero-ambush.png', label: 'Frontier Watch' },
-] as const;
-
 const DASHBOARD_TAB_ORDER = ['overview', 'roster', 'controls'] as const;
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
@@ -141,14 +134,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const [gatewayLive, setGatewayLive] = useState<boolean>(true);
   const [activeView, setActiveView] = useState<'overview' | 'roster' | 'controls'>('overview');
   const [tabDirection, setTabDirection] = useState<'right' | 'left'>('right');
-  const [heroSceneIndex, setHeroSceneIndex] = useState<number>(0);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setHeroSceneIndex((prev) => (prev + 1) % HERO_SCENES.length);
-    }, 6000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const [rosterCollapsed, setRosterCollapsed] = useState<boolean>(false);
 
   const handleTabChange = (nextVal: string) => {
     const next = nextVal as 'overview' | 'roster' | 'controls';
@@ -504,102 +490,120 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <HStack gap={2} vAlign="center">
             <Icon icon={Radio} size="md" color="success" />
             <VStack gap={0.5}>
-              <Heading level={3} className="font-cinzel">
-                REAL-TIME HERO PRESENCE ROSTER
+              <Heading level={3}>
+                Real-Time Hero Presence Roster
               </Heading>
-              <Text type="supporting" size="xsm">
+              <Text type="supporting" size="sm" color="secondary">
                 Verified across Realm Gateway &amp; SignalR Lobby Hub
               </Text>
             </VStack>
           </HStack>
 
           <HStack gap={2} vAlign="center" wrap="wrap">
-            <TextInput
-              label="Search Hero or Reference"
-              isLabelHidden
-              value={searchQuery}
-              onChange={setSearchQuery}
-              startIcon={Search}
-              placeholder="Search Hero or Ref..."
-              hasClear
+            {!rosterCollapsed && (
+              <>
+                <TextInput
+                  label="Search Hero or Reference"
+                  isLabelHidden
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  startIcon={Search}
+                  placeholder="Search Hero or Ref..."
+                  hasClear
+                  size="sm"
+                  width={200}
+                />
+                <SegmentedControl
+                  label="Filter hero presence"
+                  value={presenceFilter}
+                  onChange={(val) => setPresenceFilter(val as PresenceFilter)}
+                  size="sm"
+                >
+                  <SegmentedControlItem value="ALL" label={`All (${validTrackedPlayers.length})`} />
+                  <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
+                  <SegmentedControlItem
+                    value="BATTLE"
+                    label={`In Battle (${presenceCounts.battle})`}
+                  />
+                  <SegmentedControlItem
+                    value="OFFLINE"
+                    label={`Offline (${presenceCounts.offline})`}
+                  />
+                </SegmentedControl>
+              </>
+            )}
+            <Button
+              variant="secondary"
               size="sm"
-              width={210}
+              label={rosterCollapsed ? 'Expand' : 'Collapse'}
+              onClick={() => setRosterCollapsed((prev) => !prev)}
             />
-            <SegmentedControl
-              label="Filter hero presence"
-              value={presenceFilter}
-              onChange={(val) => setPresenceFilter(val as PresenceFilter)}
-              size="sm"
-            >
-              <SegmentedControlItem value="ALL" label={`All (${validTrackedPlayers.length})`} />
-              <SegmentedControlItem value="ONLINE" label={`Online (${presenceCounts.online})`} />
-              <SegmentedControlItem
-                value="BATTLE"
-                label={`In Battle (${presenceCounts.battle})`}
-              />
-              <SegmentedControlItem
-                value="OFFLINE"
-                label={`Offline (${presenceCounts.offline})`}
-              />
-            </SegmentedControl>
           </HStack>
         </HStack>
 
-        {validTrackedPlayers.length === 0 ? (
-          <EmptyState
-            icon={<Icon icon={Users} size="lg" color="accent" />}
-            title="No active player sessions currently detected"
-            description="Gateway telemetry is listening for hero logins in real-time."
-          />
-        ) : filteredPlayers.length === 0 ? (
-          <EmptyState
-            icon={<Icon icon={Search} size="lg" color="secondary" />}
-            title="No heroes match the active filter"
-            description="Adjust the search query or switch presence state filter."
-            actions={
-              <Button
-                label="Reset Filter"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setPresenceFilter('ALL');
-                  setSearchQuery('');
-                }}
+        {!rosterCollapsed && (
+          <>
+            {validTrackedPlayers.length === 0 ? (
+              <EmptyState
+                icon={<Icon icon={Users} size="lg" color="accent" />}
+                title="No active player sessions currently detected"
+                description="Gateway telemetry is listening for hero logins in real-time."
               />
-            }
-          />
-        ) : (
-          <div className={activeView === 'roster' ? '' : 'max-h-[430px] overflow-y-auto'}>
-            <Table
-              data={filteredPlayers as PresenceTableRow[]}
-              columns={presenceColumns}
-              idKey="playerId"
-              density="balanced"
-              dividers="rows"
-              hasHover
-            />
-          </div>
+            ) : filteredPlayers.length === 0 ? (
+              <EmptyState
+                icon={<Icon icon={Search} size="lg" color="secondary" />}
+                title="No heroes match the active filter"
+                description="Adjust the search query or switch presence state filter."
+                actions={
+                  <Button
+                    label="Reset Filter"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setPresenceFilter('ALL');
+                      setSearchQuery('');
+                    }}
+                  />
+                }
+              />
+            ) : (
+              <div
+                className={`rounded-lg border border-[var(--color-border)] overflow-hidden ${
+                  activeView === 'roster' ? '' : 'max-h-[440px] overflow-y-auto pk-sticky-table'
+                }`}
+              >
+                <Table
+                  data={filteredPlayers as PresenceTableRow[]}
+                  columns={presenceColumns}
+                  idKey="playerId"
+                  density="balanced"
+                  dividers="rows"
+                  hasHover
+                />
+              </div>
+            )}
+
+            <Divider />
+
+            <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+              <Text type="code" size="sm" color="secondary" hasTabularNumbers>
+                Showing {filteredPlayers.length} of {validTrackedPlayers.length} Heroes across Realm
+              </Text>
+              {canViewPlayers && (
+                <Link href="/players">
+                  <HStack gap={1} vAlign="center">
+                    <Text weight="semibold" size="sm" color="accent">
+                      Manage in Accounts
+                    </Text>
+                    <Text size="sm" color="accent">
+                      →
+                    </Text>
+                  </HStack>
+                </Link>
+              )}
+            </HStack>
+          </>
         )}
-
-        <Divider />
-
-        <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-          <Text type="code" size="xsm" color="secondary" hasTabularNumbers>
-            Showing {filteredPlayers.length} of {validTrackedPlayers.length} Heroes across Realm
-          </Text>
-          {canViewPlayers && (
-            <Link href="/players">
-              <HStack gap={1} vAlign="center">
-                <Text weight="semibold" size="xsm" color="accent" className="font-cinzel">
-                  MANAGE IN ACCOUNTS
-                </Text>
-                <Text size="xsm" color="accent">
-                  →
-                </Text>
-              </HStack>
-            </Link>
-          )}
-        </HStack>
       </VStack>
     </Card>
   );
@@ -923,145 +927,89 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             key="dash-tab-overview"
             className={`${tabDirection === 'right' ? 'pk-tab-slide-right' : 'pk-tab-slide-left'} flex flex-col gap-4`}
           >
-            {/* 4-Scene Interactive Key-Art Command Hero Stage */}
-            <div className="pk-hero-stage pk-spotlight pk-corner-frame p-4 sm:p-5">
-              <div className="pk-hero-bg-layer" aria-hidden="true">
-                {HERO_SCENES.map((scene, idx) => (
-                  <img
-                    key={scene.id}
-                    src={scene.src}
-                    alt=""
-                    className={
-                      idx === heroSceneIndex
-                        ? 'pk-login-bg-img pk-login-bg-img-active'
-                        : 'pk-login-bg-img'
-                    }
-                  />
-                ))}
-              </div>
-              <div className="pk-hero-scrim" aria-hidden="true" />
-              <div className="relative z-10 flex flex-col gap-3">
-                <div className="pk-hero-copy p-4 sm:p-5">
-                  {canViewPayments ? (
-                    <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-                      <VStack gap={1}>
-                        <Text type="label" size="sm" className="font-cinzel" color="accent">
-                          REALM TREASURY REVENUE (PAYOS LEDGER)
-                        </Text>
-                        <HStack gap={2} vAlign="center" wrap="wrap">
-                          <Icon icon={Coins} size="lg" color="accent" />
-                          <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                            {totalRevenue.toLocaleString()} VND
-                          </Text>
-                          <Badge
-                            label={`${settlementConversionPct}% Settled`}
-                            variant="success"
-                          />
-                        </HStack>
-                      </VStack>
-                      <HStack gap={3} vAlign="center" wrap="wrap">
-                        <VStack gap={0.5} hAlign="end">
-                          <Text type="code" size="sm" weight="semibold" color="accent" hasTabularNumbers>
-                            {paidOrdersCount} / {totalOrdersCount} Completed Receipts
-                          </Text>
-                          <Text type="supporting" size="sm" color="secondary">
-                            {packsCount} Store Packs • payOS Gateway Live
-                          </Text>
-                        </VStack>
-                        <Button
-                          href="/payments"
-                          variant="primary"
-                          size="sm"
-                          icon={<Icon icon={TrendingUp} />}
-                          label="Open Treasury"
-                        />
-                      </HStack>
+            {/* Clean Executive Treasury / Cluster Summary Bar */}
+            <Card
+              variant="default"
+              padding={5}
+              className="pk-gold-frame"
+              style={{ borderLeftWidth: 3, borderLeftColor: 'var(--color-accent)' }}
+            >
+              {canViewPayments ? (
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+                  <VStack gap={1}>
+                    <Text type="label" size="sm" color="secondary" weight="semibold">
+                      Realm Treasury Revenue (PayOS Ledger)
+                    </Text>
+                    <HStack gap={3} vAlign="center" wrap="wrap">
+                      <span className="text-3xl font-bold tracking-tight pk-tabular text-[var(--color-text-primary)]">
+                        {totalRevenue.toLocaleString()} <span className="text-lg font-semibold text-[var(--color-text-secondary)]">VND</span>
+                      </span>
+                      <Badge
+                        label={`${settlementConversionPct}% Settled`}
+                        variant="success"
+                      />
                     </HStack>
-                  ) : (
-                    <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
-                      <VStack gap={1}>
-                        <Text type="label" size="sm" className="font-cinzel" color="accent">
-                          DEDICATED SERVER CLUSTER &amp; NODES
-                        </Text>
-                        <HStack gap={2} vAlign="center">
-                          <Icon icon={Server} size="lg" color="accent" />
-                          <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                            {activeMatchesCount} HEADLESS NODES ACTIVE
-                          </Text>
-                        </HStack>
-                      </VStack>
-                      <VStack gap={0.5} hAlign="end">
-                        <Text type="code" size="sm" weight="semibold">
-                          UDP Port Pool: 7777–7800 • Ubuntu 22.04 LTS
-                        </Text>
-                        <Text type="supporting" size="sm" color="secondary">
-                          Unity Netcode for GameObjects (NGO) • {totalMatchesCount} Matches Recorded
-                        </Text>
-                      </VStack>
-                    </HStack>
-                  )}
-                </div>
-
-                {/* Scene Switcher Pills + Quick Command Launchpad */}
-                <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
-                  <HStack gap={1.5} vAlign="center" wrap="wrap">
-                    {HERO_SCENES.map((scene, idx) => {
-                      const isActive = idx === heroSceneIndex;
-                      return (
-                        <button
-                          key={scene.id}
-                          type="button"
-                          onClick={() => setHeroSceneIndex(idx)}
-                          className="pk-scene-pill rounded-full px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)] flex items-center gap-1.5"
-                        >
-                          <span className="font-mono text-[var(--color-text-accent)] font-semibold">
-                            {scene.num}
-                          </span>
-                          <span>{scene.label}</span>
-                          {isActive && (
-                            <span
-                              key={`dash-scene-${heroSceneIndex}`}
-                              className="pk-scene-pill-bar"
-                              aria-hidden="true"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </HStack>
-
-                  <HStack gap={1.5} vAlign="center" wrap="wrap">
-                    {canViewPlayers && (
-                      <Button href="/players" variant="secondary" size="sm" icon={<Icon icon={Users} size="sm" />} label="Players" />
-                    )}
-                    {canViewSupport && (
-                      <Button href="/support" variant="secondary" size="sm" icon={<Icon icon={Radio} size="sm" />} label="Live Support" />
-                    )}
-                    {canManageContent && (
-                      <Button href="/content" variant="secondary" size="sm" icon={<Icon icon={BookOpen} size="sm" />} label="Codex" />
-                    )}
+                  </VStack>
+                  <HStack gap={3} vAlign="center" wrap="wrap">
+                    <VStack gap={0.5} hAlign="end">
+                      <Text size="sm" weight="semibold" className="pk-tabular">
+                        {paidOrdersCount} / {totalOrdersCount} Completed Receipts
+                      </Text>
+                      <Text type="supporting" size="sm" color="secondary">
+                        {packsCount} Store Packs • PayOS Gateway Live
+                      </Text>
+                    </VStack>
+                    <Button
+                      href="/payments"
+                      variant="primary"
+                      size="sm"
+                      icon={<Icon icon={TrendingUp} />}
+                      label="Open Treasury"
+                    />
                   </HStack>
                 </HStack>
-              </div>
-            </div>
+              ) : (
+                <HStack justify="between" vAlign="center" wrap="wrap" gap={4}>
+                  <VStack gap={1}>
+                    <Text type="label" size="sm" color="secondary" weight="semibold">
+                      Dedicated Server Cluster &amp; Nodes
+                    </Text>
+                    <HStack gap={2} vAlign="center">
+                      <Icon icon={Server} size="lg" color="accent" />
+                      <span className="text-2xl font-bold tracking-tight pk-tabular">
+                        {activeMatchesCount} Headless Nodes Active
+                      </span>
+                    </HStack>
+                  </VStack>
+                  <VStack gap={0.5} hAlign="end">
+                    <Text type="code" size="sm" weight="semibold">
+                      UDP 7777–7800 • Ubuntu 22.04 LTS
+                    </Text>
+                    <Text type="supporting" size="sm" color="secondary">
+                      Unity Netcode (NGO) • {totalMatchesCount} Matches Recorded
+                    </Text>
+                  </VStack>
+                </HStack>
+              )}
+            </Card>
 
-            {/* Primary Live KPI Grid */}
+            {/* Primary Live KPI Grid (Clean Sans-Serif Tabular Figures) */}
             <Grid columns={{ minWidth: 210, max: 4 }} gap={3} className="pk-kpi-strip">
               <Card variant="default" padding={4} className="pk-interactive-card">
                 <VStack gap={2}>
                   <HStack justify="between" vAlign="start">
                     <VStack gap={0.5}>
-                      <Text type="label" size="sm" color="secondary" className="font-cinzel">
-                        ONLINE PLAYERS (CCU)
+                      <Text type="label" size="sm" color="secondary" weight="medium">
+                        Online Players (CCU)
                       </Text>
-                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                        {onlinePlayersCount} Online
-                      </Text>
+                      <span className="text-2xl font-bold tracking-tight pk-tabular">
+                        {onlinePlayersCount} <span className="text-sm font-medium text-[var(--color-text-secondary)]">Online</span>
+                      </span>
                     </VStack>
-                    <Icon icon={Users} size="lg" color="success" />
+                    <Icon icon={Users} size="md" color="success" />
                   </HStack>
                   <HStack justify="between" vAlign="center">
-                    <Text type="code" size="sm" color="secondary">
+                    <Text type="supporting" size="sm" color="secondary">
                       SignalR LobbyHub
                     </Text>
                     <Badge
@@ -1090,19 +1038,19 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <VStack gap={2}>
                   <HStack justify="between" vAlign="start">
                     <VStack gap={0.5}>
-                      <Text type="label" size="sm" color="secondary" className="font-cinzel">
-                        IN-MATCH PLAYERS
+                      <Text type="label" size="sm" color="secondary" weight="medium">
+                        In-Match Players
                       </Text>
-                      <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                        {inMatchPlayersCount} {inMatchPlayersCount === 1 ? 'Hero' : 'Heroes'}
-                      </Text>
+                      <span className="text-2xl font-bold tracking-tight pk-tabular">
+                        {inMatchPlayersCount} <span className="text-sm font-medium text-[var(--color-text-secondary)]">{inMatchPlayersCount === 1 ? 'Hero' : 'Heroes'}</span>
+                      </span>
                     </VStack>
-                    <Icon icon={Swords} size="lg" color="info" />
+                    <Icon icon={Swords} size="md" color="info" />
                   </HStack>
                   <HStack justify="between" vAlign="center">
                     <HStack gap={1} vAlign="center">
                       <Icon icon={Flame} size="sm" color="info" />
-                      <Text type="code" size="sm" color="secondary" hasTabularNumbers>
+                      <Text type="supporting" size="sm" color="secondary" className="pk-tabular">
                         {activeMatchesCount} Live / {totalMatchesCount} Total
                       </Text>
                     </HStack>
@@ -1121,19 +1069,19 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <Card variant="default" padding={4} className="pk-interactive-card">
                 <VStack gap={2}>
                   <HStack justify="between" vAlign="start">
-                    <VStack gap={0.5}>
-                      <Text type="label" size="sm" color="secondary" className="font-cinzel">
-                        MATCHMAKING QUEUE
+                    <VStack gap={1}>
+                      <Text type="label" size="sm" color="secondary" weight="medium">
+                        Matchmaking Queue
                       </Text>
                       <Badge
                         label={serverState.matchmakingBlocked ? 'PAUSED' : 'ACTIVE (OPEN)'}
                         variant={serverState.matchmakingBlocked ? 'error' : 'success'}
                       />
                     </VStack>
-                    <Icon icon={Clock} size="lg" color="accent" />
+                    <Icon icon={Clock} size="md" color="accent" />
                   </HStack>
                   <HStack justify="between" vAlign="center">
-                    <Text type="code" size="sm" color="secondary">
+                    <Text type="supporting" size="sm" color="secondary">
                       {serverState.matchmakingBlocked ? 'Lock Engaged' : 'Turn-Based SRPG'}
                     </Text>
                     <Badge label={serverState.loginBlocked ? 'Login Blocked' : 'Auth Open'} variant={serverState.loginBlocked ? 'error' : 'neutral'} />
@@ -1146,17 +1094,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   <VStack gap={2}>
                     <HStack justify="between" vAlign="start">
                       <VStack gap={0.5}>
-                        <Text type="label" size="sm" color="secondary" className="font-cinzel">
-                          TREASURY RECEIPTS
+                        <Text type="label" size="sm" color="secondary" weight="medium">
+                          Treasury Receipts
                         </Text>
-                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                          {paidOrdersCount} Paid
-                        </Text>
+                        <span className="text-2xl font-bold tracking-tight pk-tabular">
+                          {paidOrdersCount} <span className="text-sm font-medium text-[var(--color-text-secondary)]">Paid</span>
+                        </span>
                       </VStack>
-                      <Icon icon={Coins} size="lg" color="accent" />
+                      <Icon icon={Coins} size="md" color="accent" />
                     </HStack>
                     <HStack justify="between" vAlign="center">
-                      <Text type="code" size="sm" color="secondary" hasTabularNumbers>
+                      <Text type="supporting" size="sm" color="secondary" className="pk-tabular">
                         {totalOrdersCount} Orders
                       </Text>
                       <Button href="/payments" variant="ghost" size="sm" label="Ledger" />
@@ -1168,14 +1116,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   <VStack gap={2}>
                     <HStack justify="between" vAlign="start">
                       <VStack gap={0.5}>
-                        <Text type="label" size="sm" color="secondary" className="font-cinzel">
-                          NETCODE INSTANCES
+                        <Text type="label" size="sm" color="secondary" weight="medium">
+                          Netcode Instances
                         </Text>
-                        <Text size="2xl" weight="bold" type="code" hasTabularNumbers>
-                          {activeMatchesCount} Live
-                        </Text>
+                        <span className="text-2xl font-bold tracking-tight pk-tabular">
+                          {activeMatchesCount} <span className="text-sm font-medium text-[var(--color-text-secondary)]">Live</span>
+                        </span>
                       </VStack>
-                      <Icon icon={Server} size="lg" color="info" />
+                      <Icon icon={Server} size="md" color="info" />
                     </HStack>
                     <HStack justify="between" vAlign="center">
                       <Text type="code" size="sm" color="secondary">

@@ -414,29 +414,9 @@
     transform: translateY(0);
   }
 
-  /* Medieval Gold HUD Corner Brackets */
+  /* Subtle Clean Corner Accent (disabled visual noise in modern workbench) */
   .pk-corner-frame {
     position: relative;
-  }
-
-  .pk-corner-frame::before {
-    content: '';
-    position: absolute;
-    inset: 6px;
-    pointer-events: none;
-    z-index: 4;
-    border-radius: inherit;
-    background:
-      linear-gradient(to right, var(--color-accent) 12px, transparent 12px) 0 0 / 100% 2px no-repeat,
-      linear-gradient(to bottom, var(--color-accent) 12px, transparent 12px) 0 0 / 2px 100% no-repeat,
-      linear-gradient(to left, var(--color-accent) 12px, transparent 12px) 100% 100% / 100% 2px no-repeat,
-      linear-gradient(to top, var(--color-accent) 12px, transparent 12px) 100% 100% / 2px 100% no-repeat;
-    opacity: 0.55;
-    transition: opacity 220ms ease;
-  }
-
-  .pk-corner-frame:hover::before {
-    opacity: 0.9;
   }
 
   /* Artwork Zoom-on-Hover Showcase Cards */

@@ -7,7 +7,6 @@ import {
 } from '@astryxdesign/core/SideNav';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { StatusDot } from '@astryxdesign/core/StatusDot';
@@ -16,7 +15,6 @@ import { VStack } from '@astryxdesign/core/VStack';
 import {
   CreditCard,
   Database,
-  ExternalLink,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
@@ -26,7 +24,6 @@ import {
   Swords,
   Users,
 } from 'lucide-react';
-import { WEB_TOPUP_URL } from '../constants/links';
 import type { AdminPermissionKey } from '../types';
 import { hasAnyPermission } from '../utils/permissions';
 
@@ -143,73 +140,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, permissions, onLogout })
     <SideNav
       aria-label="Admin Portal Navigation"
       topContent={
-        <div className="pk-sidebar-brand-card pk-gold-frame p-3">
-          <img
-            src="/game-assets/mainmenu-bg.jpg"
-            alt=""
-            aria-hidden="true"
-            className="pk-sidebar-brand-bg"
-          />
-          <div className="relative z-10 flex flex-col gap-2">
-            <HStack vAlign="center" gap={2}>
-              <img
-                src="/logo.png"
-                alt="PactKeeper Crest"
-                className="w-8 h-8 object-contain shrink-0 drop-shadow"
-              />
-              <div className="min-w-0">
-                <div className="font-cinzel pk-gold-text text-xs font-bold tracking-wider truncate">
-                  PACTKEEPER
-                </div>
-                <Text type="supporting" size="sm" color="secondary" maxLines={1}>
-                  Tactical SRPG Realm
-                </Text>
-              </div>
-            </HStack>
-            <HStack vAlign="center" justify="between" gap={2}>
-              <Text type="supporting" size="sm" weight="semibold" color="secondary">
-                COUNCIL TIER
-              </Text>
-              <Badge variant={getRoleBadgeVariant(role)} label={getRoleDeskLabel(role)} />
-            </HStack>
-          </div>
-        </div>
+        <HStack vAlign="center" justify="between" gap={2} className="px-1 py-0.5">
+          <Text type="supporting" size="sm" weight="medium" color="secondary">
+            Role
+          </Text>
+          <Badge variant={getRoleBadgeVariant(role)} label={getRoleDeskLabel(role)} />
+        </HStack>
       }
       footer={
-        <VStack gap={3}>
-          <Card variant="muted" padding={3} className="pk-gold-frame">
-            <VStack gap={1.5}>
-              <HStack gap={2} vAlign="center" justify="between">
-                <HStack gap={1.5} vAlign="center">
-                  <StatusDot variant="success" label="Realm cluster live" isPulsing />
-                  <Text type="supporting" size="sm" weight="semibold" color="primary">
-                    Realm Cluster Live
-                  </Text>
-                </HStack>
-                <Badge variant="green" label="NGO :7777" />
+        <VStack gap={2}>
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background-card)] px-3 py-2.5">
+            <HStack gap={2} vAlign="center" justify="between">
+              <HStack gap={1.5} vAlign="center">
+                <StatusDot variant="success" label="Realm cluster live" isPulsing />
+                <Text type="supporting" size="sm" weight="semibold" color="primary">
+                  Cluster Live
+                </Text>
               </HStack>
-              <Text type="supporting" size="sm" color="secondary">
-                Role: {role || 'Admin'}
+              <Text type="code" size="sm" color="secondary">
+                :7777
               </Text>
-            </VStack>
-          </Card>
+            </HStack>
+          </div>
 
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
             width="100%"
-            label="Web Top-Up Portal"
-            href={WEB_TOPUP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            icon={<Icon icon={ExternalLink} />}
-          />
-
-          <Button
-            variant="destructive"
-            size="sm"
-            width="100%"
-            label="Exit Counsel"
+            label="Sign Out"
             icon={<Icon icon={LogOut} />}
             onClick={onLogout}
           />

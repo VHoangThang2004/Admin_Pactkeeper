@@ -15,13 +15,6 @@ interface LayoutProps {
   onLogout: () => void;
 }
 
-function resolveRealmBackdrop(pathname: string): string {
-  if (pathname.startsWith('/players') || pathname.startsWith('/matches') || pathname.startsWith('/balance')) {
-    return '/game-assets/hall-bg.png';
-  }
-  return '/game-assets/mainmenu-bg.jpg';
-}
-
 export const Layout: React.FC<LayoutProps> = ({
   role,
   permissions,
@@ -31,24 +24,14 @@ export const Layout: React.FC<LayoutProps> = ({
 }) => {
   const location = useLocation();
   const { ambientFx } = useWorkspacePrefs();
-  const backdropSrc = resolveRealmBackdrop(location.pathname);
 
   return (
     <>
-      {/* Subtle PactKeeper Realm Backdrop */}
-      <div className="pk-realm-backdrop" aria-hidden="true">
-        <img src={backdropSrc} alt="" className="pk-realm-backdrop-img" />
-        <div className="pk-realm-backdrop-vignette" />
-      </div>
-
-      {/* Optional Ambient Game FX (toggleable in Ctrl+K; off by default for distraction-free engineering) */}
+      {/* Optional Ambient FX (off by default for a clean, distraction-free workspace) */}
       {ambientFx && <EmberAtmosphere />}
 
       {/* Snappy Route Hairline Progress Bar */}
       <div key={`route-bar-${location.pathname}`} className="pk-route-bar" aria-hidden="true" />
-      {ambientFx && (
-        <div key={`scene-sweep-${location.pathname}`} className="pk-scene-sweep" aria-hidden="true" />
-      )}
 
       <div className="relative z-10 h-dvh w-full">
         <AppShell
