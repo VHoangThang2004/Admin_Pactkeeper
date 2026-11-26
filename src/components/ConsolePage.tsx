@@ -1,7 +1,13 @@
-import React from 'react';
-import { type BadgeVariant } from '@astryxdesign/core/Badge';
-import { Heading } from '@astryxdesign/core/Text';
-import { HStack } from '@astryxdesign/core/Stack';
+import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { BookOpen } from 'lucide-react';
+import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@astryxdesign/core/Icon';
+import { Heading, Text } from '@astryxdesign/core/Text';
+import { HStack, VStack } from '@astryxdesign/core/Stack';
+import { resolvePageGuide, type PageGuideDefinition } from '../constants/pageGuides';
 
 export interface ConsolePageProps {
   /** Retained for backwards compatibility; intentionally hidden to keep headers clean */
@@ -14,6 +20,10 @@ export interface ConsolePageProps {
   actions?: React.ReactNode;
   toolbar?: React.ReactNode;
   banner?: React.ReactNode;
+  /** Optional custom guide override; if omitted, resolves automatically from current route */
+  guide?: PageGuideDefinition | null;
+  /** Set true to hide the built-in "How Function Works" button on this page */
+  hideGuide?: boolean;
   /**
    * When true, the body fills remaining viewport height without outer scrolling
    * so split panes (e.g. Live Support chat, IDE Log Viewer) manage internal scrollports.
@@ -24,8 +34,8 @@ export interface ConsolePageProps {
 
 /**
  * Clean, minimal ConsolePage shell:
- * displays only the page icon, crisp title, primary actions, and optional toolbar,
- * maximizing vertical and horizontal space for data tables and controls.
+ * displays only the page icon, crisp title, primary actions (+ unified "How Function Works" guide),
+ * and optional toolbar, maximizing vertical and horizontal space for data tables and controls.
  */
 export const ConsolePage: React.FC<ConsolePageProps> = ({
   icon,
@@ -33,9 +43,16 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
   actions,
   toolbar,
   banner,
+  guide,
+  hideGuide = false,
   fillBody = false,
   children,
 }) => {
+  const { pathname } = useLocation();
+  const [showGuide, setShowGuide] = useState(false);
+
+  const resolvedGuide = hideGuide ? null : guide !== undefined ? guide : resolvePageGuide(pathname);
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Compact Single-Row Page Header */}
@@ -58,8 +75,17 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
               </Heading>
             </HStack>
 
-            {actions && (
+            {(resolvedGuide || actions) && (
               <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {resolvedGuide && (
+                  <Button
+                    variant={showGuide ? 'primary' : 'secondary'}
+                    size="sm"
+                    label={showGuide ? 'Hide Guide' : 'How Function Works'}
+                    icon={<Icon icon={BookOpen} />}
+                    onClick={() => setShowGuide((prev) => !prev)}
+                  />
+                )}
                 {actions}
               </div>
             )}
@@ -72,6 +98,41 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
           )}
         </div>
       </header>
+
+      {resolvedGuide && showGuide && (
+        <div className="shrink-0 w-full px-5 sm:px-6 pt-3">
+          <Card padding={4}>
+            <VStack gap={3}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <HStack gap={2} vAlign="center">
+                  <Icon icon={BookOpen} size="sm" />
+                  <Heading level={5}>{resolvedGuide.heading}</Heading>
+                </HStack>
+                <Badge label={resolvedGuide.tag} variant={resolvedGuide.tagVariant} />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-stretch">
+                {resolvedGuide.steps.map((step) => (
+                  <div
+                    key={step.badge}
+                    className="flex flex-col gap-1.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3"
+                  >
+                    <div>
+                      <Badge label={step.badge} variant={step.badgeVariant} />
+                    </div>
+                    <Text size="xsm" weight="semibold">
+                      {step.title}
+                    </Text>
+                    <Text size="sm" color="secondary">
+                      {step.description}
+                    </Text>
+                  </div>
+                ))}
+              </div>
+            </VStack>
+          </Card>
+        </div>
+      )}
 
       {banner && (
         <div className="shrink-0 w-full px-5 sm:px-6 pt-3">

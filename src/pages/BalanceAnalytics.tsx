@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowUpRight,
-  BookOpen,
   Bot,
   CheckCircle2,
   ChevronRight,
@@ -176,9 +175,8 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
   const canManageBalance = hasPermission(role, 'balance.manage', permissions);
   const canManageContent = hasPermission(role, 'content.manage', permissions);
 
-  // Top-level workspace section tab & guided workflow help
+  // Top-level workspace section tab
   const [activeSection, setActiveSection] = useState<BalanceSectionTab>('telemetry');
-  const [showWorkflowGuide, setShowWorkflowGuide] = useState<boolean>(false);
 
   // Telemetry state
   const [patchFilter, setPatchFilter] = useState<string>('ALL');
@@ -564,33 +562,33 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       {
         key: 'name',
         header: 'Entity',
-        width: proportional(1.8, { minWidth: 190 }),
+        width: proportional(1.5, { minWidth: 170 }),
         renderCell: (row) => (
-          <VStack gap={0.5}>
+          <div className="flex items-center gap-2 min-w-0">
             <Text size="sm" weight="semibold">
               {row.name}
             </Text>
             <Text type="code" size="sm" color="secondary">
-              ID: {row.entityId}
+              #{row.entityId}
             </Text>
-          </VStack>
+          </div>
         ),
       },
       {
         key: 'winRate',
         header: 'Winrate',
-        width: proportional(1.4, { minWidth: 165 }),
+        width: proportional(1.6, { minWidth: 195 }),
         renderCell: (row) => {
           const badge = getWinrateBadge(row);
           const highlighted = isOutOfBalance(row);
           const winRateClass =
-            row.pickCount > 0 && row.winRate > WINRATE_HIGH_THRESHOLD
+            row.pickCount > 0 && row.winRate >= WINRATE_HIGH_THRESHOLD
               ? 'text-red-500'
-              : row.pickCount > 0 && row.winRate < WINRATE_LOW_THRESHOLD
+              : row.pickCount > 0 && row.winRate <= WINRATE_LOW_THRESHOLD
                 ? 'text-amber-500'
                 : undefined;
           return (
-            <HStack gap={2} vAlign="center" wrap="wrap">
+            <div className="flex items-center gap-2 whitespace-nowrap">
               <span className={winRateClass}>
                 <Text size="sm" weight="semibold" hasTabularNumbers>
                   {row.winRate.toFixed(1)}%
@@ -603,37 +601,37 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                   highlighted ? (
                     <Icon
                       icon={
-                        row.winRate > WINRATE_HIGH_THRESHOLD ? TrendingUp : TrendingDown
+                        row.winRate >= WINRATE_HIGH_THRESHOLD ? TrendingUp : TrendingDown
                       }
                     />
                   ) : undefined
                 }
               />
-            </HStack>
+            </div>
           );
         },
       },
       {
         key: 'pickRate',
         header: 'Pickrate / Picks',
-        width: proportional(1.2, { minWidth: 165 }),
+        width: proportional(1.15, { minWidth: 140 }),
         renderCell: (row) => (
-          <VStack gap={0.5}>
+          <div className="flex flex-col items-start leading-tight">
             <Text size="sm" weight="medium" hasTabularNumbers>
               {row.pickRate.toFixed(1)}%
             </Text>
             <Text type="code" size="sm" color="secondary" hasTabularNumbers>
               {row.pickCount} picks · {row.winCount}W
             </Text>
-          </VStack>
+          </div>
         ),
       },
       {
         key: 'avgDamage',
         header: 'Avg Damage',
-        width: proportional(1.1, { minWidth: 150 }),
+        width: proportional(0.85, { minWidth: 105 }),
         renderCell: (row) => (
-          <VStack gap={0.5}>
+          <div className="flex flex-col items-start leading-tight">
             <Text size="sm" weight="medium" hasTabularNumbers>
               {row.avgDamage.toLocaleString(undefined, { maximumFractionDigits: 1 })}
             </Text>
@@ -642,15 +640,15 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                 Heal: {row.avgHealing.toFixed(1)}
               </Text>
             )}
-          </VStack>
+          </div>
         ),
       },
       {
         key: 'impact',
         header: 'Survival / Kills',
-        width: proportional(1.1, { minWidth: 165 }),
+        width: proportional(1.0, { minWidth: 120 }),
         renderCell: (row) => (
-          <VStack gap={0.5}>
+          <div className="flex flex-col items-start leading-tight">
             <Text size="sm" color="secondary" hasTabularNumbers>
               {typeof row.survivalRate === 'number'
                 ? `${row.survivalRate.toFixed(1)}% alive`
@@ -658,41 +656,47 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
             </Text>
             {typeof row.avgKills === 'number' && (
               <Text type="code" size="sm" color="secondary" hasTabularNumbers>
-                {row.avgKills.toFixed(2)} avg kills
+                {row.avgKills.toFixed(2)} kills
               </Text>
             )}
-          </VStack>
+          </div>
         ),
       },
       {
         key: 'actions',
-        header: 'Balance Path',
-        width: pixel(155),
+        header: 'Action',
+        width: pixel(135),
         renderCell: (row) => {
           const isSkill = row.entityType === 'skill';
           if (isSkill) {
             return (
-              <Button
-                variant="ghost"
-                size="sm"
-                label="Rebuild Path"
-                icon={<Icon icon={Wrench} />}
-                onClick={() => setActiveSection('version')}
-              />
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  label="Rebuild"
+                  icon={<Icon icon={Wrench} />}
+                  onClick={() => setActiveSection('version')}
+                />
+              </div>
             );
           }
-          return canManageContent ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              label="Edit DB (CMS)"
-              icon={<Icon icon={ArrowUpRight} />}
-              onClick={() => handleJumpToCms(row.entityType, row.name)}
-            />
-          ) : (
-            <Text size="sm" color="secondary">
-              Read-only
-            </Text>
+          return (
+            <div className="flex justify-end">
+              {canManageContent ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  label="Edit CMS"
+                  icon={<Icon icon={ArrowUpRight} />}
+                  onClick={() => handleJumpToCms(row.entityType, row.name)}
+                />
+              ) : (
+                <Text size="sm" color="secondary">
+                  Read-only
+                </Text>
+              )}
+            </div>
           );
         },
       },
@@ -721,13 +725,6 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       subtitle="Inspect match telemetry across Units, Weapons, Trinkets & Skills, consult the AI Balance Advisor for DB hotfixes vs Unity rebuilds, and publish new Game Versions."
       actions={
         <HStack gap={2} vAlign="center" wrap="wrap">
-          <Button
-            variant={showWorkflowGuide ? 'primary' : 'secondary'}
-            size="sm"
-            label={showWorkflowGuide ? 'Hide Guide' : 'How Flow 5 Works'}
-            icon={<Icon icon={BookOpen} />}
-            onClick={() => setShowWorkflowGuide((prev) => !prev)}
-          />
           {canManageContent && (
             <Button
               variant="secondary"
@@ -794,73 +791,12 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       }
     >
       <VStack gap={5}>
-        {/* Optional Expandable Flow 5 Usage Guide */}
-        {showWorkflowGuide && (
-          <Card padding={4}>
-            <VStack gap={3}>
-              <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
-                <HStack gap={2} vAlign="center">
-                  <Icon icon={BookOpen} size="sm" />
-                  <Heading level={5}>How to Use Balance Analytics &amp; Releases (Flow 5)</Heading>
-                </HStack>
-                <Badge label="END-TO-END LIVEOPS LOOP" variant="purple" />
-              </HStack>
-              <Grid columns={{ minWidth: 210 }} gap={3}>
-                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
-                  <VStack gap={1}>
-                    <Badge label="STEP 1 · TELEMETRY" variant="neutral" />
-                    <Text size="xsm" weight="semibold">
-                      Review Match Stats Manually
-                    </Text>
-                    <Text size="sm" color="secondary">
-                      Inspect Winrate, Pickrate &amp; Avg Damage from completed PvP/Ranked matches. Outliers (≥60% or ≤40%) are flagged automatically.
-                    </Text>
-                  </VStack>
-                </div>
-                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
-                  <VStack gap={1}>
-                    <Badge label="STEP 2A · DB ONLY" variant="cyan" />
-                    <Text size="xsm" weight="semibold">
-                      Hotfix in Content CMS
-                    </Text>
-                    <Text size="sm" color="secondary">
-                      For Unit / Weapon / Trinket stats, click &quot;Edit DB (CMS)&quot;. Changes apply live in the next match — no Unity rebuild needed.
-                    </Text>
-                  </VStack>
-                </div>
-                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
-                  <VStack gap={1}>
-                    <Badge label="STEP 2B · REBUILD" variant="yellow" />
-                    <Text size="xsm" weight="semibold">
-                      Rebuild &amp; Publish Version
-                    </Text>
-                    <Text size="sm" color="secondary">
-                      For Skill / Logic changes, rebuild Unity Client + Headless Server, deploy to VPS, then publish LatestVersion &amp; DownloadUrl in Tab 2.
-                    </Text>
-                  </VStack>
-                </div>
-                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
-                  <VStack gap={1}>
-                    <Badge label="OPTIONAL · AI" variant="purple" />
-                    <Text size="xsm" weight="semibold">
-                      AI Balance Advisor (Later)
-                    </Text>
-                    <Text size="sm" color="secondary">
-                      Optional tab when you want automated AI nerf/buff suggestions. You can run the full balance cycle manually without it.
-                    </Text>
-                  </VStack>
-                </div>
-              </Grid>
-            </VStack>
-          </Card>
-        )}
-
-        {/* Top KPI Summary Strip (clickable to jump to corresponding step) */}
-        <Grid columns={{ minWidth: 220 }} gap={3}>
+        {/* Top KPI Summary Strip (full-width equal-height 4-column grid) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-stretch">
           <div
             role="button"
             tabIndex={0}
-            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            className="flex cursor-pointer transition-transform hover:-translate-y-0.5"
             onClick={() => {
               setActiveSection('telemetry');
               setThresholdFilter('ALL');
@@ -872,28 +808,28 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               }
             }}
           >
-            <Card padding={4}>
-              <VStack gap={1.5}>
-                <HStack gap={2} vAlign="center" hAlign="between">
+            <Card padding={4} className="w-full h-full">
+              <div className="flex h-full flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <Text size="xsm" color="secondary" weight="medium">
                     MATCHES SAMPLED
                   </Text>
                   <Icon icon={Swords} size="sm" />
-                </HStack>
+                </div>
                 <Heading level={3}>
                   {telemetry ? telemetry.totalMatches.toLocaleString() : '—'}
                 </Heading>
                 <Text size="sm" color="secondary">
                   Patch: {patchFilter === 'ALL' ? 'All' : patchFilter} · Mode: {modeFilter}
                 </Text>
-              </VStack>
+              </div>
             </Card>
           </div>
 
           <div
             role="button"
             tabIndex={0}
-            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            className="flex cursor-pointer transition-transform hover:-translate-y-0.5"
             onClick={() => {
               setActiveSection('telemetry');
               if (totalImbalanced > 0) setThresholdFilter('IMBALANCED');
@@ -905,46 +841,46 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               }
             }}
           >
-            <Card padding={4}>
-              <VStack gap={1.5}>
-                <HStack gap={2} vAlign="center" hAlign="between">
+            <Card padding={4} className="w-full h-full">
+              <div className="flex h-full flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <Text size="xsm" color="secondary" weight="medium">
                     IMBALANCE ALERTS
                   </Text>
                   <Icon icon={AlertTriangle} size="sm" />
-                </HStack>
-                <HStack gap={2} vAlign="center">
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
                   <Heading level={3}>
                     {telemetry ? totalImbalanced : '—'}
                   </Heading>
                   {telemetry && totalImbalanced > 0 && (
                     <Badge label="ACTION NEEDED" variant="error" />
                   )}
-                </HStack>
+                </div>
                 <Text size="sm" color="secondary">
-                  Threshold: Winrate ≥ {WINRATE_HIGH_THRESHOLD}% or ≤ {WINRATE_LOW_THRESHOLD}%
+                  Winrate ≥ {WINRATE_HIGH_THRESHOLD}% or ≤ {WINRATE_LOW_THRESHOLD}%
                 </Text>
-              </VStack>
+              </div>
             </Card>
           </div>
 
           <div
             role="button"
             tabIndex={0}
-            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            className="flex cursor-pointer transition-transform hover:-translate-y-0.5"
             onClick={() => setActiveSection('version')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') setActiveSection('version');
             }}
           >
-            <Card padding={4}>
-              <VStack gap={1.5}>
-                <HStack gap={2} vAlign="center" hAlign="between">
+            <Card padding={4} className="w-full h-full">
+              <div className="flex h-full flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <Text size="xsm" color="secondary" weight="medium">
                     ACTIVE GAME VERSION
                   </Text>
                   <Icon icon={PackageCheck} size="sm" />
-                </HStack>
+                </div>
                 <Heading level={3}>
                   {currentVersion?.latestVersion ? `v${currentVersion.latestVersion}` : '—'}
                 </Heading>
@@ -954,46 +890,46 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                     ? `v${currentVersion.minSupportedVersion}`
                     : 'Not configured'}
                 </Text>
-              </VStack>
+              </div>
             </Card>
           </div>
 
           <div
             role="button"
             tabIndex={0}
-            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            className="flex cursor-pointer transition-transform hover:-translate-y-0.5"
             onClick={() => setActiveSection('ai')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') setActiveSection('ai');
             }}
           >
-            <Card padding={4}>
-              <VStack gap={1.5}>
-                <HStack gap={2} vAlign="center" hAlign="between">
+            <Card padding={4} className="w-full h-full">
+              <div className="flex h-full flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <Text size="xsm" color="secondary" weight="medium">
                     AI ADVISOR REPORT
                   </Text>
                   <Icon icon={Bot} size="sm" />
-                </HStack>
+                </div>
                 <Heading level={3}>
-                  {aiReport ? `${aiReport.suggestions.length} Tips` : 'Ready'}
+                  {aiReport ? `${aiReport.suggestions.length} Tips` : 'Optional'}
                 </Heading>
                 <Text size="sm" color="secondary">
                   {aiReport
-                    ? `Generated ${formatTimestamp(aiReport.generatedAt)}`
-                    : 'Click to open AI Balance Advisor'}
+                    ? `Updated ${formatTimestamp(aiReport.generatedAt)}`
+                    : 'Open AI Balance Advisor'}
                 </Text>
-              </VStack>
+              </div>
             </Card>
           </div>
-        </Grid>
+        </div>
 
         {/* TAB 1: MATCH TELEMETRY MATRIX */}
         {activeSection === 'telemetry' && (
           <div id="balance-section-telemetry">
             <Card padding={5}>
               <VStack gap={4}>
-                <HStack gap={3} vAlign="center" hAlign="between" wrap="wrap">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <VStack gap={1}>
                     <HStack gap={2} vAlign="center">
                       <Icon icon={Scale} size="sm" />
@@ -1001,40 +937,11 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                       <Badge label="LIVE TELEMETRY" variant="neutral" />
                     </HStack>
                     <Text size="xsm" color="secondary">
-                      Aggregated winrate, pickrate, and average damage across Units, Weapons, Trinkets &amp; Skills.
-                      Outliers (≥ {WINRATE_HIGH_THRESHOLD}% or ≤ {WINRATE_LOW_THRESHOLD}% winrate) are highlighted for manual balance review.
+                      Winrate, pickrate, and average damage across Units, Weapons, Trinkets &amp; Skills (outliers highlighted at ≥ {WINRATE_HIGH_THRESHOLD}% / ≤ {WINRATE_LOW_THRESHOLD}%).
                     </Text>
                   </VStack>
 
                   <HStack gap={2} vAlign="center" wrap="wrap">
-                    <Selector
-                      label="Patch Version"
-                      isLabelHidden
-                      startIcon={Filter}
-                      options={patchOptions}
-                      value={patchFilter}
-                      onChange={(val) => {
-                        setTelemetryLoading(true);
-                        setPatchFilter(String(val));
-                      }}
-                      variant="secondary"
-                      size="sm"
-                      width={175}
-                    />
-                    <Selector
-                      label="Match Mode"
-                      isLabelHidden
-                      startIcon={Swords}
-                      options={MODE_OPTIONS}
-                      value={modeFilter}
-                      onChange={(val) => {
-                        setTelemetryLoading(true);
-                        setModeFilter(val as BalanceModeFilter);
-                      }}
-                      variant="secondary"
-                      size="sm"
-                      width={155}
-                    />
                     <Button
                       variant="secondary"
                       size="sm"
@@ -1050,7 +957,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                       onClick={() => setActiveSection('version')}
                     />
                   </HStack>
-                </HStack>
+                </div>
 
                 {patchKeptNotice && (
                   <Banner
@@ -1068,59 +975,59 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                   />
                 )}
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <TabList
-                    aria-label="Telemetry entity category"
-                    value={entityTab}
-                    onChange={(val) => setEntityTab(val as BalanceEntityType)}
-                  >
-                    <Tab
-                      value="unit"
-                      label={`Units (${metricsByTab.unit.length})`}
-                      icon={<Icon icon={Shield} />}
-                      endContent={
-                        imbalancedCounts.unit > 0 ? (
-                          <Badge label={String(imbalancedCounts.unit)} variant="error" />
-                        ) : undefined
-                      }
-                      panelId="telemetry-panel-unit"
-                    />
-                    <Tab
-                      value="weapon"
-                      label={`Weapons (${metricsByTab.weapon.length})`}
-                      icon={<Icon icon={Swords} />}
-                      endContent={
-                        imbalancedCounts.weapon > 0 ? (
-                          <Badge label={String(imbalancedCounts.weapon)} variant="error" />
-                        ) : undefined
-                      }
-                      panelId="telemetry-panel-weapon"
-                    />
-                    <Tab
-                      value="trinket"
-                      label={`Trinkets (${metricsByTab.trinket.length})`}
-                      icon={<Icon icon={Sparkles} />}
-                      endContent={
-                        imbalancedCounts.trinket > 0 ? (
-                          <Badge label={String(imbalancedCounts.trinket)} variant="error" />
-                        ) : undefined
-                      }
-                      panelId="telemetry-panel-trinket"
-                    />
-                    <Tab
-                      value="skill"
-                      label={`Skills (${metricsByTab.skill.length})`}
-                      icon={<Icon icon={Flame} />}
-                      endContent={
-                        imbalancedCounts.skill > 0 ? (
-                          <Badge label={String(imbalancedCounts.skill)} variant="error" />
-                        ) : undefined
-                      }
-                      panelId="telemetry-panel-skill"
-                    />
-                  </TabList>
+                <div className="flex flex-col gap-3 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <TabList
+                      aria-label="Telemetry entity category"
+                      value={entityTab}
+                      onChange={(val) => setEntityTab(val as BalanceEntityType)}
+                    >
+                      <Tab
+                        value="unit"
+                        label={`Units (${metricsByTab.unit.length})`}
+                        icon={<Icon icon={Shield} />}
+                        endContent={
+                          imbalancedCounts.unit > 0 ? (
+                            <Badge label={String(imbalancedCounts.unit)} variant="error" />
+                          ) : undefined
+                        }
+                        panelId="telemetry-panel-unit"
+                      />
+                      <Tab
+                        value="weapon"
+                        label={`Weapons (${metricsByTab.weapon.length})`}
+                        icon={<Icon icon={Swords} />}
+                        endContent={
+                          imbalancedCounts.weapon > 0 ? (
+                            <Badge label={String(imbalancedCounts.weapon)} variant="error" />
+                          ) : undefined
+                        }
+                        panelId="telemetry-panel-weapon"
+                      />
+                      <Tab
+                        value="trinket"
+                        label={`Trinkets (${metricsByTab.trinket.length})`}
+                        icon={<Icon icon={Sparkles} />}
+                        endContent={
+                          imbalancedCounts.trinket > 0 ? (
+                            <Badge label={String(imbalancedCounts.trinket)} variant="error" />
+                          ) : undefined
+                        }
+                        panelId="telemetry-panel-trinket"
+                      />
+                      <Tab
+                        value="skill"
+                        label={`Skills (${metricsByTab.skill.length})`}
+                        icon={<Icon icon={Flame} />}
+                        endContent={
+                          imbalancedCounts.skill > 0 ? (
+                            <Badge label={String(imbalancedCounts.skill)} variant="error" />
+                          ) : undefined
+                        }
+                        panelId="telemetry-panel-skill"
+                      />
+                    </TabList>
 
-                  <HStack gap={2} vAlign="center" wrap="wrap">
                     <SegmentedControl
                       label="Balance threshold filter"
                       value={thresholdFilter}
@@ -1133,19 +1040,54 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                         label={`Outliers (${imbalancedCounts[entityTab]})`}
                       />
                     </SegmentedControl>
+                  </div>
 
-                    <TextInput
-                      label="Search entity"
-                      isLabelHidden
-                      size="sm"
-                      value={searchQuery}
-                      onChange={setSearchQuery}
-                      startIcon={Search}
-                      placeholder="Filter by name or ID..."
-                      hasClear
-                      width={220}
-                    />
-                  </HStack>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border-subtle)] pt-2.5">
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      <Selector
+                        label="Patch Version"
+                        isLabelHidden
+                        startIcon={Filter}
+                        options={patchOptions}
+                        value={patchFilter}
+                        onChange={(val) => {
+                          setTelemetryLoading(true);
+                          setPatchFilter(String(val));
+                        }}
+                        variant="secondary"
+                        size="sm"
+                        width={165}
+                      />
+                      <Selector
+                        label="Match Mode"
+                        isLabelHidden
+                        startIcon={Swords}
+                        options={MODE_OPTIONS}
+                        value={modeFilter}
+                        onChange={(val) => {
+                          setTelemetryLoading(true);
+                          setModeFilter(val as BalanceModeFilter);
+                        }}
+                        variant="secondary"
+                        size="sm"
+                        width={165}
+                      />
+                    </HStack>
+
+                    <div className="w-full sm:w-[240px]">
+                      <TextInput
+                        label="Search entity"
+                        isLabelHidden
+                        size="sm"
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        startIcon={Search}
+                        placeholder="Filter by name or ID..."
+                        hasClear
+                        width="100%"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {filteredMetrics.length === 0 ? (
