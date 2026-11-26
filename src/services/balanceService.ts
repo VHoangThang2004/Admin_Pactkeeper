@@ -28,7 +28,10 @@ export interface BalanceTelemetryQuery {
 export interface AiBalanceSuggestRequest {
   patchVersion?: string;
   mode?: string;
-  focusEntityType?: BalanceEntityType | 'all';
+  forceRegenerate?: boolean;
+  highWinRateThreshold?: number;
+  lowWinRateThreshold?: number;
+  minPickCount?: number;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -58,6 +61,14 @@ function pickNumber(obj: Record<string, unknown>, keys: string[]): number | unde
       const parsed = Number(val);
       if (Number.isFinite(parsed)) return parsed;
     }
+  }
+  return undefined;
+}
+
+function pickBoolean(obj: Record<string, unknown>, keys: string[]): boolean | undefined {
+  for (const key of keys) {
+    const val = obj[key];
+    if (typeof val === 'boolean') return val;
   }
   return undefined;
 }
@@ -95,15 +106,15 @@ function normalizeMetric(
 ): BalanceTelemetryMetric {
   const item = asRecord(rawItem);
   const entityType = normalizeEntityType(
-    item.entityType ?? item.EntityType ?? item.type ?? item.Type,
+    item.category ?? item.Category ?? item.entityType ?? item.EntityType ?? item.type ?? item.Type,
     fallbackType
   );
-  const entityId = pickString(item, ['entityId', 'EntityId', 'id', 'Id', 'uId', 'UId', 'skillId', 'SkillId'], 'unknown');
+  const entityId = pickString(item, ['id', 'Id', 'entityId', 'EntityId', 'uId', 'UId', 'skillId', 'SkillId'], 'unknown');
   const name = pickString(item, ['name', 'Name', 'entityName', 'EntityName', 'displayName', 'DisplayName'], entityId);
   const pickCount = pickNumber(item, ['pickCount', 'PickCount', 'picks', 'Picks', 'usageCount', 'UsageCount']) ?? 0;
   const winCount = pickNumber(item, ['winCount', 'WinCount', 'wins', 'Wins']) ?? 0;
   const sampleMatches =
-    pickNumber(item, ['sampleMatches', 'SampleMatches', 'matchCount', 'MatchCount']) ??
+    pickNumber(item, ['totalMatches', 'TotalMatches', 'sampleMatches', 'SampleMatches', 'matchCount', 'MatchCount']) ??
     totalMatches;
 
   const rawWinRate = pickNumber(item, ['winRate', 'WinRate', 'winRatePercent', 'WinRatePercent']);
@@ -126,6 +137,7 @@ function normalizeMetric(
     survivalRate:
       rawSurvivalRate !== undefined ? normalizePercent(rawSurvivalRate) : undefined,
     avgKills: pickNumber(item, ['avgKills', 'AvgKills', 'averageKills']),
+    isOutlier: pickBoolean(item, ['isOutlier', 'IsOutlier']),
     sampleMatches,
   };
 }
@@ -189,15 +201,37 @@ function normalizeTelemetryResponse(raw: unknown, query: BalanceTelemetryQuery):
   };
 }
 
-function normalizeAiAction(raw: unknown): AiBalanceAction {
-  const upper = String(raw || '').trim().toUpperCase();
-  if (upper.includes('NERF') || upper.includes('REDUCE') || upper.includes('DECREASE')) return 'NERF';
-  if (upper.includes('BUFF') || upper.includes('INCREASE') || upper.includes('BOOST')) return 'BUFF';
-  if (upper.includes('MONITOR') || upper.includes('WATCH') || upper.includes('HOLD')) return 'MONITOR';
+function normalizeAiAction(
+  rawAction: unknown,
+  winRatePercent?: number,
+  anomalyType?: string,
+  suggestedChanges?: string
+): AiBalanceAction {
+  const explicit = String(rawAction || '').trim().toUpperCase();
+  if (explicit.includes('NERF') || explicit.includes('REDUCE') || explicit.includes('DECREASE')) return 'NERF';
+  if (explicit.includes('BUFF') || explicit.includes('INCREASE') || explicit.includes('BOOST')) return 'BUFF';
+  if (explicit.includes('MONITOR') || explicit.includes('WATCH') || explicit.includes('HOLD')) return 'MONITOR';
+
+  const anomaly = (anomalyType || '').trim().toUpperCase();
+  if (anomaly.includes('OVER')) return 'NERF';
+  if (anomaly.includes('UNDER')) return 'BUFF';
+
+  if (typeof winRatePercent === 'number') {
+    if (winRatePercent >= 60) return 'NERF';
+    if (winRatePercent > 0 && winRatePercent <= 40) return 'BUFF';
+  }
+
+  const changeText = (suggestedChanges || '').toUpperCase();
+  if (changeText.includes('NERF') || changeText.includes('REDUCE') || changeText.includes('DECREASE')) {
+    return 'NERF';
+  }
+  if (changeText.includes('BUFF') || changeText.includes('INCREASE') || changeText.includes('BOOST')) {
+    return 'BUFF';
+  }
   return 'ADJUST';
 }
 
-function normalizeAiChangeType(raw: unknown): AiBalanceChangeType {
+function normalizeAiChangeType(raw: unknown, entityType: BalanceEntityType): AiBalanceChangeType {
   const upper = String(raw || '').trim().toUpperCase();
   if (
     upper.includes('REBUILD') ||
@@ -208,29 +242,59 @@ function normalizeAiChangeType(raw: unknown): AiBalanceChangeType {
   ) {
     return 'REBUILD_REQUIRED';
   }
-  return 'DB_ONLY';
+  if (upper.includes('DB')) {
+    return 'DB_ONLY';
+  }
+  // Per Flow 5 diagram: Unit / Weapon / Trinket = DB Only (CMS); Skill / Logic = Rebuild Required
+  return entityType === 'skill' ? 'REBUILD_REQUIRED' : 'DB_ONLY';
 }
 
-function normalizeAiPriority(raw: unknown): AiBalancePriority {
+function normalizeAiPriority(raw: unknown, winRatePercent?: number): AiBalancePriority {
   const upper = String(raw || '').trim().toUpperCase();
   if (upper === 'HIGH' || upper === 'CRITICAL' || upper === 'P0' || upper === 'P1') return 'HIGH';
   if (upper === 'LOW' || upper === 'P3') return 'LOW';
+  if (upper === 'MEDIUM' || upper === 'P2') return 'MEDIUM';
+
+  if (typeof winRatePercent === 'number') {
+    if (winRatePercent >= 65 || (winRatePercent > 0 && winRatePercent <= 35)) {
+      return 'HIGH';
+    }
+  }
   return 'MEDIUM';
 }
 
-function normalizeAiSuggestion(rawItem: unknown, index: number): AiBalanceSuggestion {
+interface OutlierLookupEntry {
+  pickRate?: number;
+  anomalyType?: string;
+}
+
+function normalizeAiSuggestion(
+  rawItem: unknown,
+  index: number,
+  outlierMap: Map<string, OutlierLookupEntry>
+): AiBalanceSuggestion {
   const item = asRecord(rawItem);
   const entityType = normalizeEntityType(
-    item.entityType ?? item.EntityType ?? item.category ?? item.Category,
+    item.category ?? item.Category ?? item.entityType ?? item.EntityType,
     'unit'
   );
+  const entityId = pickString(item, ['targetId', 'TargetId', 'entityId', 'EntityId', 'id', 'Id']) || undefined;
   const entityName = pickString(
     item,
-    ['entityName', 'EntityName', 'targetName', 'TargetName', 'name', 'Name', 'entityId', 'EntityId'],
+    ['targetName', 'TargetName', 'entityName', 'EntityName', 'name', 'Name', 'targetId', 'TargetId'],
     `Recommendation #${index + 1}`
   );
-  const entityId = pickString(item, ['entityId', 'EntityId', 'targetId', 'TargetId', 'id', 'Id']) || undefined;
-  const rawChanges = item.suggestedChanges ?? item.SuggestedChanges ?? item.recommendation ?? item.Recommendation ?? item.change ?? item.Change;
+
+  const rawChanges =
+    item.recommendedChange ??
+    item.RecommendedChange ??
+    item.suggestedChanges ??
+    item.SuggestedChanges ??
+    item.recommendation ??
+    item.Recommendation ??
+    item.change ??
+    item.Change;
+
   let suggestedChanges = '';
   if (typeof rawChanges === 'string') {
     suggestedChanges = rawChanges.trim();
@@ -240,50 +304,96 @@ function normalizeAiSuggestion(rawItem: unknown, index: number): AiBalanceSugges
       .join(' · ');
   }
 
+  const outlierMatch = entityId ? outlierMap.get(`${entityType}:${entityId}`) : undefined;
+
   const rawWinRate = pickNumber(item, ['currentWinRate', 'CurrentWinRate', 'winRate', 'WinRate']);
   const rawPickRate = pickNumber(item, ['currentPickRate', 'CurrentPickRate', 'pickRate', 'PickRate']);
+  const normalizedWinRate = rawWinRate !== undefined ? normalizePercent(rawWinRate) : undefined;
+  const normalizedPickRate =
+    rawPickRate !== undefined ? normalizePercent(rawPickRate) : outlierMatch?.pickRate;
+
+  const issueDescription =
+    pickString(item, ['issueDescription', 'IssueDescription']) || undefined;
+  const rationale = pickString(
+    item,
+    ['reasoning', 'Reasoning', 'rationale', 'Rationale', 'reason', 'Reason', 'analysis', 'Analysis', 'explanation', 'Explanation'],
+    issueDescription || 'Flagged by AI balance evaluator based on current telemetry distribution.'
+  );
 
   return {
-    id: pickString(item, ['id', 'Id'], `ai-suggestion-${index + 1}`),
+    id: pickString(item, ['id', 'Id'], `ai-suggestion-${entityType}-${entityId ?? index + 1}`),
     entityType,
     entityId,
     entityName,
-    action: normalizeAiAction(item.action ?? item.Action ?? item.direction ?? item.Direction),
+    action: normalizeAiAction(
+      item.action ?? item.Action ?? item.direction ?? item.Direction,
+      normalizedWinRate,
+      outlierMatch?.anomalyType,
+      suggestedChanges
+    ),
     changeType: normalizeAiChangeType(
-      item.changeType ?? item.ChangeType ?? item.requiresRebuild ?? item.RequiresRebuild
+      item.changeType ?? item.ChangeType ?? item.requiresRebuild ?? item.RequiresRebuild,
+      entityType
     ),
-    priority: normalizeAiPriority(item.priority ?? item.Priority ?? item.severity ?? item.Severity),
-    currentWinRate: rawWinRate !== undefined ? normalizePercent(rawWinRate) : undefined,
-    currentPickRate: rawPickRate !== undefined ? normalizePercent(rawPickRate) : undefined,
-    rationale: pickString(
-      item,
-      ['rationale', 'Rationale', 'reason', 'Reason', 'analysis', 'Analysis', 'explanation', 'Explanation'],
-      'Flagged by AI balance evaluator based on current telemetry distribution.'
+    priority: normalizeAiPriority(
+      item.priority ?? item.Priority ?? item.severity ?? item.Severity,
+      normalizedWinRate
     ),
+    currentWinRate: normalizedWinRate,
+    currentPickRate: normalizedPickRate,
+    issueDescription,
+    rationale,
     suggestedChanges: suggestedChanges || 'Review base stat parameters in Content CMS.',
   };
 }
 
-function normalizeAiResponse(raw: unknown, req: AiBalanceSuggestRequest): AiBalanceAnalysisResponse {
+function normalizeAiResponse(raw: unknown, req?: AiBalanceSuggestRequest): AiBalanceAnalysisResponse {
   const root = asRecord(raw);
-  const rawList = (root.suggestions ?? root.Suggestions ?? root.recommendations ?? root.Recommendations ?? root.items ?? root.Items) as unknown;
+  const rawOutliers = (root.outliers ?? root.Outliers) as unknown;
+  const outlierMap = new Map<string, OutlierLookupEntry>();
+  let outliersCount = 0;
+
+  if (Array.isArray(rawOutliers)) {
+    outliersCount = rawOutliers.length;
+    for (const rawOutlier of rawOutliers) {
+      const o = asRecord(rawOutlier);
+      const cat = normalizeEntityType(o.category ?? o.Category, 'unit');
+      const tid = pickString(o, ['targetId', 'TargetId', 'id', 'Id']);
+      if (tid) {
+        const pr = pickNumber(o, ['pickRate', 'PickRate']);
+        outlierMap.set(`${cat}:${tid}`, {
+          pickRate: pr !== undefined ? normalizePercent(pr) : undefined,
+          anomalyType: pickString(o, ['anomalyType', 'AnomalyType']) || undefined,
+        });
+      }
+    }
+  }
+
+  const rawList = (root.recommendations ?? root.Recommendations ?? root.suggestions ?? root.Suggestions ?? root.items ?? root.Items) as unknown;
   const suggestions = Array.isArray(rawList)
-    ? rawList.map((item, idx) => normalizeAiSuggestion(item, idx))
+    ? rawList.map((item, idx) => normalizeAiSuggestion(item, idx, outlierMap))
     : [];
 
+  const totalMatchesAnalyzed = pickNumber(root, ['totalMatchesAnalyzed', 'TotalMatchesAnalyzed']);
+  const createdByUsername = pickString(root, ['createdByUsername', 'CreatedByUsername']) || undefined;
+  const patchVersion = pickString(root, ['patchVersion', 'PatchVersion'], req?.patchVersion || 'latest');
+  const mode = pickString(root, ['mode', 'Mode'], req?.mode || 'ALL');
+
+  const defaultSummary =
+    suggestions.length > 0
+      ? `Analyzed ${totalMatchesAnalyzed ?? 0} match(es) on patch ${patchVersion} — detected ${outliersCount || suggestions.length} outlier(s) and generated ${suggestions.length} recommendation(s).`
+      : `Analyzed ${totalMatchesAnalyzed ?? 0} match(es) on patch ${patchVersion} with no immediate balance anomalies.`;
+
   return {
-    reportId: pickString(root, ['reportId', 'ReportId', 'id', 'Id']) || undefined,
+    reportId: pickString(root, ['id', 'Id', 'reportId', 'ReportId']) || undefined,
     model: pickString(root, ['model', 'Model', 'provider', 'Provider']) || undefined,
-    generatedAt: pickString(root, ['generatedAt', 'GeneratedAt', 'createdAt', 'CreatedAt'], new Date().toISOString()),
-    patchVersion: pickString(root, ['patchVersion', 'PatchVersion'], req.patchVersion || 'ALL'),
-    mode: pickString(root, ['mode', 'Mode'], req.mode || 'ALL'),
-    summary: pickString(
-      root,
-      ['summary', 'Summary', 'overview', 'Overview', 'message', 'Message'],
-      suggestions.length > 0
-        ? `Generated ${suggestions.length} balance recommendation(s) from match telemetry.`
-        : 'AI analysis completed with no immediate balance anomalies.'
-    ),
+    generatedAt: pickString(root, ['createdAt', 'CreatedAt', 'generatedAt', 'GeneratedAt'], new Date().toISOString()),
+    createdByUsername,
+    totalMatchesAnalyzed,
+    outliersCount,
+    patchVersion,
+    mode,
+    summary: pickString(root, ['summary', 'Summary', 'overview', 'Overview', 'message', 'Message'], defaultSummary),
     suggestions,
   };
 }
@@ -345,19 +455,53 @@ export async function fetchBalanceTelemetry(
   }
 }
 
+export async function fetchSavedAiSuggestions(
+  patchVersion?: string
+): Promise<ServiceResult<AiBalanceAnalysisResponse[]>> {
+  try {
+    const params: Record<string, string> = {};
+    if (patchVersion && patchVersion !== 'ALL') {
+      params.patchVersion = patchVersion;
+    }
+    const res = await adminClient.get('/analytics/ai-suggest', { params });
+    const list = Array.isArray(res.data)
+      ? res.data.map((item) => normalizeAiResponse(item))
+      : [];
+    return {
+      data: list,
+      backendConnected: true,
+      statusCode: res.status,
+    };
+  } catch (err) {
+    const parsed = extractAxiosError(err, 'Unable to load saved AI balance suggestions.');
+    return {
+      data: null,
+      backendConnected: false,
+      statusCode: parsed.statusCode,
+      error: parsed.message,
+    };
+  }
+}
+
 export async function requestAiBalanceSuggestions(
   payload: AiBalanceSuggestRequest
 ): Promise<ServiceResult<AiBalanceAnalysisResponse>> {
   try {
-    const body: Record<string, string> = {};
-    if (payload.patchVersion && payload.patchVersion !== 'ALL') {
-      body.patchVersion = payload.patchVersion;
-    }
+    const body: Record<string, unknown> = {
+      patchVersion: payload.patchVersion && payload.patchVersion !== 'ALL' ? payload.patchVersion : '',
+      forceRegenerate: Boolean(payload.forceRegenerate),
+    };
     if (payload.mode && payload.mode !== 'ALL') {
       body.mode = payload.mode;
     }
-    if (payload.focusEntityType && payload.focusEntityType !== 'all') {
-      body.entityType = payload.focusEntityType;
+    if (typeof payload.highWinRateThreshold === 'number') {
+      body.highWinRateThreshold = payload.highWinRateThreshold;
+    }
+    if (typeof payload.lowWinRateThreshold === 'number') {
+      body.lowWinRateThreshold = payload.lowWinRateThreshold;
+    }
+    if (typeof payload.minPickCount === 'number') {
+      body.minPickCount = payload.minPickCount;
     }
 
     const res = await adminClient.post('/analytics/ai-suggest', body);

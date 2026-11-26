@@ -462,6 +462,7 @@ export interface BalanceTelemetryMetric {
   avgHealing?: number;
   survivalRate?: number;
   avgKills?: number;
+  isOutlier?: boolean;
   sampleMatches: number;
 }
 
@@ -491,6 +492,7 @@ export interface AiBalanceSuggestion {
   priority: AiBalancePriority;
   currentWinRate?: number;
   currentPickRate?: number;
+  issueDescription?: string;
   rationale: string;
   suggestedChanges: string;
 }
@@ -499,6 +501,9 @@ export interface AiBalanceAnalysisResponse {
   reportId?: string;
   model?: string;
   generatedAt: string;
+  createdByUsername?: string;
+  totalMatchesAnalyzed?: number;
+  outliersCount?: number;
   patchVersion?: string;
   mode?: string;
   summary: string;

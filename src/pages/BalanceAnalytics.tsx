@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowUpRight,
+  BookOpen,
   Bot,
   CheckCircle2,
+  ChevronRight,
   Database,
   ExternalLink,
   Filter,
@@ -45,6 +47,7 @@ import { recordAuditEvent } from '../services/adminSecurityService';
 import {
   fetchBalanceTelemetry,
   fetchGameVersion,
+  fetchSavedAiSuggestions,
   requestAiBalanceSuggestions,
   updateGameVersion,
 } from '../services/balanceService';
@@ -66,6 +69,7 @@ const WINRATE_HIGH_THRESHOLD = 60;
 const WINRATE_LOW_THRESHOLD = 40;
 
 type BalanceSectionTab = 'telemetry' | 'ai' | 'version';
+type AiScopeFilter = 'ALL' | 'DB_ONLY' | 'REBUILD_REQUIRED';
 type TelemetryRow = BalanceTelemetryMetric & { _rowKey: string } & Record<string, unknown>;
 type BalanceThresholdFilter = 'ALL' | 'IMBALANCED';
 
@@ -98,8 +102,9 @@ function entityTypeToCmsTab(entityType: BalanceEntityType): 'units' | 'weapons' 
 }
 
 function isOutOfBalance(metric: BalanceTelemetryMetric): boolean {
+  if (typeof metric.isOutlier === 'boolean') return metric.isOutlier;
   if (metric.pickCount <= 0) return false;
-  return metric.winRate > WINRATE_HIGH_THRESHOLD || metric.winRate < WINRATE_LOW_THRESHOLD;
+  return metric.winRate >= WINRATE_HIGH_THRESHOLD || metric.winRate <= WINRATE_LOW_THRESHOLD;
 }
 
 function getWinrateBadge(metric: BalanceTelemetryMetric): {
@@ -109,10 +114,10 @@ function getWinrateBadge(metric: BalanceTelemetryMetric): {
   if (metric.pickCount <= 0) {
     return { label: 'NO DATA', variant: 'neutral' };
   }
-  if (metric.winRate > WINRATE_HIGH_THRESHOLD) {
+  if (metric.winRate >= WINRATE_HIGH_THRESHOLD) {
     return { label: 'OVERPOWERED', variant: 'error' };
   }
-  if (metric.winRate < WINRATE_LOW_THRESHOLD) {
+  if (metric.winRate <= WINRATE_LOW_THRESHOLD) {
     return { label: 'UNDERPERFORMING', variant: 'yellow' };
   }
   return { label: 'BALANCED', variant: 'success' };
@@ -171,8 +176,9 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
   const canManageBalance = hasPermission(role, 'balance.manage', permissions);
   const canManageContent = hasPermission(role, 'content.manage', permissions);
 
-  // Top-level workspace section tab
+  // Top-level workspace section tab & guided workflow help
   const [activeSection, setActiveSection] = useState<BalanceSectionTab>('telemetry');
+  const [showWorkflowGuide, setShowWorkflowGuide] = useState<boolean>(false);
 
   // Telemetry state
   const [patchFilter, setPatchFilter] = useState<string>('ALL');
@@ -186,9 +192,12 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
 
   // AI Balance Advisor state
   const [aiFocus, setAiFocus] = useState<BalanceEntityType | 'all'>('all');
+  const [aiScopeFilter, setAiScopeFilter] = useState<AiScopeFilter>('ALL');
+  const [savedAiReports, setSavedAiReports] = useState<AiBalanceAnalysisResponse[]>([]);
   const [aiReport, setAiReport] = useState<AiBalanceAnalysisResponse | null>(null);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [patchKeptNotice, setPatchKeptNotice] = useState<string | null>(null);
 
   // Game Version & Release Panel state
   const [currentVersion, setCurrentVersion] = useState<GameVersionConfig | null>(null);
@@ -272,6 +281,25 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
     };
   }, [applyGameVersionResult]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchSavedAiSuggestions(patchFilter).then((result) => {
+      if (cancelled) return;
+      if (result.backendConnected && result.data) {
+        const sorted = [...result.data].sort(
+          (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
+        );
+        setSavedAiReports(sorted);
+        if (sorted.length > 0) {
+          setAiReport(sorted[0]);
+        }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [patchFilter]);
+
   const handleRefreshAll = async () => {
     setTelemetryLoading(true);
     setVersionLoading(true);
@@ -296,16 +324,21 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
     [navigate]
   );
 
-  const handleAnalyzeWithAi = async () => {
+  const handleAnalyzeWithAi = async (forceRegenerate = false) => {
     setAiLoading(true);
     setAiError(null);
+    setPatchKeptNotice(null);
     const result = await requestAiBalanceSuggestions({
       patchVersion: patchFilter,
       mode: modeFilter,
-      focusEntityType: aiFocus,
+      forceRegenerate,
     });
     if (result.backendConnected && result.data) {
       setAiReport(result.data);
+      setSavedAiReports((prev) => {
+        const filtered = prev.filter((r) => r.reportId !== result.data?.reportId);
+        return [result.data!, ...filtered];
+      });
     } else {
       setAiError(
         result.statusCode === 404
@@ -315,6 +348,54 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
     }
     setAiLoading(false);
   };
+
+  const handleKeepCurrentPatch = () => {
+    const activePatch = aiReport?.patchVersion || currentVersion?.latestVersion || patchFilter;
+    recordAuditEvent({
+      action: 'BALANCE_PATCH_KEPT',
+      category: 'CONTENT',
+      severity: 'LOW',
+      targetType: 'BalancePatch',
+      targetId: activePatch,
+      targetLabel: `Patch ${activePatch} (${modeFilter})`,
+      rationale: 'Admin reviewed Match Telemetry & AI Balance Report and chose No (Keep Current Patch).',
+      afterState: {
+        decision: 'KEEP_CURRENT_PATCH',
+        patchVersion: activePatch,
+        mode: modeFilter,
+        aiReportId: aiReport?.reportId ?? null,
+      },
+      status: 'SUCCESS',
+    });
+    setPatchKeptNotice(
+      `Decision recorded for Patch ${activePatch}: Keep Current Patch (no DB or build changes applied). Logged in Security Audit.`
+    );
+  };
+
+  const aiScopeCounts = useMemo(() => {
+    const list = aiReport?.suggestions ?? [];
+    return {
+      all: list.length,
+      dbOnly: list.filter((item) => item.changeType === 'DB_ONLY').length,
+      rebuild: list.filter((item) => item.changeType === 'REBUILD_REQUIRED').length,
+    };
+  }, [aiReport]);
+
+  const filteredAiSuggestions = useMemo(() => {
+    if (!aiReport) return [];
+    return aiReport.suggestions.filter((item) => {
+      if (aiFocus !== 'all' && item.entityType !== aiFocus) return false;
+      if (aiScopeFilter !== 'ALL' && item.changeType !== aiScopeFilter) return false;
+      return true;
+    });
+  }, [aiReport, aiFocus, aiScopeFilter]);
+
+  const savedReportOptions = useMemo<SelectorOptionData[]>(() => {
+    return savedAiReports.map((r, idx) => ({
+      value: r.reportId || `saved-${idx}`,
+      label: `Patch ${r.patchVersion || 'latest'} · ${formatTimestamp(r.generatedAt)} (${r.suggestions.length})`,
+    }));
+  }, [savedAiReports]);
 
   const handlePublishVersion = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -585,14 +666,26 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       },
       {
         key: 'actions',
-        header: 'CMS',
-        width: pixel(130),
-        renderCell: (row) =>
-          canManageContent ? (
+        header: 'Balance Path',
+        width: pixel(155),
+        renderCell: (row) => {
+          const isSkill = row.entityType === 'skill';
+          if (isSkill) {
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                label="Rebuild Path"
+                icon={<Icon icon={Wrench} />}
+                onClick={() => setActiveSection('version')}
+              />
+            );
+          }
+          return canManageContent ? (
             <Button
               variant="secondary"
               size="sm"
-              label="Edit Stat"
+              label="Edit DB (CMS)"
               icon={<Icon icon={ArrowUpRight} />}
               onClick={() => handleJumpToCms(row.entityType, row.name)}
             />
@@ -600,7 +693,8 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
             <Text size="sm" color="secondary">
               Read-only
             </Text>
-          ),
+          );
+        },
       },
     ],
     [canManageContent, handleJumpToCms]
@@ -627,6 +721,13 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
       subtitle="Inspect match telemetry across Units, Weapons, Trinkets & Skills, consult the AI Balance Advisor for DB hotfixes vs Unity rebuilds, and publish new Game Versions."
       actions={
         <HStack gap={2} vAlign="center" wrap="wrap">
+          <Button
+            variant={showWorkflowGuide ? 'primary' : 'secondary'}
+            size="sm"
+            label={showWorkflowGuide ? 'Hide Guide' : 'How Flow 5 Works'}
+            icon={<Icon icon={BookOpen} />}
+            onClick={() => setShowWorkflowGuide((prev) => !prev)}
+          />
           {canManageContent && (
             <Button
               variant="secondary"
@@ -655,7 +756,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
           >
             <Tab
               value="telemetry"
-              label="Match Telemetry Matrix"
+              label="1. Match Telemetry"
               icon={<Icon icon={Scale} />}
               endContent={
                 totalImbalanced > 0 ? (
@@ -665,19 +766,8 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               panelId="balance-section-telemetry"
             />
             <Tab
-              value="ai"
-              label="AI Balance Advisor"
-              icon={<Icon icon={Bot} />}
-              endContent={
-                aiReport && aiReport.suggestions.length > 0 ? (
-                  <Badge label={`${aiReport.suggestions.length} Tips`} variant="purple" />
-                ) : undefined
-              }
-              panelId="balance-section-ai"
-            />
-            <Tab
               value="version"
-              label="Game Version & Release Panel"
+              label="2. Game Version & Release"
               icon={<Icon icon={Rocket} />}
               endContent={
                 currentVersion?.latestVersion ? (
@@ -686,90 +776,216 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
               }
               panelId="balance-section-version"
             />
+            <Tab
+              value="ai"
+              label="AI Advisor (Optional)"
+              icon={<Icon icon={Bot} />}
+              endContent={
+                aiReport && aiReport.suggestions.length > 0 ? (
+                  <Badge label={`${aiReport.suggestions.length} Tips`} variant="purple" />
+                ) : (
+                  <Badge label="LATER" variant="neutral" />
+                )
+              }
+              panelId="balance-section-ai"
+            />
           </TabList>
         </div>
       }
     >
       <VStack gap={5}>
-        {/* Top KPI Summary Strip */}
+        {/* Optional Expandable Flow 5 Usage Guide */}
+        {showWorkflowGuide && (
+          <Card padding={4}>
+            <VStack gap={3}>
+              <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+                <HStack gap={2} vAlign="center">
+                  <Icon icon={BookOpen} size="sm" />
+                  <Heading level={5}>How to Use Balance Analytics &amp; Releases (Flow 5)</Heading>
+                </HStack>
+                <Badge label="END-TO-END LIVEOPS LOOP" variant="purple" />
+              </HStack>
+              <Grid columns={{ minWidth: 210 }} gap={3}>
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+                  <VStack gap={1}>
+                    <Badge label="STEP 1 · TELEMETRY" variant="neutral" />
+                    <Text size="xsm" weight="semibold">
+                      Review Match Stats Manually
+                    </Text>
+                    <Text size="sm" color="secondary">
+                      Inspect Winrate, Pickrate &amp; Avg Damage from completed PvP/Ranked matches. Outliers (≥60% or ≤40%) are flagged automatically.
+                    </Text>
+                  </VStack>
+                </div>
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+                  <VStack gap={1}>
+                    <Badge label="STEP 2A · DB ONLY" variant="cyan" />
+                    <Text size="xsm" weight="semibold">
+                      Hotfix in Content CMS
+                    </Text>
+                    <Text size="sm" color="secondary">
+                      For Unit / Weapon / Trinket stats, click &quot;Edit DB (CMS)&quot;. Changes apply live in the next match — no Unity rebuild needed.
+                    </Text>
+                  </VStack>
+                </div>
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+                  <VStack gap={1}>
+                    <Badge label="STEP 2B · REBUILD" variant="yellow" />
+                    <Text size="xsm" weight="semibold">
+                      Rebuild &amp; Publish Version
+                    </Text>
+                    <Text size="sm" color="secondary">
+                      For Skill / Logic changes, rebuild Unity Client + Headless Server, deploy to VPS, then publish LatestVersion &amp; DownloadUrl in Tab 2.
+                    </Text>
+                  </VStack>
+                </div>
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+                  <VStack gap={1}>
+                    <Badge label="OPTIONAL · AI" variant="purple" />
+                    <Text size="xsm" weight="semibold">
+                      AI Balance Advisor (Later)
+                    </Text>
+                    <Text size="sm" color="secondary">
+                      Optional tab when you want automated AI nerf/buff suggestions. You can run the full balance cycle manually without it.
+                    </Text>
+                  </VStack>
+                </div>
+              </Grid>
+            </VStack>
+          </Card>
+        )}
+
+        {/* Top KPI Summary Strip (clickable to jump to corresponding step) */}
         <Grid columns={{ minWidth: 220 }} gap={3}>
-          <Card padding={4}>
-            <VStack gap={1.5}>
-              <HStack gap={2} vAlign="center" hAlign="between">
-                <Text size="xsm" color="secondary" weight="medium">
-                  MATCHES SAMPLED
-                </Text>
-                <Icon icon={Swords} size="sm" />
-              </HStack>
-              <Heading level={3}>
-                {telemetry ? telemetry.totalMatches.toLocaleString() : '—'}
-              </Heading>
-              <Text size="sm" color="secondary">
-                Patch: {patchFilter === 'ALL' ? 'All' : patchFilter} · Mode: {modeFilter}
-              </Text>
-            </VStack>
-          </Card>
-
-          <Card padding={4}>
-            <VStack gap={1.5}>
-              <HStack gap={2} vAlign="center" hAlign="between">
-                <Text size="xsm" color="secondary" weight="medium">
-                  IMBALANCE ALERTS
-                </Text>
-                <Icon icon={AlertTriangle} size="sm" />
-              </HStack>
-              <HStack gap={2} vAlign="center">
+          <div
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            onClick={() => {
+              setActiveSection('telemetry');
+              setThresholdFilter('ALL');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                setActiveSection('telemetry');
+                setThresholdFilter('ALL');
+              }
+            }}
+          >
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack gap={2} vAlign="center" hAlign="between">
+                  <Text size="xsm" color="secondary" weight="medium">
+                    MATCHES SAMPLED
+                  </Text>
+                  <Icon icon={Swords} size="sm" />
+                </HStack>
                 <Heading level={3}>
-                  {telemetry ? totalImbalanced : '—'}
+                  {telemetry ? telemetry.totalMatches.toLocaleString() : '—'}
                 </Heading>
-                {telemetry && totalImbalanced > 0 && (
-                  <Badge label="ACTION NEEDED" variant="error" />
-                )}
-              </HStack>
-              <Text size="sm" color="secondary">
-                Threshold: Winrate &gt; {WINRATE_HIGH_THRESHOLD}% or &lt; {WINRATE_LOW_THRESHOLD}%
-              </Text>
-            </VStack>
-          </Card>
-
-          <Card padding={4}>
-            <VStack gap={1.5}>
-              <HStack gap={2} vAlign="center" hAlign="between">
-                <Text size="xsm" color="secondary" weight="medium">
-                  ACTIVE GAME VERSION
+                <Text size="sm" color="secondary">
+                  Patch: {patchFilter === 'ALL' ? 'All' : patchFilter} · Mode: {modeFilter}
                 </Text>
-                <Icon icon={PackageCheck} size="sm" />
-              </HStack>
-              <Heading level={3}>
-                {currentVersion?.latestVersion ? `v${currentVersion.latestVersion}` : '—'}
-              </Heading>
-              <Text size="sm" color="secondary" hasTabularNumbers>
-                Min supported:{' '}
-                {currentVersion?.minSupportedVersion
-                  ? `v${currentVersion.minSupportedVersion}`
-                  : 'Not configured'}
-              </Text>
-            </VStack>
-          </Card>
+              </VStack>
+            </Card>
+          </div>
 
-          <Card padding={4}>
-            <VStack gap={1.5}>
-              <HStack gap={2} vAlign="center" hAlign="between">
-                <Text size="xsm" color="secondary" weight="medium">
-                  AI ADVISOR REPORT
+          <div
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            onClick={() => {
+              setActiveSection('telemetry');
+              if (totalImbalanced > 0) setThresholdFilter('IMBALANCED');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                setActiveSection('telemetry');
+                if (totalImbalanced > 0) setThresholdFilter('IMBALANCED');
+              }
+            }}
+          >
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack gap={2} vAlign="center" hAlign="between">
+                  <Text size="xsm" color="secondary" weight="medium">
+                    IMBALANCE ALERTS
+                  </Text>
+                  <Icon icon={AlertTriangle} size="sm" />
+                </HStack>
+                <HStack gap={2} vAlign="center">
+                  <Heading level={3}>
+                    {telemetry ? totalImbalanced : '—'}
+                  </Heading>
+                  {telemetry && totalImbalanced > 0 && (
+                    <Badge label="ACTION NEEDED" variant="error" />
+                  )}
+                </HStack>
+                <Text size="sm" color="secondary">
+                  Threshold: Winrate ≥ {WINRATE_HIGH_THRESHOLD}% or ≤ {WINRATE_LOW_THRESHOLD}%
                 </Text>
-                <Icon icon={Bot} size="sm" />
-              </HStack>
-              <Heading level={3}>
-                {aiReport ? `${aiReport.suggestions.length} Tips` : 'Ready'}
-              </Heading>
-              <Text size="sm" color="secondary">
-                {aiReport
-                  ? `Generated ${formatTimestamp(aiReport.generatedAt)}`
-                  : 'Open AI Balance Advisor tab'}
-              </Text>
-            </VStack>
-          </Card>
+              </VStack>
+            </Card>
+          </div>
+
+          <div
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            onClick={() => setActiveSection('version')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setActiveSection('version');
+            }}
+          >
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack gap={2} vAlign="center" hAlign="between">
+                  <Text size="xsm" color="secondary" weight="medium">
+                    ACTIVE GAME VERSION
+                  </Text>
+                  <Icon icon={PackageCheck} size="sm" />
+                </HStack>
+                <Heading level={3}>
+                  {currentVersion?.latestVersion ? `v${currentVersion.latestVersion}` : '—'}
+                </Heading>
+                <Text size="sm" color="secondary" hasTabularNumbers>
+                  Min supported:{' '}
+                  {currentVersion?.minSupportedVersion
+                    ? `v${currentVersion.minSupportedVersion}`
+                    : 'Not configured'}
+                </Text>
+              </VStack>
+            </Card>
+          </div>
+
+          <div
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-transform hover:-translate-y-0.5"
+            onClick={() => setActiveSection('ai')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setActiveSection('ai');
+            }}
+          >
+            <Card padding={4}>
+              <VStack gap={1.5}>
+                <HStack gap={2} vAlign="center" hAlign="between">
+                  <Text size="xsm" color="secondary" weight="medium">
+                    AI ADVISOR REPORT
+                  </Text>
+                  <Icon icon={Bot} size="sm" />
+                </HStack>
+                <Heading level={3}>
+                  {aiReport ? `${aiReport.suggestions.length} Tips` : 'Ready'}
+                </Heading>
+                <Text size="sm" color="secondary">
+                  {aiReport
+                    ? `Generated ${formatTimestamp(aiReport.generatedAt)}`
+                    : 'Click to open AI Balance Advisor'}
+                </Text>
+              </VStack>
+            </Card>
+          </div>
         </Grid>
 
         {/* TAB 1: MATCH TELEMETRY MATRIX */}
@@ -781,12 +997,12 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                   <VStack gap={1}>
                     <HStack gap={2} vAlign="center">
                       <Icon icon={Scale} size="sm" />
-                      <Heading level={4}>Match Telemetry Matrix</Heading>
-                      <Badge label="GET /api/analytics/balance" variant="neutral" />
+                      <Heading level={4}>Step 1 · Match Telemetry Matrix</Heading>
+                      <Badge label="LIVE TELEMETRY" variant="neutral" />
                     </HStack>
                     <Text size="xsm" color="secondary">
-                      Aggregated winrate, pickrate, and average combat output per Unit, Weapon, Trinket &amp; Skill.
-                      Entries above {WINRATE_HIGH_THRESHOLD}% or below {WINRATE_LOW_THRESHOLD}% winrate are highlighted.
+                      Aggregated winrate, pickrate, and average damage across Units, Weapons, Trinkets &amp; Skills.
+                      Outliers (≥ {WINRATE_HIGH_THRESHOLD}% or ≤ {WINRATE_LOW_THRESHOLD}% winrate) are highlighted for manual balance review.
                     </Text>
                   </VStack>
 
@@ -803,7 +1019,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                       }}
                       variant="secondary"
                       size="sm"
-                      width={155}
+                      width={175}
                     />
                     <Selector
                       label="Match Mode"
@@ -819,8 +1035,30 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                       size="sm"
                       width={155}
                     />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      label="Keep Current Patch (No)"
+                      icon={<Icon icon={CheckCircle2} />}
+                      onClick={handleKeepCurrentPatch}
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      label="Next: Release Panel"
+                      icon={<Icon icon={ChevronRight} />}
+                      onClick={() => setActiveSection('version')}
+                    />
                   </HStack>
                 </HStack>
+
+                {patchKeptNotice && (
+                  <Banner
+                    status="success"
+                    title="No Balance Adjustment — Patch Kept"
+                    description={patchKeptNotice}
+                  />
+                )}
 
                 {telemetryNotice && (
                   <Banner
@@ -957,11 +1195,10 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                     <HStack gap={2} vAlign="center">
                       <Icon icon={Bot} size="sm" />
                       <Heading level={4}>AI Balance Advisor</Heading>
-                      <Badge label="POST /api/analytics/ai-suggest" variant="purple" />
+                      <Badge label="OPTIONAL · USE LATER" variant="neutral" />
                     </HStack>
                     <Text size="xsm" color="secondary">
-                      Send current match telemetry to AI for stat tuning suggestions. DB-only tweaks jump
-                      straight into Content CMS without rebuilding Unity.
+                      Optional AI helper for automated nerf/buff recommendations. You can perform the full balance workflow manually in Tab 1 (Match Telemetry) and Tab 2 (Game Version &amp; Release).
                     </Text>
                   </VStack>
 
@@ -978,7 +1215,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                       }}
                       variant="secondary"
                       size="sm"
-                      width={155}
+                      width={175}
                     />
                     <Selector
                       label="Match Mode"
@@ -1011,10 +1248,82 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                       label={aiLoading ? 'Analyzing Telemetry...' : 'Analyze with AI'}
                       icon={<Icon icon={Sparkles} />}
                       isLoading={aiLoading}
-                      onClick={() => void handleAnalyzeWithAi()}
+                      onClick={() => void handleAnalyzeWithAi(false)}
                     />
+                    {aiReport && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        label="Force Regenerate"
+                        icon={<Icon icon={RefreshCw} />}
+                        isDisabled={aiLoading}
+                        onClick={() => void handleAnalyzeWithAi(true)}
+                      />
+                    )}
                   </HStack>
                 </HStack>
+
+                {/* Flow 5 Decision Bar: Adjust Balance? -> No (Keep Current Patch) vs Yes -> Rebuild Required? */}
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+                  <HStack gap={3} vAlign="center" hAlign="between" wrap="wrap">
+                    <VStack gap={0.5}>
+                      <Text size="xsm" weight="semibold">
+                        Flow 5 Decision: Adjust Balance?
+                      </Text>
+                      <Text size="sm" color="secondary">
+                        Choose <strong>No (Keep Current Patch)</strong> to close this review cycle, or triage recommendations by <strong>Rebuild Required?</strong>
+                      </Text>
+                    </VStack>
+
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      {savedAiReports.length > 1 && (
+                        <Selector
+                          label="Saved AI Report"
+                          isLabelHidden
+                          options={savedReportOptions}
+                          value={aiReport?.reportId || savedReportOptions[0]?.value || ''}
+                          onChange={(val) => {
+                            const found = savedAiReports.find((r, i) => (r.reportId || `saved-${i}`) === val);
+                            if (found) {
+                              setAiReport(found);
+                              setPatchKeptNotice(null);
+                            }
+                          }}
+                          variant="secondary"
+                          size="sm"
+                          width={240}
+                        />
+                      )}
+
+                      <SegmentedControl
+                        label="Rebuild Required filter"
+                        value={aiScopeFilter}
+                        onChange={(val) => setAiScopeFilter(val as AiScopeFilter)}
+                        size="sm"
+                      >
+                        <SegmentedControlItem value="ALL" label={`All (${aiScopeCounts.all})`} />
+                        <SegmentedControlItem value="DB_ONLY" label={`DB Only (${aiScopeCounts.dbOnly})`} />
+                        <SegmentedControlItem value="REBUILD_REQUIRED" label={`Rebuild (${aiScopeCounts.rebuild})`} />
+                      </SegmentedControl>
+
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        label="Keep Current Patch (No)"
+                        icon={<Icon icon={CheckCircle2} />}
+                        onClick={handleKeepCurrentPatch}
+                      />
+                    </HStack>
+                  </HStack>
+                </div>
+
+                {patchKeptNotice && (
+                  <Banner
+                    status="success"
+                    title="No Balance Adjustment — Patch Kept"
+                    description={patchKeptNotice}
+                  />
+                )}
 
                 {aiError && (
                   <Banner
@@ -1031,19 +1340,29 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                       title={
                         aiReport.model
                           ? `AI Summary (${aiReport.model})`
-                          : 'AI Balance Summary'
+                          : aiReport.createdByUsername
+                            ? `AI Balance Summary · Requested by ${aiReport.createdByUsername}`
+                            : 'AI Balance Summary'
                       }
                       description={aiReport.summary}
                     />
 
-                    {aiReport.suggestions.length === 0 ? (
+                    {filteredAiSuggestions.length === 0 ? (
                       <EmptyState
-                        title="Meta looks balanced"
-                        description="The AI evaluator did not flag any urgent nerfs or buffs for the selected patch and mode."
+                        title={
+                          aiReport.suggestions.length === 0
+                            ? 'Meta looks balanced'
+                            : 'No recommendations match current filter'
+                        }
+                        description={
+                          aiReport.suggestions.length === 0
+                            ? 'The AI evaluator did not flag any urgent nerfs or buffs for the selected patch and mode. You can click "Keep Current Patch (No)" to close this review.'
+                            : 'Switch the category or Rebuild Required filter back to "All" to view all recommendations.'
+                        }
                       />
                     ) : (
                       <VStack gap={3}>
-                        {aiReport.suggestions.map((item) => {
+                        {filteredAiSuggestions.map((item) => {
                           const isRebuild = item.changeType === 'REBUILD_REQUIRED';
                           return (
                             <Card key={item.id} padding={3}>
@@ -1068,7 +1387,11 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                                   </HStack>
 
                                   <Badge
-                                    label={isRebuild ? 'REBUILD REQUIRED' : 'DB ONLY (CMS)'}
+                                    label={
+                                      isRebuild
+                                        ? 'YES · REBUILD REQUIRED (SKILL / LOGIC)'
+                                        : 'NO · DB ONLY (CMS)'
+                                    }
                                     variant={isRebuild ? 'purple' : 'cyan'}
                                     icon={<Icon icon={isRebuild ? Wrench : Database} />}
                                   />
@@ -1090,6 +1413,12 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                                   </HStack>
                                 )}
 
+                                {item.issueDescription && item.issueDescription !== item.rationale && (
+                                  <Text size="xsm" weight="medium">
+                                    Issue: {item.issueDescription}
+                                  </Text>
+                                )}
+
                                 <Text size="xsm" color="secondary">
                                   {item.rationale}
                                 </Text>
@@ -1103,11 +1432,11 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                                 <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
                                   {isRebuild ? (
                                     <Text size="sm" color="secondary">
-                                      Requires Unity client / Headless Server rebuild, then publish a new version in Game Version &amp; Release Panel.
+                                      Flow 5 Branch: Edit Params &amp; Rebuild (Server + Client, Bump Ver) → Deploy &amp; Register in Release Panel.
                                     </Text>
                                   ) : (
                                     <Text size="sm" color="secondary">
-                                      No client rebuild needed — hotfix directly in Content CMS.
+                                      Flow 5 Branch: Update DB Definitions (Unit / Weapon / Trinket) → Live in Next Match (no rebuild).
                                     </Text>
                                   )}
 
@@ -1116,7 +1445,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                                       <Button
                                         variant="secondary"
                                         size="sm"
-                                        label="Open Release Panel"
+                                        label="Deploy & Register Version"
                                         icon={<Icon icon={Rocket} />}
                                         onClick={() => setActiveSection('version')}
                                       />
@@ -1125,7 +1454,7 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                                       <Button
                                         variant={isRebuild ? 'ghost' : 'secondary'}
                                         size="sm"
-                                        label="Edit in Content CMS"
+                                        label="Update DB Definitions (CMS)"
                                         icon={<Icon icon={ArrowUpRight} />}
                                         onClick={() =>
                                           handleJumpToCms(item.entityType, item.entityName)
@@ -1163,8 +1492,8 @@ export const BalanceAnalytics: React.FC<BalanceAnalyticsProps> = ({
                     <VStack gap={1}>
                       <HStack gap={2} vAlign="center">
                         <Icon icon={Rocket} size="sm" />
-                        <Heading level={4}>Game Version &amp; Release Panel</Heading>
-                        <Badge label="PUT /api/admin/game-version" variant="yellow" />
+                        <Heading level={4}>Step 2 · Game Version &amp; Release Panel</Heading>
+                        <Badge label="DEPLOY & REGISTER" variant="yellow" />
                       </HStack>
                       <Text size="xsm" color="secondary">
                         After rebuilding the Unity client and deploying the new Headless Server to VPS,
