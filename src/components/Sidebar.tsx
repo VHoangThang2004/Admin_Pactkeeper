@@ -13,6 +13,7 @@ import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import {
+  Award,
   CreditCard,
   Database,
   LayoutDashboard,
@@ -75,6 +76,13 @@ const NAV_ITEMS: NavItemDef[] = [
     label: 'Balance & Releases',
     icon: Scale,
     permissions: ['balance.view', 'balance.manage'],
+    group: 'liveops',
+  },
+  {
+    path: '/rewards',
+    label: 'Quests & Rewards',
+    icon: Award,
+    permissions: ['rewards.view', 'rewards.manage'],
     group: 'liveops',
   },
   {

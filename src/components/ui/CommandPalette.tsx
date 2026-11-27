@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
+  Award,
   CreditCard,
   Database,
   ExternalLink,
@@ -119,6 +120,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: Scale,
         perms: ['balance.view', 'balance.manage'],
         keywords: 'ai advisor winrate patch version',
+      },
+      {
+        id: 'nav-rewards',
+        path: '/rewards',
+        label: 'Quests & Rewards',
+        description: 'Manage live quests, milestones, reward grants & rule tester',
+        icon: Award,
+        perms: ['rewards.view', 'rewards.manage'],
+        keywords: 'quests rewards milestones achievements rules tester claim',
       },
       {
         id: 'nav-gacha',
