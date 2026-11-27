@@ -34,20 +34,30 @@ import { HStack, VStack } from '@astryxdesign/core/Stack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
+import { ProgressBar } from '@astryxdesign/core/ProgressBar';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Selector, type SelectorOptionData } from '@astryxdesign/core/Selector';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { adminClient } from '../api/adminClient';
 import { recordAuditEvent } from '../services/adminSecurityService';
+import {
+  formatFactValueHuman,
+  getActionDisplayLabel,
+  getFactFieldSchema,
+} from '../constants/rewardSchema';
+import { fetchPlayerActions, fetchRewardRules } from '../services/rewardRuleService';
 import type {
   ChapterConfig,
   ClassDefinition,
   GachaBanner,
   MatchHistoryItem,
   OwnedUnitRecord,
+  PlayerActionLogDto,
   PlayerAdminDetails,
   PlayerProfile,
+  RewardRuleDto,
   StoryProgressRecord,
   TrinketDefinition,
   UnitDefinition,
@@ -71,13 +81,7 @@ interface PlayerInspectorModalProps {
 }
 
 type InspectorTab = 'overview' | 'story' | 'stats' | 'content' | 'pity';
-
-interface RewardRuleSummary {
-  id: string;
-  title?: string;
-  name?: string;
-  targetCount?: number;
-}
+type RewardProgressFilter = 'ALL' | 'READY' | 'IN_PROGRESS' | 'CLAIMED';
 
 export const PlayerInspectorModal: React.FC<PlayerInspectorModalProps> = ({
   player,
@@ -107,7 +111,10 @@ export const PlayerInspectorModal: React.FC<PlayerInspectorModalProps> = ({
   const [trinketDefs, setTrinketDefs] = useState<TrinketDefinition[]>([]);
   const [classDefs, setClassDefs] = useState<ClassDefinition[]>([]);
   const [chapterConfigs, setChapterConfigs] = useState<ChapterConfig[]>([]);
-  const [rewardRules, setRewardRules] = useState<RewardRuleSummary[]>([]);
+  const [rewardRules, setRewardRules] = useState<RewardRuleDto[]>([]);
+  const [rewardFilter, setRewardFilter] = useState<RewardProgressFilter>('ALL');
+  const [playerActions, setPlayerActions] = useState<PlayerActionLogDto[] | null>(null);
+  const [actionActivityFilter, setActionActivityFilter] = useState<string>('ALL');
   const [banners, setBanners] = useState<GachaBanner[]>([]);
   const [fallbackStoryProgress, setFallbackStoryProgress] = useState<StoryProgressRecord[] | null>(
     null,
@@ -248,10 +255,11 @@ export const PlayerInspectorModal: React.FC<PlayerInspectorModalProps> = ({
       adminClient.get('/TrinketDefinition'),
       adminClient.get('/ClassDefinition'),
       adminClient.get('/ChapterConfig'),
-      adminClient.get('/rewardrule/active'),
+      fetchRewardRules(true),
       adminClient.get('/gachabanner'),
       adminClient.get(`/Story/admin/player/${encodeURIComponent(player.playerId)}`),
-    ]).then(([uRes, wRes, tRes, cRes, chRes, rRes, bRes, sRes]) => {
+      fetchPlayerActions(player.playerId, 25),
+    ]).then(([uRes, wRes, tRes, cRes, chRes, rRes, bRes, sRes, aRes]) => {
       if (!active) return;
       if (uRes.status === 'fulfilled' && Array.isArray(uRes.value.data)) {
         setUnitDefs(uRes.value.data);
@@ -270,11 +278,14 @@ export const PlayerInspectorModal: React.FC<PlayerInspectorModalProps> = ({
           [...(chRes.value.data as ChapterConfig[])].sort((a, b) => a.chapterId - b.chapterId),
         );
       }
-      if (rRes.status === 'fulfilled' && Array.isArray(rRes.value.data)) {
-        setRewardRules(rRes.value.data);
+      if (rRes.status === 'fulfilled') {
+        setRewardRules(rRes.value.items);
       }
       if (bRes.status === 'fulfilled' && Array.isArray(bRes.value.data)) {
         setBanners(bRes.value.data);
+      }
+      if (aRes.status === 'fulfilled') {
+        setPlayerActions(aRes.value);
       }
       if (sRes.status === 'fulfilled' && Array.isArray(sRes.value.data)) {
         const list = sRes.value.data as StoryProgressRecord[];
@@ -1306,12 +1317,39 @@ export const PlayerInspectorModal: React.FC<PlayerInspectorModalProps> = ({
                     </VStack>
                   </Card>
 
-                  {/* Quest / Reward Progress */}
+                  {/* Quest & Reward Progress */}
                   <Card variant="muted" padding={3}>
                     <VStack gap={2}>
-                      <Text type="label" size="xsm" color="secondary">
-                        QUEST &amp; REWARD PROGRESS ({rewardProgressList.length})
-                      </Text>
+                      <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
+                        <Text type="label" size="xsm" color="secondary">
+                          QUEST &amp; REWARD PROGRESS ({rewardProgressList.length})
+                        </Text>
+                        {rewardProgressList.length > 0 && (
+                          <SegmentedControl
+                            label="Filter player reward progress"
+                            size="sm"
+                            value={rewardFilter}
+                            onChange={(val) => setRewardFilter(val as RewardProgressFilter)}
+                          >
+                            <SegmentedControlItem
+                              value="ALL"
+                              label={`All (${rewardProgressList.length})`}
+                            />
+                            <SegmentedControlItem
+                              value="READY"
+                              label={`Ready (${rewardProgressList.filter((r) => r.isCompleted && !r.isReceived).length})`}
+                            />
+                            <SegmentedControlItem
+                              value="IN_PROGRESS"
+                              label={`Active (${rewardProgressList.filter((r) => !r.isCompleted).length})`}
+                            />
+                            <SegmentedControlItem
+                              value="CLAIMED"
+                              label={`Claimed (${rewardProgressList.filter((r) => r.isReceived).length})`}
+                            />
+                          </SegmentedControl>
+                        )}
+                      </HStack>
                       {rewardProgressList.length === 0 ? (
                         <Text type="supporting" size="xsm">
                           {detailsEndpointMissing
@@ -1319,44 +1357,190 @@ export const PlayerInspectorModal: React.FC<PlayerInspectorModalProps> = ({
                             : 'No quest/reward progress records yet.'}
                         </Text>
                       ) : (
-                        <VStack gap={1.5}>
-                          {rewardProgressList.map((rp) => {
-                            const rule = rewardRuleMap.get(rp.ruleId);
-                            const label = rp.ruleTitle || rule?.title || rule?.name || rp.ruleId;
-                            return (
-                              <HStack
-                                key={rp.id || rp.ruleId}
-                                justify="between"
-                                vAlign="center"
-                                wrap="wrap"
-                                gap={2}
-                                className="rounded-md border border-[var(--color-border-subtle)] px-2.5 py-1.5"
-                              >
-                                <VStack gap={0}>
-                                  <Text size="sm" weight="medium">
-                                    {label}
-                                  </Text>
-                                  <Text type="code" size="xsm" color="secondary">
-                                    Progress: {rp.currentCount}
-                                    {rp.targetCount ?? rule?.targetCount
-                                      ? ` / ${rp.targetCount ?? rule?.targetCount}`
-                                      : ''}
-                                  </Text>
-                                </VStack>
-                                <HStack gap={1.5}>
-                                  <Badge
-                                    label={rp.isCompleted ? 'Completed' : 'In Progress'}
-                                    variant={rp.isCompleted ? 'success' : 'info'}
-                                  />
-                                  {rp.isReceived && <Badge label="Claimed" variant="yellow" />}
-                                </HStack>
-                              </HStack>
-                            );
-                          })}
+                        <VStack gap={2}>
+                          {rewardProgressList
+                            .filter((rp) => {
+                              if (rewardFilter === 'READY') return rp.isCompleted && !rp.isReceived;
+                              if (rewardFilter === 'IN_PROGRESS') return !rp.isCompleted;
+                              if (rewardFilter === 'CLAIMED') return rp.isReceived;
+                              return true;
+                            })
+                            .map((rp) => {
+                              const rule = rewardRuleMap.get(rp.ruleId);
+                              const label = rule?.title || rp.ruleTitle || rp.ruleId;
+                              const target = Math.max(1, rp.targetCount ?? rule?.targetCount ?? 1);
+                              const pct = Math.min(100, Math.round((rp.currentCount / target) * 100));
+                              const isReadyToClaim = rp.isCompleted && !rp.isReceived;
+
+                              let rewardText = '';
+                              if (rule?.reward) {
+                                if (rule.reward.type === 'Gems') {
+                                  rewardText = `${rule.reward.amount.toLocaleString()} Gems`;
+                                } else if (rule.reward.type === 'Unit') {
+                                  const u = unitMap.get(rule.reward.definitionId);
+                                  rewardText = `Unit: ${u?.unitName || u?.name || `#${rule.reward.definitionId}`}`;
+                                } else if (rule.reward.type === 'Weapon') {
+                                  const w = weaponMap.get(rule.reward.definitionId);
+                                  rewardText = `Weapon: ${w?.name || `#${rule.reward.definitionId}`}`;
+                                } else {
+                                  const t = trinketMap.get(rule.reward.definitionId);
+                                  rewardText = `Trinket: ${t?.name || `#${rule.reward.definitionId}`}`;
+                                }
+                              }
+
+                              return (
+                                <div
+                                  key={rp.id || rp.ruleId}
+                                  className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-background-card)] px-3 py-2"
+                                >
+                                  <VStack gap={1.5}>
+                                    <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                                      <HStack gap={1.5} vAlign="center" wrap="wrap">
+                                        <Text size="sm" weight="medium">
+                                          {label}
+                                        </Text>
+                                        {rule?.actionType && (
+                                          <Badge
+                                            label={getActionDisplayLabel(rule.actionType, true)}
+                                            variant="neutral"
+                                          />
+                                        )}
+                                        {rule && !rule.isActive && (
+                                          <Badge label="Paused" variant="warning" />
+                                        )}
+                                      </HStack>
+                                      <HStack gap={1.5} wrap="wrap">
+                                        {isReadyToClaim ? (
+                                          <Badge label="Ready to Claim" variant="yellow" />
+                                        ) : rp.isReceived ? (
+                                          <Badge label="Claimed" variant="success" />
+                                        ) : (
+                                          <Badge label="In Progress" variant="info" />
+                                        )}
+                                        {rewardText && <Badge label={rewardText} variant="purple" />}
+                                      </HStack>
+                                    </HStack>
+
+                                    <ProgressBar
+                                      label={`Reward progress for ${label}`}
+                                      isLabelHidden
+                                      value={pct}
+                                      max={100}
+                                      variant={
+                                        rp.isReceived
+                                          ? 'success'
+                                          : isReadyToClaim
+                                            ? 'warning'
+                                            : 'accent'
+                                      }
+                                    />
+
+                                    <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                                      <Text type="code" size="xsm" color="secondary">
+                                        Progress: {rp.currentCount} / {target} ({pct}%)
+                                      </Text>
+                                      <Text type="supporting" size="xsm" color="secondary">
+                                        {rp.receivedAt
+                                          ? `Claimed: ${new Date(rp.receivedAt).toLocaleString()}`
+                                          : rp.completedAt
+                                            ? `Completed: ${new Date(rp.completedAt).toLocaleString()}`
+                                            : 'Not completed yet'}
+                                      </Text>
+                                    </HStack>
+                                  </VStack>
+                                </div>
+                              );
+                            })}
                         </VStack>
                       )}
                     </VStack>
                   </Card>
+
+                  {/* Recent Player Activity Log (Quest Tracking History) */}
+                  {playerActions !== null && (
+                    <Card variant="muted" padding={3}>
+                      <VStack gap={2}>
+                        <HStack justify="between" vAlign="center" gap={2} wrap="wrap">
+                          <Text type="label" size="xsm" color="secondary">
+                            RECENT PLAYER ACTIVITY ({playerActions.length})
+                          </Text>
+                          {playerActions.length > 0 && (
+                            <SegmentedControl
+                              label="Filter recent player activity"
+                              size="sm"
+                              value={actionActivityFilter}
+                              onChange={(val) => setActionActivityFilter(String(val || 'ALL'))}
+                            >
+                              <SegmentedControlItem value="ALL" label="All" />
+                              <SegmentedControlItem value="MatchResult" label="Battles" />
+                              <SegmentedControlItem value="StoryProgress" label="Story" />
+                              <SegmentedControlItem value="GachaPull" label="Gacha" />
+                              <SegmentedControlItem value="Purchase" label="Top-Up" />
+                            </SegmentedControl>
+                          )}
+                        </HStack>
+
+                        {playerActions.length === 0 ? (
+                          <Text type="supporting" size="xsm">
+                            No recent activities logged for this player yet.
+                          </Text>
+                        ) : (
+                          <VStack gap={1.5}>
+                            {playerActions
+                              .filter(
+                                (act) =>
+                                  actionActivityFilter === 'ALL' ||
+                                  act.actionType === actionActivityFilter,
+                              )
+                              .slice(0, 15)
+                              .map((act) => {
+                                const chapterNames = new Map(
+                                  chapterConfigs.map((c) => [c.chapterId, c.title]),
+                                );
+                                const detailParts = Object.entries(act.facts || {}).map(
+                                  ([key, value]) => {
+                                    const schema = getFactFieldSchema(act.actionType, key);
+                                    const label = schema?.label || key;
+                                    const formatted = formatFactValueHuman(
+                                      act.actionType,
+                                      key,
+                                      value,
+                                      chapterNames,
+                                    );
+                                    return `${label}: ${formatted}`;
+                                  },
+                                );
+                                return (
+                                  <div
+                                    key={act.id}
+                                    className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-background-card)] px-2.5 py-2"
+                                  >
+                                    <VStack gap={1}>
+                                      <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
+                                        <Badge
+                                          label={getActionDisplayLabel(act.actionType)}
+                                          variant="info"
+                                        />
+                                        <Text type="supporting" size="xsm" color="secondary">
+                                          {act.timestamp
+                                            ? new Date(act.timestamp).toLocaleString()
+                                            : '—'}
+                                        </Text>
+                                      </HStack>
+                                      {detailParts.length > 0 && (
+                                        <Text type="supporting" size="xsm" color="secondary">
+                                          {detailParts.join(' · ')}
+                                        </Text>
+                                      )}
+                                    </VStack>
+                                  </div>
+                                );
+                              })}
+                          </VStack>
+                        )}
+                      </VStack>
+                    </Card>
+                  )}
 
                   {/* Story Battle History */}
                   <Card variant="muted" padding={3}>

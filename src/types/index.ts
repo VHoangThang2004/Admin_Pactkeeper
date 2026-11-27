@@ -344,6 +344,8 @@ export type AdminPermissionKey =
   | 'matches.logs'
   | 'balance.view'
   | 'balance.manage'
+  | 'rewards.view'
+  | 'rewards.manage'
   | 'gacha.manage'
   | 'content.manage'
   | 'payments.view'
@@ -398,6 +400,7 @@ export interface AuditLogEntry {
     | 'PLAYER'
     | 'TREASURY'
     | 'GACHA'
+    | 'REWARD'
     | 'CONTENT'
     | 'PAYMENT'
     | 'SECURITY';
@@ -524,6 +527,69 @@ export interface UpdateGameVersionPayload {
   minSupportedVersion: string;
   downloadUrl: string;
   patchNotes: string;
+}
+
+export type RewardActionType =
+  | 'MatchResult'
+  | 'StoryProgress'
+  | 'GachaPull'
+  | 'Purchase'
+  | 'ShopPurchase'
+  | string;
+
+export type RewardConditionOp = '==' | '!=' | '>' | '>=' | '<' | '<=';
+
+export interface RewardConditionDto {
+  field: string;
+  op: RewardConditionOp | string;
+  value: string;
+}
+
+export interface RewardItemDto {
+  type: GachaRewardType;
+  definitionId: number;
+  classId: number;
+  amount: number;
+}
+
+export interface RewardRuleDto {
+  id: string;
+  actionType: RewardActionType;
+  conditions: RewardConditionDto[];
+  accumulateField: string | null;
+  targetCount: number;
+  reward: RewardItemDto;
+  isActive: boolean;
+  title: string;
+  description: string;
+}
+
+export interface UpsertRewardRulePayload {
+  actionType: RewardActionType;
+  conditions: RewardConditionDto[];
+  accumulateField: string | null;
+  targetCount: number;
+  reward: RewardItemDto;
+  title: string;
+  description: string;
+}
+
+export interface RewardRuleStatsDto {
+  ruleId: string;
+  totalPlayers: number;
+  inProgressCount: number;
+  completedCount: number;
+  readyToClaimCount: number;
+  claimedCount: number;
+}
+
+export interface PlayerActionLogDto {
+  id: string;
+  playerId: string;
+  actionType: RewardActionType;
+  referenceId: string;
+  facts: Record<string, unknown>;
+  timestamp: string;
 }
 
 

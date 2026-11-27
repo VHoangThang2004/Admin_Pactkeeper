@@ -190,6 +190,41 @@ export const PAGE_GUIDES: Record<string, PageGuideDefinition> = {
       },
     ],
   },
+  '/rewards': {
+    heading: 'How Quests & Rewards Work',
+    tag: 'LIVEOPS · QUESTS',
+    tagVariant: 'purple',
+    steps: [
+      {
+        badge: 'STEP 1 · ACTIVITY',
+        badgeVariant: 'neutral',
+        title: 'Choose Player Activity',
+        description:
+          'Link each quest to a live game activity: PvP/Ranked matches, Story chapters, Gacha summons, Top-Ups, or In-Game Shop purchases.',
+      },
+      {
+        badge: 'STEP 2 · GOAL',
+        badgeVariant: 'purple',
+        title: 'Set Requirements & Goal',
+        description:
+          'Add optional criteria (e.g. Match Outcome is Victory, Surviving Heroes at least 3) and choose how many times or total units players must reach.',
+      },
+      {
+        badge: 'STEP 3 · TEST',
+        badgeVariant: 'cyan',
+        title: 'Preview in Rule Tester',
+        description:
+          'Use the Rule Tester tab with quick scenarios to confirm your quest triggers and calculates progress as expected before promoting it.',
+      },
+      {
+        badge: 'STEP 4 · CLAIM',
+        badgeVariant: 'success',
+        title: 'Players Claim Rewards',
+        description:
+          'When players reach the target goal, the quest is marked Ready to Claim. Gems, Heroes, Weapons, or Trinkets are granted upon claim.',
+      },
+    ],
+  },
   '/gacha': {
     heading: 'How Gacha & Banners Works',
     tag: 'LIVEOPS ECONOMY',
