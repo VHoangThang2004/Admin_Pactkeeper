@@ -100,6 +100,13 @@ export const PERMISSION_CATALOG: PermissionDescriptor[] = [
     risk: 'HIGH',
   },
   {
+    key: 'shops.manage',
+    label: 'Manage In-Game Gem Shops',
+    group: 'Gacha & Content CMS',
+    description: 'Create, schedule, edit items, open/pause, and delete in-game Gem shops and event storefronts.',
+    risk: 'HIGH',
+  },
+  {
     key: 'gacha.manage',
     label: 'Orchestrate Gacha Banners',
     group: 'Gacha & Content CMS',
@@ -248,6 +255,7 @@ const LANDING_ROUTE_ORDER: Array<{ path: string; permissions: AdminPermissionKey
   { path: '/matches', permissions: ['matches.view'] },
   { path: '/balance', permissions: ['balance.view', 'balance.manage'] },
   { path: '/rewards', permissions: ['rewards.view', 'rewards.manage'] },
+  { path: '/shops', permissions: ['shops.manage'] },
   { path: '/support', permissions: ['support.chat'] },
   { path: '/gacha', permissions: ['gacha.manage'] },
   { path: '/content', permissions: ['content.manage'] },

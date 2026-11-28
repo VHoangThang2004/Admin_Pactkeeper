@@ -346,6 +346,7 @@ export type AdminPermissionKey =
   | 'balance.manage'
   | 'rewards.view'
   | 'rewards.manage'
+  | 'shops.manage'
   | 'gacha.manage'
   | 'content.manage'
   | 'payments.view'
@@ -401,6 +402,7 @@ export interface AuditLogEntry {
     | 'TREASURY'
     | 'GACHA'
     | 'REWARD'
+    | 'SHOP'
     | 'CONTENT'
     | 'PAYMENT'
     | 'SECURITY';
@@ -590,6 +592,43 @@ export interface PlayerActionLogDto {
   referenceId: string;
   facts: Record<string, unknown>;
   timestamp: string;
+}
+
+export type ShopResetPeriod = 'Lifetime' | 'Daily' | 'Weekly';
+
+export interface ShopItemDto {
+  id: string;
+  reward: RewardItemDto;
+  rewardTier: 1 | 2 | 3;
+  price: number;
+  purchaseLimit: number | null;
+}
+
+export interface ShopDto {
+  id: string;
+  name: string;
+  description: string;
+  displayOrder: number;
+  items: ShopItemDto[];
+  resetPeriod: ShopResetPeriod;
+  isActive: boolean;
+  startDate: string | null;
+  expiryDate: string | null;
+  dailyStartTime: string | null;
+  dailyEndTime: string | null;
+  createdAt: string;
+}
+
+export interface UpsertShopPayload {
+  name: string;
+  description: string;
+  displayOrder: number;
+  items: ShopItemDto[];
+  resetPeriod: ShopResetPeriod;
+  startDate: string | null;
+  expiryDate: string | null;
+  dailyStartTime: string | null;
+  dailyEndTime: string | null;
 }
 
 

@@ -16,6 +16,7 @@ import {
   Search,
   ShieldAlert,
   Sparkles,
+  Store,
   Sun,
   Swords,
   Users,
@@ -129,6 +130,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: Award,
         perms: ['rewards.view', 'rewards.manage'],
         keywords: 'quests rewards milestones achievements rules tester claim',
+      },
+      {
+        id: 'nav-shops',
+        path: '/shops',
+        label: 'In-Game Shops',
+        description: 'Manage Gem storefronts, event shops, daily hours & item purchase limits',
+        icon: Store,
+        perms: ['shops.manage'],
+        keywords: 'shop store event gem catalog items daily weekly limit',
       },
       {
         id: 'nav-gacha',

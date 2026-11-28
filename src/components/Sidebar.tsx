@@ -22,6 +22,7 @@ import {
   Scale,
   ShieldAlert,
   Sparkles,
+  Store,
   Swords,
   Users,
 } from 'lucide-react';
@@ -83,6 +84,13 @@ const NAV_ITEMS: NavItemDef[] = [
     label: 'Quests & Rewards',
     icon: Award,
     permissions: ['rewards.view', 'rewards.manage'],
+    group: 'liveops',
+  },
+  {
+    path: '/shops',
+    label: 'In-Game Shops',
+    icon: Store,
+    permissions: ['shops.manage'],
     group: 'liveops',
   },
   {
