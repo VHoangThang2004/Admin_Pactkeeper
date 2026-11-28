@@ -114,6 +114,7 @@ const AUDIT_CATEGORY_OPTIONS: SelectorOptionData[] = [
   { value: 'TREASURY', label: 'Treasury' },
   { value: 'GACHA', label: 'Gacha' },
   { value: 'REWARD', label: 'Rewards & Quests' },
+  { value: 'SHOP', label: 'In-Game Shops' },
   { value: 'CONTENT', label: 'SRPG Content' },
   { value: 'PAYMENT', label: 'Payments' },
   { value: 'SECURITY', label: 'Security' },

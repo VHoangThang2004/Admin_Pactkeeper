@@ -225,6 +225,41 @@ export const PAGE_GUIDES: Record<string, PageGuideDefinition> = {
       },
     ],
   },
+  '/shops': {
+    heading: 'How In-Game Shops Work',
+    tag: 'LIVEOPS · GEM STORE',
+    tagVariant: 'cyan',
+    steps: [
+      {
+        badge: 'STEP 1 · STOREFRONT',
+        badgeVariant: 'neutral',
+        title: 'Create Permanent or Event Shops',
+        description:
+          'Configure shop name, display order, and optional campaign start/end dates or daily UTC open hours (even overnight windows).',
+      },
+      {
+        badge: 'STEP 2 · CATALOG',
+        badgeVariant: 'purple',
+        title: 'Stock Heroes, Gear & Gems',
+        description:
+          'Add Units (with Starting Class), Weapons, Trinkets, or Gem packs priced in Gems. Set each item as Unlimited or capped per reset cycle.',
+      },
+      {
+        badge: 'STEP 3 · RESET CYCLE',
+        badgeVariant: 'yellow',
+        title: 'Control Purchase Limits',
+        description:
+          'Choose Lifetime, Daily (00:00 UTC), or Weekly (Monday UTC) quota resets. Editing an existing shop preserves players’ purchase counters.',
+      },
+      {
+        badge: 'STEP 4 · PUBLISH',
+        badgeVariant: 'success',
+        title: 'Open or Pause Safely',
+        description:
+          'New shops can be saved as Paused drafts or opened immediately. Duplicate hero/gear purchases automatically grant compensation Gems.',
+      },
+    ],
+  },
   '/gacha': {
     heading: 'How Gacha & Banners Works',
     tag: 'LIVEOPS ECONOMY',
